@@ -9,7 +9,10 @@ import { ContactsScreen } from './screens/ContactsScreen';
 import { PTTIntercomScreen } from './screens/PTTIntercomScreen';
 import { FileShareScreen } from './screens/FileShareScreen';
 import { TacticalMapScreen } from './screens/TacticalMapScreen';
+import { ConnectedPeersScreen } from './screens/ConnectedPeersScreen';
+import { IncomingCallModal } from './components/IncomingCallModal';
 import { PeerNode } from './types/protocol';
+import { darkTheme, lightTheme } from './types/theme';
 
 type CurrentScreen =
   | { name: 'HOME' }
@@ -20,14 +23,60 @@ type CurrentScreen =
   | { name: 'CONTACTS' }
   | { name: 'PTT' }
   | { name: 'FILE_SHARE' }
-  | { name: 'TACTICAL_MAP' };
+  | { name: 'TACTICAL_MAP' }
+  | { name: 'CONNECTED_PEERS' };
 
 export default function App() {
+  const [isDarkMode, setIsDarkMode] = useState(true);
   const [currentScreen, setCurrentScreen] = useState<CurrentScreen>({ name: 'HOME' });
+  const [incomingCaller, setIncomingCaller] = useState<PeerNode | null>(null);
+
+  const theme = isDarkMode ? darkTheme : lightTheme;
+
+  const toggleTheme = () => {
+    setIsDarkMode((prev) => !prev);
+  };
+
+  const simulateIncomingCall = () => {
+    setIncomingCaller({
+      id: '0x7F4A21B9',
+      nickname: 'Sarah-iPhone',
+      rssi: -54,
+      batteryPercent: 92,
+      hopCount: 1,
+      transport: 'BLE_L2CAP',
+      isPaired: true,
+      lastSeenMs: Date.now(),
+    });
+  };
+
+  const handleAcceptIncomingCall = () => {
+    if (incomingCaller) {
+      const caller = incomingCaller;
+      setIncomingCaller(null);
+      setCurrentScreen({ name: 'CALL', peer: caller });
+    }
+  };
+
+  const handleDeclineIncomingCall = () => {
+    setIncomingCaller(null);
+  };
 
   return (
     <>
-      <StatusBar barStyle="light-content" backgroundColor="#090D16" />
+      <StatusBar
+        barStyle={theme.statusBar}
+        backgroundColor={theme.bg}
+      />
+
+      {/* Global Incoming Call Receiving Modal */}
+      <IncomingCallModal
+        visible={incomingCaller !== null}
+        caller={incomingCaller}
+        onAccept={handleAcceptIncomingCall}
+        onDecline={handleDeclineIncomingCall}
+        theme={theme}
+      />
 
       {currentScreen.name === 'HOME' && (
         <HomeScreen
@@ -39,6 +88,20 @@ export default function App() {
           onOpenPTT={() => setCurrentScreen({ name: 'PTT' })}
           onOpenFileShare={() => setCurrentScreen({ name: 'FILE_SHARE' })}
           onOpenTacticalMap={() => setCurrentScreen({ name: 'TACTICAL_MAP' })}
+          onOpenConnectedPeers={() => setCurrentScreen({ name: 'CONNECTED_PEERS' })}
+          onSimulateIncomingCall={simulateIncomingCall}
+          isDarkMode={isDarkMode}
+          onToggleTheme={toggleTheme}
+          theme={theme}
+        />
+      )}
+
+      {currentScreen.name === 'CONNECTED_PEERS' && (
+        <ConnectedPeersScreen
+          onBack={() => setCurrentScreen({ name: 'HOME' })}
+          onCallPeer={(peer) => setCurrentScreen({ name: 'CALL', peer })}
+          onChatPeer={(peer) => setCurrentScreen({ name: 'CHAT', peer })}
+          theme={theme}
         />
       )}
 

@@ -6,32 +6,55 @@
   <title>Offline Mesh Voice Calling & Communication Platform</title>
   <style>
     :root {
+      --bg-body: #020617;
       --bg-dark: #090D16;
       --card-bg: #1E293B;
       --card-border: #334155;
+      --card-highlight: #082538;
       --accent-blue: #38BDF8;
       --accent-cyan: #06B6D4;
-      --accent-green: #10B981;
-      --accent-red: #EF4444;
+      --accent-emerald: #10B981;
+      --accent-rose: #F43F5E;
       --accent-purple: #8B5CF6;
       --text-main: #F8FAFC;
       --text-sub: #94A3B8;
+      --text-muted: #64748B;
+      --phone-border: #1E293B;
       --font-mono: 'SF Mono', Consolas, Monaco, monospace;
     }
+
+    body.light-mode {
+      --bg-body: #E2E8F0;
+      --bg-dark: #F8FAFC;
+      --card-bg: #FFFFFF;
+      --card-border: #CBD5E1;
+      --card-highlight: #E0F2FE;
+      --accent-blue: #0284C7;
+      --accent-cyan: #0891B2;
+      --accent-emerald: #059669;
+      --accent-rose: #E11D48;
+      --accent-purple: #7C3AED;
+      --text-main: #0F172A;
+      --text-sub: #475569;
+      --text-muted: #94A3B8;
+      --phone-border: #94A3B8;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    body { background: #020617; color: var(--text-main); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; gap: 30px; }
+    body { background: var(--bg-body); color: var(--text-main); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; gap: 30px; transition: background 0.3s, color 0.3s; }
     
     .phone-container {
       width: 410px;
-      height: 860px;
+      height: 870px;
       background: var(--bg-dark);
       border-radius: 44px;
-      border: 10px solid #1E293B;
-      box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 25px rgba(6, 182, 212, 0.25);
+      border: 10px solid var(--phone-border);
+      box-shadow: 0 25px 60px rgba(0,0,0,0.4), 0 0 25px rgba(6, 182, 212, 0.2);
       display: flex;
       flex-direction: column;
       overflow: hidden;
       position: relative;
+      transition: background 0.3s, border-color 0.3s;
     }
 
     /* Notch & Status Bar */
@@ -43,9 +66,9 @@
       align-items: center;
       font-size: 13px;
       font-weight: 600;
-      color: #94A3B8;
+      color: var(--text-sub);
       background: var(--bg-dark);
-      border-bottom: 1px solid #131E31;
+      border-bottom: 1px solid var(--card-border);
     }
     .status-icons { display: flex; gap: 8px; align-items: center; font-size: 11px; }
     .status-badge-offline { background: #064E3B; color: #34D399; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
@@ -57,75 +80,106 @@
     /* Header */
     .screen-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .screen-title { font-size: 20px; font-weight: 800; letter-spacing: 0.5px; }
-    .btn-diag { background: #1E293B; color: #38BDF8; font-size: 11px; font-weight: 700; border: 1px solid #334155; padding: 6px 10px; border-radius: 8px; cursor: pointer; }
+    .header-actions { display: flex; gap: 6px; align-items: center; }
+    .btn-icon { width: 34px; height: 34px; border-radius: 10px; background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-main); font-size: 14px; cursor: pointer; display: flex; justify-content: center; align-items: center; }
+    .btn-diag { background: var(--card-bg); color: var(--accent-blue); font-size: 11px; font-weight: 700; border: 1px solid var(--card-border); padding: 6px 10px; border-radius: 8px; cursor: pointer; }
+
+    /* Connected Users Banner */
+    .connected-banner {
+      display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 14px; padding: 12px; margin-bottom: 12px; cursor: pointer; transition: transform 0.1s;
+    }
+    .connected-banner:hover { border-color: var(--accent-cyan); }
+    .connected-left { display: flex; align-items: center; gap: 10px; }
+    .pulse-dot { width: 10px; height: 10px; border-radius: 5px; background: var(--accent-emerald); box-shadow: 0 0 10px var(--accent-emerald); }
 
     /* Feature Grid */
     .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
     .feature-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; cursor: pointer; transition: transform 0.1s, border-color 0.2s; }
     .feature-card:hover { transform: translateY(-2px); border-color: var(--accent-cyan); }
-    .feature-card:active { transform: scale(0.98); }
-    .card-ptt { background: #082538; border-color: #06B6D4; }
-    .card-radar { background: #063327; border-color: #10B981; }
-    .card-file { background: #1E1B4B; border-color: #6366F1; }
-    .card-sos { background: #3B0712; border-color: #991B1B; }
+    .card-ptt { border-color: var(--accent-cyan); }
+    .card-radar { border-color: var(--accent-emerald); }
+    .card-file { border-color: var(--accent-purple); }
+    .card-sos { border-color: var(--accent-rose); }
     .feature-icon { font-size: 20px; margin-bottom: 4px; }
-    .feature-title { font-size: 12px; font-weight: 800; color: #FFF; }
+    .feature-title { font-size: 12px; font-weight: 800; color: var(--text-main); }
     .feature-sub { font-size: 10px; color: var(--text-sub); margin-top: 2px; }
 
     /* Cards & Components */
     .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
     .range-banner { border-left: 4px solid var(--accent-blue); }
     .range-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; }
-    .range-bar-bg { height: 6px; background: #0F172A; border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
-    .range-bar-fill { width: 85%; height: 100%; background: var(--accent-blue); transition: width 0.3s; }
+    .range-bar-bg { height: 6px; background: rgba(0,0,0,0.15); border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+    .range-bar-fill { width: 85%; height: 100%; background: var(--accent-blue); }
     .disclaimer { font-size: 11px; color: var(--text-sub); line-height: 15px; }
 
-    /* Peer List */
-    .peer-card { display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px; margin-bottom: 8px; }
+    /* Peer Cards */
+    .peer-card { display: flex; flex-direction: column; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
+    .peer-card-top { display: flex; justify-content: space-between; align-items: center; }
     .peer-info { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-    .peer-name { font-size: 14px; font-weight: 700; }
-    .peer-signal { font-size: 11px; color: var(--accent-green); margin-top: 2px; }
+    .peer-name { font-size: 14px; font-weight: 700; color: var(--text-main); }
+    .peer-meta { font-size: 11px; color: var(--text-sub); margin-top: 2px; }
     .btn-group { display: flex; gap: 6px; }
     .btn-sm { padding: 6px 12px; border-radius: 8px; border: none; font-size: 11px; font-weight: 700; cursor: pointer; color: #FFF; }
-    .btn-call { background: #059669; }
-    .btn-chat { background: #2563EB; }
+    .btn-call { background: var(--accent-emerald); }
+    .btn-chat { background: var(--accent-blue); }
+
+    .signal-track { height: 5px; background: rgba(0,0,0,0.15); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+    .signal-fill { height: 100%; background: var(--accent-emerald); }
 
     /* PTT Screen */
     .ptt-box { display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 30px 0; }
     .ptt-btn {
-      width: 170px; height: 170px; border-radius: 85px; background: #0F172A; border: 4px solid #06B6D4;
+      width: 170px; height: 170px; border-radius: 85px; background: var(--card-bg); border: 4px solid var(--accent-cyan);
       display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer;
-      box-shadow: 0 0 25px rgba(6, 182, 212, 0.3); transition: all 0.15s;
+      box-shadow: 0 0 25px rgba(6, 182, 212, 0.3); transition: all 0.15s; user-select: none;
     }
     .ptt-btn.active { background: #E11D48; border-color: #FFE4E6; box-shadow: 0 0 35px rgba(225, 29, 72, 0.6); }
     .wave-bars { display: flex; gap: 5px; height: 40px; align-items: center; justify-content: center; margin: 15px 0; }
-    .w-bar { width: 4px; height: 8px; background: #334155; border-radius: 2px; transition: height 0.1s; }
+    .w-bar { width: 4px; height: 8px; background: var(--card-border); border-radius: 2px; transition: height 0.1s; }
 
     /* Radar Screen */
-    .radar-canvas-box { width: 260px; height: 260px; border-radius: 130px; border: 2px solid #06B6D4; margin: 15px auto; position: relative; background: #0B1322; display: flex; align-items: center; justify-content: center; }
-    .radar-circle-mid { width: 170px; height: 170px; border-radius: 85px; border: 1px solid #1E293B; display: flex; align-items: center; justify-content: center; }
-    .radar-circle-in { width: 90px; height: 90px; border-radius: 45px; border: 1px solid #1E293B; display: flex; align-items: center; justify-content: center; }
-    .radar-dot-center { width: 8px; height: 8px; border-radius: 4px; background: #10B981; }
-    .radar-blip { position: absolute; width: 14px; height: 14px; border-radius: 7px; background: #06B6D4; border: 2px solid #FFF; cursor: pointer; }
+    .radar-canvas-box { width: 260px; height: 260px; border-radius: 130px; border: 2px solid var(--accent-cyan); margin: 15px auto; position: relative; background: rgba(6, 182, 212, 0.05); display: flex; align-items: center; justify-content: center; }
+    .radar-circle-mid { width: 170px; height: 170px; border-radius: 85px; border: 1px solid var(--card-border); display: flex; align-items: center; justify-content: center; }
+    .radar-circle-in { width: 90px; height: 90px; border-radius: 45px; border: 1px solid var(--card-border); display: flex; align-items: center; justify-content: center; }
+    .radar-dot-center { width: 8px; height: 8px; border-radius: 4px; background: var(--accent-emerald); }
+    .radar-blip { position: absolute; width: 14px; height: 14px; border-radius: 7px; background: var(--accent-cyan); border: 2px solid #FFF; cursor: pointer; }
 
-    /* File Transfer */
-    .file-item { background: #131D2E; border: 1px solid #1E293B; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
-    .progress-bar-bg { height: 6px; background: #1E293B; border-radius: 3px; overflow: hidden; margin-top: 8px; }
-    .progress-bar-fill { height: 100%; background: #06B6D4; transition: width 0.2s; }
+    /* Incoming Call Modal Overlay */
+    .incoming-modal-overlay {
+      position: absolute; inset: 0; background: rgba(0, 0, 0, 0.85); display: none; justify-content: center; align-items: center; padding: 24px; z-index: 200;
+    }
+    .incoming-modal-overlay.active { display: flex; }
+    .incoming-card {
+      width: 100%; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 28px; padding: 24px; text-align: center;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+    }
+    .pulse-ring-call {
+      width: 80px; height: 80px; border-radius: 40px; background: var(--accent-emerald); margin: 0 auto 16px; display: flex; justify-content: center; align-items: center;
+      font-size: 28px; font-weight: 900; color: #FFF; animation: pulseRing 1.2s infinite ease-out;
+    }
+    @keyframes pulseRing {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      70% { box-shadow: 0 0 0 20px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    .btn-incoming-row { display: flex; gap: 14px; margin-top: 24px; }
+    .btn-decline { flex: 1; height: 54px; border-radius: 16px; background: #DC2626; color: #FFF; font-weight: 800; border: none; cursor: pointer; font-size: 14px; }
+    .btn-accept { flex: 1; height: 54px; border-radius: 16px; background: #059669; color: #FFF; font-weight: 800; border: none; cursor: pointer; font-size: 14px; }
 
     /* Simulator Panel */
     .sim-panel {
       width: 360px;
-      background: #0F172A;
-      border: 1px solid #1E293B;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
       border-radius: 20px;
       padding: 20px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
     }
-    .sim-title { font-size: 14px; font-weight: 800; color: #38BDF8; margin-bottom: 14px; display: flex; justify-content: space-between; }
+    .sim-title { font-size: 14px; font-weight: 800; color: var(--accent-blue); margin-bottom: 14px; display: flex; justify-content: space-between; }
     .sim-group { margin-bottom: 14px; }
     .sim-label { font-size: 11px; color: var(--text-sub); margin-bottom: 6px; display: flex; justify-content: space-between; }
-    .sim-slider { width: 100%; accent-color: #38BDF8; }
+    .sim-slider { width: 100%; accent-color: var(--accent-blue); }
   </style>
 </head>
 <body>
@@ -134,11 +188,11 @@
   <div class="phone-container">
     <!-- Status Bar -->
     <div class="status-bar">
-      <span>19:20</span>
+      <span>19:35</span>
       <div class="status-icons">
         <span class="status-badge-offline">OFFLINE MESH</span>
         <span>BLE L2CAP</span>
-        <span>🔋 94%</span>
+        <span>🔋 92%</span>
       </div>
     </div>
 
@@ -147,9 +201,24 @@
       <div class="screen-header">
         <div>
           <div class="screen-title">OFFLINE MESH</div>
-          <div style="font-size: 11px; color: #10B981; font-weight: 600;">● Radios Active • BLE L2CAP &amp; Wi-Fi Direct</div>
+          <div style="font-size: 11px; color: var(--accent-emerald); font-weight: 600;">● Radios Active • BLE L2CAP &amp; Wi-Fi Direct</div>
         </div>
-        <button class="btn-diag" onclick="showScreen('diagnostics')">⚙️ DEV STATS</button>
+        <div class="header-actions">
+          <button class="btn-icon" onclick="toggleTheme()" title="Toggle Dark/Light Theme">☀️</button>
+          <button class="btn-diag" onclick="showScreen('diagnostics')">⚙️ STATS</button>
+        </div>
+      </div>
+
+      <!-- Connected Users Live Banner -->
+      <div class="connected-banner" onclick="showScreen('connected-peers')">
+        <div class="connected-left">
+          <div class="pulse-dot"></div>
+          <div>
+            <div style="font-size: 13px; font-weight: bold; color: var(--text-main);">4 Connected Mesh Users</div>
+            <div style="font-size: 10px; color: var(--text-sub);">Tap to inspect live peer routes &amp; signal</div>
+          </div>
+        </div>
+        <div style="font-size: 12px; font-weight: bold; color: var(--accent-cyan);">View →</div>
       </div>
 
       <!-- Quick Feature Cards -->
@@ -179,72 +248,148 @@
       <!-- Wireless Range Banner -->
       <div class="card range-banner">
         <div class="range-row">
-          <span style="color: #94A3B8; font-weight: 600;">Direct Wireless Range</span>
-          <span style="color: #38BDF8; font-weight: 700;">~25m Direct / Mesh Relay</span>
+          <span style="color: var(--text-sub); font-weight: 600;">Direct Wireless Range</span>
+          <span style="color: var(--accent-blue); font-weight: 700;">~25m Direct / Mesh Relay</span>
         </div>
         <div class="range-bar-bg">
           <div class="range-bar-fill"></div>
         </div>
-        <div class="disclaimer">Zero cellular or internet required. Multi-hop packet propagation across reachable peers.</div>
+        <div class="disclaimer">Zero internet or cell tower required. Multi-hop peer-to-peer packet transmission.</div>
       </div>
 
-      <div style="font-size: 11px; font-weight: 800; color: #94A3B8; margin-bottom: 8px;">NEARBY DISCOVERED PEERS (3)</div>
+      <!-- Receive Call Feature Simulation Button -->
+      <div class="card" style="border: 1.5px solid var(--accent-emerald); display: flex; align-items: center; justify-content: space-between; cursor: pointer;" onclick="triggerIncomingCallDemo('Sarah-iPhone', 'Direct (BLE L2CAP)', -54)">
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <span style="font-size: 22px;">📲</span>
+          <div>
+            <div style="font-size: 13px; font-weight: bold; color: var(--text-main);">Receive Call (Incoming Demo)</div>
+            <div style="font-size: 10px; color: var(--text-sub);">Simulate incoming P2P voice call</div>
+          </div>
+        </div>
+        <div style="background: var(--accent-emerald); color: #FFF; font-size: 10px; font-weight: 900; padding: 4px 8px; border-radius: 6px;">TRIGGER</div>
+      </div>
+
+      <div style="font-size: 11px; font-weight: 800; color: var(--text-sub); margin: 8px 0;">NEARBY DISCOVERED PEERS (3)</div>
       
       <div class="peer-card">
-        <div class="peer-info" onclick="startCall('Sarah-iPhone', 'Direct (BLE L2CAP)', 38)">
-          <span style="font-size: 14px;">🟢</span>
-          <div>
-            <div class="peer-name">Sarah-iPhone</div>
-            <div class="peer-signal">Direct (BLE L2CAP) • -58 dBm</div>
+        <div class="peer-card-top">
+          <div class="peer-info" onclick="startCall('Sarah-iPhone', 'Direct (BLE L2CAP)', 38)">
+            <span style="font-size: 14px;">🟢</span>
+            <div>
+              <div class="peer-name">Sarah-iPhone</div>
+              <div class="peer-meta">Direct (BLE L2CAP) • -54 dBm • 🔋 92%</div>
+            </div>
+          </div>
+          <div class="btn-group">
+            <button class="btn-sm btn-call" onclick="startCall('Sarah-iPhone', 'Direct (BLE L2CAP)', 38)">📞 Call</button>
+            <button class="btn-sm btn-chat" onclick="openChat('Sarah-iPhone')">💬</button>
           </div>
         </div>
-        <div class="btn-group">
-          <button class="btn-sm btn-call" onclick="startCall('Sarah-iPhone', 'Direct (BLE L2CAP)', 38)">📞 Call</button>
-          <button class="btn-sm btn-chat" onclick="openChat('Sarah-iPhone')">💬</button>
+        <div class="signal-track"><div class="signal-fill" style="width: 88%;"></div></div>
+      </div>
+
+      <div class="peer-card">
+        <div class="peer-card-top">
+          <div class="peer-info" onclick="startCall('David-Pixel', 'Direct (Wi-Fi P2P)', 22)">
+            <span style="font-size: 14px;">🔵</span>
+            <div>
+              <div class="peer-name">David-Pixel</div>
+              <div class="peer-meta">Direct (Wi-Fi P2P) • -66 dBm • 🔋 78%</div>
+            </div>
+          </div>
+          <div class="btn-group">
+            <button class="btn-sm btn-call" onclick="startCall('David-Pixel', 'Direct (Wi-Fi P2P)', 22)">📞 Call</button>
+            <button class="btn-sm btn-chat" onclick="openChat('David-Pixel')">💬</button>
+          </div>
+        </div>
+        <div class="signal-track"><div class="signal-fill" style="width: 70%;"></div></div>
+      </div>
+    </div>
+
+    <!-- 2. CONNECTED USERS SCREEN -->
+    <div id="screen-connected-peers" class="screen">
+      <div class="screen-header">
+        <button class="btn-diag" onclick="showScreen('home')">← Back</button>
+        <div style="font-weight: 800; font-size: 15px;">CONNECTED USERS</div>
+        <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;">4 Active</div>
+      </div>
+
+      <div class="card" style="display: flex; justify-content: space-around; text-align: center;">
+        <div>
+          <div style="font-size: 10px; color: var(--text-muted); font-weight: bold;">DIRECT LINKS</div>
+          <div style="font-size: 18px; font-weight: 800; color: var(--accent-emerald);">2</div>
+        </div>
+        <div>
+          <div style="font-size: 10px; color: var(--text-muted); font-weight: bold;">RELAYS</div>
+          <div style="font-size: 18px; font-weight: 800; color: var(--accent-cyan);">2</div>
+        </div>
+        <div>
+          <div style="font-size: 10px; color: var(--text-muted); font-weight: bold;">AVG PING</div>
+          <div style="font-size: 18px; font-weight: 800; color: var(--accent-blue);">32 ms</div>
         </div>
       </div>
 
       <div class="peer-card">
-        <div class="peer-info" onclick="startCall('David-Pixel', 'Direct (Wi-Fi P2P)', 22)">
-          <span style="font-size: 14px;">🔵</span>
+        <div class="peer-card-top">
           <div>
-            <div class="peer-name">David-Pixel</div>
-            <div class="peer-signal">Direct (Wi-Fi P2P) • -68 dBm</div>
+            <div class="peer-name">Sarah-iPhone <span style="font-size: 10px; background: var(--card-border); padding: 2px 6px; border-radius: 4px;">iOS</span></div>
+            <div class="peer-meta">ID: 0x7F4A21B9 • BLE L2CAP • Ping: 18ms</div>
+          </div>
+          <div class="btn-group">
+            <button class="btn-sm btn-call" onclick="startCall('Sarah-iPhone', 'Direct', 38)">📞 Call</button>
+            <button class="btn-sm btn-chat" onclick="openChat('Sarah-iPhone')">💬</button>
           </div>
         </div>
-        <div class="btn-group">
-          <button class="btn-sm btn-call" onclick="startCall('David-Pixel', 'Direct (Wi-Fi P2P)', 22)">📞 Call</button>
-          <button class="btn-sm btn-chat" onclick="openChat('David-Pixel')">💬</button>
+        <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px; font-family: var(--font-mono);">
+          🔗 Local -&gt; Sarah-iPhone (Direct CoC)
         </div>
       </div>
 
       <div class="peer-card">
-        <div class="peer-info" onclick="startCall('Relay-Node-C', 'Mesh Relay (2 Hops)', 68)">
-          <span style="font-size: 14px;">🟣</span>
+        <div class="peer-card-top">
           <div>
-            <div class="peer-name">Relay-Node-C</div>
-            <div class="peer-signal" style="color: #A855F7;">Mesh Relay (2 Hops) • -84 dBm</div>
+            <div class="peer-name">David-Pixel <span style="font-size: 10px; background: var(--card-border); padding: 2px 6px; border-radius: 4px;">Android</span></div>
+            <div class="peer-meta">ID: 0x99C2E8A1 • Wi-Fi P2P • Ping: 24ms</div>
+          </div>
+          <div class="btn-group">
+            <button class="btn-sm btn-call" onclick="startCall('David-Pixel', 'Direct', 22)">📞 Call</button>
+            <button class="btn-sm btn-chat" onclick="openChat('David-Pixel')">💬</button>
           </div>
         </div>
-        <div class="btn-group">
-          <button class="btn-sm btn-call" onclick="startCall('Relay-Node-C', 'Mesh Relay (2 Hops)', 68)">📞 Call</button>
-          <button class="btn-sm btn-chat" onclick="openChat('Relay-Node-C')">💬</button>
+        <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px; font-family: var(--font-mono);">
+          🔗 Local -&gt; David-Pixel (Direct P2P)
+        </div>
+      </div>
+
+      <div class="peer-card">
+        <div class="peer-card-top">
+          <div>
+            <div class="peer-name">Tactical-Relay-C <span style="font-size: 10px; background: var(--card-border); padding: 2px 6px; border-radius: 4px;">Relay</span></div>
+            <div class="peer-meta">ID: 0x1B44DD20 • 2 Hops • Ping: 62ms</div>
+          </div>
+          <div class="btn-group">
+            <button class="btn-sm btn-call" onclick="startCall('Tactical-Relay-C', '2 Hops Relay', 68)">📞 Call</button>
+            <button class="btn-sm btn-chat" onclick="openChat('Tactical-Relay-C')">💬</button>
+          </div>
+        </div>
+        <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px; font-family: var(--font-mono);">
+          🔗 Local -&gt; Sarah (Hop 1) -&gt; Relay-C (Hop 2)
         </div>
       </div>
     </div>
 
-    <!-- 2. WALKIE-TALKIE PTT SCREEN -->
+    <!-- 3. WALKIE-TALKIE PTT SCREEN -->
     <div id="screen-ptt" class="screen">
       <div class="screen-header">
         <button class="btn-diag" onclick="showScreen('home')">← Back</button>
         <div style="font-weight: 800; font-size: 15px;">WALKIE-TALKIE (PTT)</div>
-        <div style="font-size: 11px; color: #06B6D4; font-weight: bold;">Ch 1: SOS</div>
+        <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;">Ch 1: SOS</div>
       </div>
 
       <div class="card" style="text-align: center;">
-        <div style="font-size: 10px; color: #64748B; font-weight: bold; letter-spacing: 1px;">ACTIVE INTERCOM CHANNEL</div>
-        <div style="font-size: 18px; font-weight: 800; color: #F8FAFC; margin-top: 4px;">Channel 1: Emergency &amp; Recon</div>
-        <div id="ptt-speaker-status" style="font-size: 12px; color: #06B6D4; margin-top: 4px;">Floor Clear • Ready to Transmit</div>
+        <div style="font-size: 10px; color: var(--text-muted); font-weight: bold; letter-spacing: 1px;">ACTIVE INTERCOM CHANNEL</div>
+        <div style="font-size: 18px; font-weight: 800; color: var(--text-main); margin-top: 4px;">Channel 1: Emergency &amp; Recon</div>
+        <div id="ptt-speaker-status" style="font-size: 12px; color: var(--accent-cyan); margin-top: 4px;">Floor Clear • Ready to Transmit</div>
       </div>
 
       <div class="wave-bars">
@@ -257,7 +402,7 @@
         <div id="btn-ptt-main" class="ptt-btn" onmousedown="startPTT()" onmouseup="stopPTT()" ontouchstart="startPTT()" ontouchend="stopPTT()">
           <div style="font-size: 32px;">🎙️</div>
           <div id="ptt-text" style="font-size: 14px; font-weight: 900; margin-top: 6px; letter-spacing: 1px;">HOLD TO TALK</div>
-          <div style="font-size: 9px; color: #94A3B8;">Half-Duplex Audio</div>
+          <div style="font-size: 9px; color: var(--text-sub);">Half-Duplex Audio</div>
         </div>
       </div>
 
@@ -266,7 +411,7 @@
       </div>
     </div>
 
-    <!-- 3. TACTICAL RADAR SCREEN -->
+    <!-- 4. TACTICAL RADAR SCREEN -->
     <div id="screen-radar" class="screen">
       <div class="screen-header">
         <button class="btn-diag" onclick="showScreen('home')">← Back</button>
@@ -281,19 +426,19 @@
           </div>
         </div>
 
-        <div class="radar-blip" style="top: 45px; left: 165px;" onclick="startCall('Sarah-iPhone', 'Direct', 38)" title="Sarah-iPhone (-58dBm)"></div>
-        <div class="radar-blip" style="top: 170px; left: 200px;" onclick="startCall('David-Pixel', 'Direct', 22)" title="David-Pixel (-68dBm)"></div>
-        <div class="radar-blip" style="top: 205px; left: 55px;" onclick="startCall('Relay-Node-C', '2 Hops', 68)" title="Relay-Node-C (-84dBm)"></div>
+        <div class="radar-blip" style="top: 45px; left: 165px;" onclick="startCall('Sarah-iPhone', 'Direct', 38)" title="Sarah-iPhone (-54dBm)"></div>
+        <div class="radar-blip" style="top: 170px; left: 200px;" onclick="startCall('David-Pixel', 'Direct', 22)" title="David-Pixel (-66dBm)"></div>
+        <div class="radar-blip" style="top: 205px; left: 55px;" onclick="startCall('Tactical-Relay-C', '2 Hops', 68)" title="Tactical-Relay-C (-82dBm)"></div>
       </div>
 
       <div class="card">
-        <div style="font-size: 11px; font-weight: bold; color: #06B6D4;">📍 BROADCASTED RALLY POINTS</div>
-        <div style="font-size: 12px; color: #E2E8F0; margin-top: 6px;">• Rally Point Alpha (40m NE)</div>
-        <div style="font-size: 12px; color: #E2E8F0; margin-top: 4px;">• Safe Zone Bravo (120m SE)</div>
+        <div style="font-size: 11px; font-weight: bold; color: var(--accent-cyan);">📍 BROADCASTED RALLY POINTS</div>
+        <div style="font-size: 12px; color: var(--text-main); margin-top: 6px;">• Rally Point Alpha (40m NE)</div>
+        <div style="font-size: 12px; color: var(--text-main); margin-top: 4px;">• Safe Zone Bravo (120m SE)</div>
       </div>
     </div>
 
-    <!-- 4. FILE SHARING SCREEN -->
+    <!-- 5. FILE SHARING SCREEN -->
     <div id="screen-files" class="screen">
       <div class="screen-header">
         <button class="btn-diag" onclick="showScreen('home')">← Back</button>
@@ -302,37 +447,37 @@
       </div>
 
       <div style="display: flex; gap: 8px; margin-bottom: 14px;">
-        <button class="btn-diag" style="flex:1; background: #083344;" onclick="triggerFileSend('recon_map_sector_9.geojson', '450 KB')">+ Send Map</button>
-        <button class="btn-diag" style="flex:1; background: #1E1B4B;" onclick="triggerFileSend('emergency_snap.jpg', '1.4 MB')">+ Send Photo</button>
+        <button class="btn-diag" style="flex:1;" onclick="triggerFileSend('recon_map_sector_9.geojson', '450 KB')">+ Send Map</button>
+        <button class="btn-diag" style="flex:1;" onclick="triggerFileSend('emergency_snap.jpg', '1.4 MB')">+ Send Photo</button>
       </div>
 
       <div id="file-list-container">
-        <div class="file-item">
-          <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold;">
+        <div class="peer-card">
+          <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; color: var(--text-main);">
             <span>🗺️ topographic_map.mbtiles</span>
-            <span style="color: #10B981;">100%</span>
+            <span style="color: var(--accent-emerald);">100%</span>
           </div>
-          <div style="font-size: 11px; color: #64748B; margin-top: 2px;">4.2 MB • CRC32: 9F4C2E81 • Verified</div>
+          <div style="font-size: 11px; color: var(--text-sub); margin-top: 2px;">4.2 MB • CRC32: 9F4C2E81 • Verified</div>
         </div>
       </div>
     </div>
 
-    <!-- 5. ACTIVE CALL SCREEN -->
+    <!-- 6. ACTIVE CALL SCREEN -->
     <div id="screen-call" class="screen">
       <div style="text-align: center; margin-top: 15px;">
         <div style="display: inline-block; background: #064E3B; color: #34D399; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px; margin-bottom: 8px;">🔒 E2EE Noise_XX Encrypted</div>
-        <div id="call-peer-name" style="font-size: 24px; font-weight: 800;">Sarah-iPhone</div>
-        <div id="call-peer-route" style="font-size: 12px; color: #38BDF8;">Direct (BLE L2CAP)</div>
-        <div id="call-timer" style="font-size: 36px; font-weight: 800; font-family: var(--font-mono); margin: 12px 0;">00:00</div>
+        <div id="call-peer-name" style="font-size: 24px; font-weight: 800; color: var(--text-main);">Sarah-iPhone</div>
+        <div id="call-peer-route" style="font-size: 12px; color: var(--accent-blue);">Direct (BLE L2CAP)</div>
+        <div id="call-timer" style="font-size: 36px; font-weight: 800; font-family: var(--font-mono); margin: 12px 0; color: var(--text-main);">00:00</div>
       </div>
 
       <div class="card" style="margin-top: 10px;">
-        <div style="font-size: 10px; font-weight: 800; color: #94A3B8;">AUDIO DSP TELEMETRY</div>
+        <div style="font-size: 10px; font-weight: 800; color: var(--text-sub);">AUDIO DSP TELEMETRY</div>
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; margin-top: 8px;">
-          <div><div style="font-size: 9px; color: #94A3B8;">RTT Latency</div><div id="m-latency" style="font-size: 12px; font-weight: 800; color: #38BDF8;">38 ms</div></div>
-          <div><div style="font-size: 9px; color: #94A3B8;">Packet Loss</div><div id="m-loss" style="font-size: 12px; font-weight: 800; color: #38BDF8;">0.4%</div></div>
-          <div><div style="font-size: 9px; color: #94A3B8;">Jitter</div><div style="font-size: 12px; font-weight: 800; color: #38BDF8;">3.8 ms</div></div>
-          <div><div style="font-size: 9px; color: #94A3B8;">Bitrate</div><div style="font-size: 12px; font-weight: 800; color: #38BDF8;">14.4 kbps</div></div>
+          <div><div style="font-size: 9px; color: var(--text-sub);">RTT Latency</div><div id="m-latency" style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">38 ms</div></div>
+          <div><div style="font-size: 9px; color: var(--text-sub);">Packet Loss</div><div id="m-loss" style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">0.4%</div></div>
+          <div><div style="font-size: 9px; color: var(--text-sub);">Jitter</div><div style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">3.8 ms</div></div>
+          <div><div style="font-size: 9px; color: var(--text-sub);">Bitrate</div><div style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">14.4 kbps</div></div>
         </div>
       </div>
 
@@ -343,7 +488,7 @@
       </div>
     </div>
 
-    <!-- 6. CHAT SCREEN -->
+    <!-- 7. CHAT SCREEN -->
     <div id="screen-chat" class="screen">
       <div class="screen-header">
         <button class="btn-diag" onclick="showScreen('home')">← Back</button>
@@ -352,19 +497,19 @@
       </div>
 
       <div id="chat-messages" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
-        <div style="background: #1E293B; border-radius: 12px; padding: 10px; max-width: 80%;">
+        <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; max-width: 80%; color: var(--text-main);">
           Hey! Ready for offline voice call?
-          <div style="font-size: 9px; color: #64748B; margin-top: 4px;">19:15 • 1 hop</div>
+          <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">19:15 • 1 hop</div>
         </div>
       </div>
 
       <div style="display: flex; gap: 8px;">
-        <input type="text" id="chat-input" style="flex: 1; background: #1E293B; border: 1px solid #334155; border-radius: 20px; padding: 10px 14px; color: #FFF; outline: none;" placeholder="Type offline message..." onkeydown="if(event.key==='Enter')sendMessage()" />
+        <input type="text" id="chat-input" style="flex: 1; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 20px; padding: 10px 14px; color: var(--text-main); outline: none;" placeholder="Type offline message..." onkeydown="if(event.key==='Enter')sendMessage()" />
         <button class="btn-diag" style="background: #2563EB; color: #FFF; border-radius: 20px;" onclick="sendMessage()">Send</button>
       </div>
     </div>
 
-    <!-- 7. SOS SCREEN -->
+    <!-- 8. SOS SCREEN -->
     <div id="screen-sos" class="screen">
       <div class="screen-header">
         <button class="btn-diag" onclick="showScreen('home')">← Back</button>
@@ -381,7 +526,7 @@
       </button>
     </div>
 
-    <!-- 8. DIAGNOSTICS SCREEN -->
+    <!-- 9. DIAGNOSTICS SCREEN -->
     <div id="screen-diagnostics" class="screen">
       <div class="screen-header">
         <button class="btn-diag" onclick="showScreen('home')">← Back</button>
@@ -390,10 +535,30 @@
       </div>
 
       <div class="card">
-        <div style="font-size: 10px; font-weight: 800; color: #94A3B8; margin-bottom: 6px;">RADIO & CRYPTO STATS</div>
-        <div style="font-size: 11px; color: #38BDF8; font-family: var(--font-mono);">Node ID: 0x4D457F4A21B9</div>
-        <div style="font-size: 11px; color: #94A3B8; margin-top: 4px;">Crypto: Noise_XX_25519_ChaChaPoly</div>
-        <div style="font-size: 11px; color: #94A3B8; margin-top: 2px;">Replay Filter: 64-bit Window (0 drops)</div>
+        <div style="font-size: 10px; font-weight: 800; color: var(--text-sub); margin-bottom: 6px;">RADIO & CRYPTO STATS</div>
+        <div style="font-size: 11px; color: var(--accent-blue); font-family: var(--font-mono);">Node ID: 0x4D457F4A21B9</div>
+        <div style="font-size: 11px; color: var(--text-sub); margin-top: 4px;">Crypto: Noise_XX_25519_ChaChaPoly</div>
+        <div style="font-size: 11px; color: var(--text-sub); margin-top: 2px;">Replay Filter: 64-bit Window (0 drops)</div>
+      </div>
+    </div>
+
+    <!-- INCOMING CALL MODAL POPUP -->
+    <div id="incoming-call-modal" class="incoming-modal-overlay">
+      <div class="incoming-card">
+        <div style="font-size: 11px; font-weight: bold; color: var(--accent-emerald); background: rgba(16, 185, 129, 0.15); padding: 4px 10px; border-radius: 12px; display: inline-block; margin-bottom: 16px;">
+          🔒 INCOMING E2EE VOICE CALL
+        </div>
+        
+        <div class="pulse-ring-call" id="inc-avatar">SA</div>
+
+        <div id="inc-caller-name" style="font-size: 22px; font-weight: 900; color: var(--text-main);">Sarah-iPhone</div>
+        <div id="inc-caller-route" style="font-size: 13px; color: var(--accent-blue); margin-top: 2px;">Direct Link (BLE L2CAP)</div>
+        <div id="inc-caller-meta" style="font-size: 11px; color: var(--text-sub); margin-top: 4px; font-family: var(--font-mono);">-54 dBm • Verified E2EE Key</div>
+
+        <div class="btn-incoming-row">
+          <button class="btn-decline" onclick="declineIncomingCall()">✕ Decline</button>
+          <button class="btn-accept" onclick="acceptIncomingCall()">📞 Accept</button>
+        </div>
       </div>
     </div>
   </div>
@@ -402,7 +567,7 @@
   <div class="sim-panel">
     <div class="sim-title">
       <span>📡 MESH NETWORK SIMULATOR</span>
-      <span style="font-size: 10px; color: #10B981;">LIVE</span>
+      <span style="font-size: 10px; color: var(--accent-emerald);">LIVE</span>
     </div>
 
     <div class="sim-group">
@@ -420,8 +585,14 @@
       <input type="range" class="sim-slider" min="1" max="4" value="1" oninput="updateSimHops(this.value)" />
     </div>
 
-    <div style="font-size: 11px; color: #64748B; margin-top: 14px; line-height: 16px;">
-      Interactive testing tool for BLE L2CAP audio throughput, half-duplex PTT contention, tactical radar coordinates, and CRC32 file reassembly.
+    <div style="margin-top: 16px;">
+      <button class="btn-diag" style="width: 100%; height: 42px; background: var(--accent-emerald); color: #FFF; font-weight: bold;" onclick="triggerIncomingCallDemo('Sarah-iPhone', 'Direct (BLE L2CAP)', -54)">
+        📲 Trigger Incoming Call Demo
+      </button>
+    </div>
+
+    <div style="font-size: 11px; color: var(--text-muted); margin-top: 14px; line-height: 16px;">
+      Live testing console for Dark/Light mode, connected user discovery, PTT floor arbitration, and incoming call receiving.
     </div>
   </div>
 
@@ -432,6 +603,13 @@
     let currentChatPeer = 'Sarah-iPhone';
     let isSOS = false;
     let waveInterval = null;
+    let pendingIncomingCall = null;
+    let isLightMode = false;
+
+    function toggleTheme() {
+      isLightMode = !isLightMode;
+      document.body.classList.toggle('light-mode', isLightMode);
+    }
 
     function showScreen(id) {
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -440,6 +618,27 @@
         target.classList.add('active');
         currentScreen = id;
       }
+    }
+
+    function triggerIncomingCallDemo(callerName, route, rssi) {
+      pendingIncomingCall = { name: callerName, route: route, latency: 38 };
+      document.getElementById('inc-caller-name').innerText = callerName;
+      document.getElementById('inc-caller-route').innerText = route;
+      document.getElementById('inc-avatar').innerText = callerName.substring(0, 2).toUpperCase();
+      document.getElementById('incoming-call-modal').classList.add('active');
+    }
+
+    function acceptIncomingCall() {
+      document.getElementById('incoming-call-modal').classList.remove('active');
+      if (pendingIncomingCall) {
+        startCall(pendingIncomingCall.name, pendingIncomingCall.route, pendingIncomingCall.latency);
+        pendingIncomingCall = null;
+      }
+    }
+
+    function declineIncomingCall() {
+      document.getElementById('incoming-call-modal').classList.remove('active');
+      pendingIncomingCall = null;
     }
 
     function startCall(peerName, route, baseLatency) {
@@ -480,7 +679,7 @@
       const container = document.getElementById('chat-messages');
       const bubble = document.createElement('div');
       bubble.style = "background: #1D4ED8; border-radius: 12px; padding: 10px; max-width: 80%; align-self: flex-end; color: #FFF;";
-      bubble.innerHTML = `${text}<div style="font-size: 9px; color: #93C5FD; text-align: right; margin-top: 4px;">19:22 • ✓✓ Delivered (Offline)</div>`;
+      bubble.innerHTML = `${text}<div style="font-size: 9px; color: #93C5FD; text-align: right; margin-top: 4px;">19:35 • ✓✓ Delivered (Offline)</div>`;
       container.appendChild(bubble);
       input.value = '';
       container.scrollTop = container.scrollHeight;
@@ -498,7 +697,7 @@
       document.getElementById('btn-ptt-main').classList.remove('active');
       document.getElementById('ptt-text').innerText = 'HOLD TO TALK';
       document.getElementById('ptt-speaker-status').innerText = 'Floor Clear • Ready to Transmit';
-      document.getElementById('ptt-speaker-status').style.color = '#06B6D4';
+      document.getElementById('ptt-speaker-status').style.color = 'var(--accent-cyan)';
       stopWaveAnimation();
     }
 
@@ -508,7 +707,7 @@
       startWaveAnimation('#38BDF8');
       setTimeout(() => {
         document.getElementById('ptt-speaker-status').innerText = 'Floor Clear • Ready to Transmit';
-        document.getElementById('ptt-speaker-status').style.color = '#06B6D4';
+        document.getElementById('ptt-speaker-status').style.color = 'var(--accent-cyan)';
         stopWaveAnimation();
       }, 3500);
     }
@@ -528,36 +727,36 @@
       if (waveInterval) clearInterval(waveInterval);
       document.querySelectorAll('.w-bar').forEach(b => {
         b.style.height = '8px';
-        b.style.background = '#334155';
+        b.style.background = 'var(--card-border)';
       });
     }
 
     function triggerFileSend(fileName, fileSize) {
       const container = document.getElementById('file-list-container');
       const item = document.createElement('div');
-      item.className = 'file-item';
+      item.className = 'peer-card';
       item.innerHTML = `
-        <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold;">
+        <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; color: var(--text-main);">
           <span>📦 ${fileName}</span>
-          <span id="p-text-${Date.now()}" style="color: #06B6D4;">15%</span>
+          <span id="p-text-${Date.now()}" style="color: var(--accent-cyan);">15%</span>
         </div>
-        <div class="progress-bar-bg">
-          <div class="progress-bar-fill" style="width: 15%;"></div>
+        <div class="range-bar-bg" style="margin-top: 8px;">
+          <div class="range-bar-fill" style="width: 15%; background: var(--accent-cyan);"></div>
         </div>
-        <div style="font-size: 10px; color: #64748B; margin-top: 4px;">${fileSize} • Transferring via BLE L2CAP chunks (512B)</div>
+        <div style="font-size: 10px; color: var(--text-sub); margin-top: 4px;">${fileSize} • Transferring via BLE L2CAP chunks (512B)</div>
       `;
       container.prepend(item);
 
       let p = 15;
-      const fill = item.querySelector('.progress-bar-fill');
+      const fill = item.querySelector('.range-bar-fill');
       const text = item.querySelector('span[id^="p-text-"]');
       const interval = setInterval(() => {
         p += 25;
         if (p >= 100) {
           clearInterval(interval);
           fill.style.width = '100%';
-          fill.style.background = '#10B981';
-          text.style.color = '#10B981';
+          fill.style.background = 'var(--accent-emerald)';
+          text.style.color = 'var(--accent-emerald)';
           text.innerText = '100% Verified';
         } else {
           fill.style.width = p + '%';

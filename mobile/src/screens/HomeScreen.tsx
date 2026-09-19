@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { ConnectionRadar } from '../components/ConnectionRadar';
 import { PeerNode } from '../types/protocol';
+import { ThemeColors } from '../types/theme';
 
 interface HomeScreenProps {
   onStartCall: (peer: PeerNode) => void;
@@ -12,6 +13,11 @@ interface HomeScreenProps {
   onOpenPTT: () => void;
   onOpenFileShare: () => void;
   onOpenTacticalMap: () => void;
+  onOpenConnectedPeers: () => void;
+  onSimulateIncomingCall: () => void;
+  isDarkMode: boolean;
+  onToggleTheme: () => void;
+  theme: ThemeColors;
 }
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
@@ -23,14 +29,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenPTT,
   onOpenFileShare,
   onOpenTacticalMap,
+  onOpenConnectedPeers,
+  onSimulateIncomingCall,
+  isDarkMode,
+  onToggleTheme,
+  theme,
 }) => {
-  const [nickname, setNickname] = useState('Alex-Phone');
   const [nearbyPeers, setNearbyPeers] = useState<PeerNode[]>([
     {
       id: '0x7F4A21B9',
       nickname: 'Sarah-iPhone',
-      rssi: -58,
-      batteryPercent: 88,
+      rssi: -54,
+      batteryPercent: 92,
       hopCount: 1,
       transport: 'BLE_L2CAP',
       isPaired: true,
@@ -39,18 +49,18 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
     {
       id: '0x99C2E8A1',
       nickname: 'David-Pixel',
-      rssi: -72,
-      batteryPercent: 64,
+      rssi: -66,
+      batteryPercent: 78,
       hopCount: 1,
       transport: 'WIFI_DIRECT',
-      isPaired: false,
+      isPaired: true,
       lastSeenMs: Date.now(),
     },
     {
       id: '0x1B44DD20',
-      nickname: 'Relay-Node-C',
-      rssi: -84,
-      batteryPercent: 42,
+      nickname: 'Tactical-Relay-C',
+      rssi: -82,
+      batteryPercent: 46,
       hopCount: 2,
       transport: 'MESH_RELAY',
       isPaired: true,
@@ -59,68 +69,134 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   ]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Top Header */}
+        {/* Top Header with Theme Switcher */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.title}>OFFLINE MESH</Text>
-            <Text style={styles.statusOnline}>● Radios Active • BLE L2CAP &amp; Wi-Fi Direct</Text>
+            <Text style={[styles.title, { color: theme.textPrimary }]}>OFFLINE MESH</Text>
+            <Text style={[styles.statusOnline, { color: theme.accentEmerald }]}>
+              ● Radios Active • BLE L2CAP &amp; Wi-Fi Direct
+            </Text>
           </View>
-          <TouchableOpacity style={styles.diagBadge} onPress={onOpenDiagnostics}>
-            <Text style={styles.diagText}>⚙️ DEV STATS</Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={[styles.iconButton, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+              onPress={onToggleTheme}
+            >
+              <Text style={styles.iconButtonText}>{isDarkMode ? '☀️' : '🌙'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.diagBadge, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+              onPress={onOpenDiagnostics}
+            >
+              <Text style={[styles.diagText, { color: theme.accentBlue }]}>⚙️ STATS</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {/* Feature Navigation Cards */}
+        {/* Connected Users Live Bar */}
+        <TouchableOpacity
+          style={[styles.connectedBanner, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+          onPress={onOpenConnectedPeers}
+        >
+          <View style={styles.connectedLeft}>
+            <View style={[styles.pulseDot, { backgroundColor: theme.accentEmerald }]} />
+            <div>
+              <Text style={[styles.connectedTitle, { color: theme.textPrimary }]}>
+                {nearbyPeers.length + 1} Connected Mesh Users
+              </Text>
+              <Text style={[styles.connectedSub, { color: theme.textMuted }]}>
+                Tap to inspect active peer signals &amp; hops
+              </Text>
+            </div>
+          </View>
+          <Text style={[styles.connectedArrow, { color: theme.accentCyan }]}>View →</Text>
+        </TouchableOpacity>
+
+        {/* Feature Navigation Grid */}
         <View style={styles.featureGrid}>
-          <TouchableOpacity style={[styles.featureCard, styles.pttCard]} onPress={onOpenPTT}>
+          <TouchableOpacity
+            style={[styles.featureCard, { backgroundColor: isDarkMode ? '#082538' : '#E0F2FE', borderColor: theme.accentCyan }]}
+            onPress={onOpenPTT}
+          >
             <Text style={styles.featureIcon}>📻</Text>
-            <Text style={styles.featureTitle}>Walkie-Talkie (PTT)</Text>
-            <Text style={styles.featureSub}>Half-duplex group audio</Text>
+            <Text style={[styles.featureTitle, { color: theme.textPrimary }]}>Walkie-Talkie (PTT)</Text>
+            <Text style={[styles.featureSub, { color: theme.textSecondary }]}>Half-duplex group audio</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.featureCard, styles.radarCard]} onPress={onOpenTacticalMap}>
+          <TouchableOpacity
+            style={[styles.featureCard, { backgroundColor: isDarkMode ? '#063327' : '#DCFCE7', borderColor: theme.accentEmerald }]}
+            onPress={onOpenTacticalMap}
+          >
             <Text style={styles.featureIcon}>🎯</Text>
-            <Text style={styles.featureTitle}>Tactical Radar</Text>
-            <Text style={styles.featureSub}>360° Node distance &amp; pins</Text>
+            <Text style={[styles.featureTitle, { color: theme.textPrimary }]}>Tactical Radar</Text>
+            <Text style={[styles.featureSub, { color: theme.textSecondary }]}>360° Node distance &amp; pins</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.featureCard, styles.fileCard]} onPress={onOpenFileShare}>
+          <TouchableOpacity
+            style={[styles.featureCard, { backgroundColor: isDarkMode ? '#1E1B4B' : '#EEF2FF', borderColor: theme.accentPurple }]}
+            onPress={onOpenFileShare}
+          >
             <Text style={styles.featureIcon}>📁</Text>
-            <Text style={styles.featureTitle}>Offline Files</Text>
-            <Text style={styles.featureSub}>P2P photos, vectors, logs</Text>
+            <Text style={[styles.featureTitle, { color: theme.textPrimary }]}>Offline Files</Text>
+            <Text style={[styles.featureSub, { color: theme.textSecondary }]}>P2P photos, vectors, logs</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.featureCard, styles.sosCard]} onPress={onOpenSOS}>
+          <TouchableOpacity
+            style={[styles.featureCard, { backgroundColor: isDarkMode ? '#3B0712' : '#FFE4E6', borderColor: theme.accentRose }]}
+            onPress={onOpenSOS}
+          >
             <Text style={styles.featureIcon}>🚨</Text>
-            <Text style={styles.featureTitle}>Emergency SOS</Text>
-            <Text style={styles.featureSub}>Multi-hop distress broadcast</Text>
+            <Text style={[styles.featureTitle, { color: theme.textPrimary }]}>Emergency SOS</Text>
+            <Text style={[styles.featureSub, { color: theme.textSecondary }]}>Multi-hop distress alert</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Range & Network Banner */}
-        <View style={styles.rangeBanner}>
+        {/* Range & Network Info Card */}
+        <View style={[styles.rangeBanner, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}>
           <View style={styles.rangeRow}>
-            <Text style={styles.rangeLabel}>Direct Wireless Range</Text>
-            <Text style={styles.rangeValue}>~25m Direct / Multi-hop Mesh</Text>
+            <Text style={[styles.rangeLabel, { color: theme.textSecondary }]}>Direct Wireless Range</Text>
+            <Text style={[styles.rangeValue, { color: theme.accentBlue }]}>~25m Direct / Multi-hop</Text>
           </View>
-          <View style={styles.progressBarBg}>
-            <View style={styles.progressBarFill} />
+          <View style={[styles.progressBarBg, { backgroundColor: theme.bgSecondary }]}>
+            <View style={[styles.progressBarFill, { backgroundColor: theme.accentBlue }]} />
           </View>
-          <Text style={styles.rangeDisclaimer}>
-            Peer-to-peer transmission via Bluetooth &amp; Wi-Fi Direct. Zero internet or cell tower requirement.
+          <Text style={[styles.rangeDisclaimer, { color: theme.textMuted }]}>
+            Peer-to-peer transmission via Bluetooth &amp; Wi-Fi Direct. Zero internet or cell tower required.
           </Text>
         </View>
 
-        {/* Contacts Button */}
-        <TouchableOpacity style={styles.contactsRow} onPress={onOpenContacts}>
+        {/* Incoming Call Simulation Banner */}
+        <TouchableOpacity
+          style={[styles.simCallCard, { backgroundColor: theme.card, borderColor: theme.accentEmerald }]}
+          onPress={onSimulateIncomingCall}
+        >
+          <Text style={styles.simCallIcon}>📲</Text>
+          <View style={styles.simCallInfo}>
+            <Text style={[styles.simCallTitle, { color: theme.textPrimary }]}>
+              Receive Call (Incoming Demo)
+            </Text>
+            <Text style={[styles.simCallSub, { color: theme.textSecondary }]}>
+              Simulate incoming encrypted voice call from peer
+            </Text>
+          </View>
+          <View style={[styles.simCallTag, { backgroundColor: theme.accentEmerald }]}>
+            <Text style={styles.simCallTagText}>TRIGGER</Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Verified Contacts Button */}
+        <TouchableOpacity
+          style={[styles.contactsRow, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
+          onPress={onOpenContacts}
+        >
           <Text style={styles.contactsIcon}>👥</Text>
           <View style={styles.contactsInfo}>
-            <Text style={styles.contactsTitle}>Verified Mesh Contacts</Text>
-            <Text style={styles.contactsSub}>Manage offline Noise_XX cryptographic keys</Text>
+            <Text style={[styles.contactsTitle, { color: theme.textPrimary }]}>Verified Mesh Contacts</Text>
+            <Text style={[styles.contactsSub, { color: theme.textMuted }]}>Manage offline Noise_XX encryption keys</Text>
           </View>
-          <Text style={styles.contactsArrow}>→</Text>
+          <Text style={[styles.contactsArrow, { color: theme.textMuted }]}>→</Text>
         </TouchableOpacity>
 
         {/* Nearby Discovery Radar */}
@@ -138,7 +214,6 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#090D16',
   },
   scrollContent: {
     padding: 16,
@@ -150,81 +225,101 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   title: {
-    color: '#F8FAFC',
     fontSize: 22,
     fontWeight: '800',
     letterSpacing: 0.5,
   },
   statusOnline: {
-    color: '#10B981',
     fontSize: 12,
     fontWeight: '600',
     marginTop: 2,
   },
-  diagBadge: {
-    backgroundColor: '#1E293B',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
+  headerActions: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  iconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#334155',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconButtonText: {
+    fontSize: 16,
+  },
+  diagBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
   },
   diagText: {
-    color: '#94A3B8',
     fontSize: 11,
     fontWeight: '700',
+  },
+  connectedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 14,
+  },
+  connectedLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  pulseDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  connectedTitle: {
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  connectedSub: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  connectedArrow: {
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   featureGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 10,
-    marginBottom: 16,
+    marginBottom: 14,
   },
   featureCard: {
     width: '48%',
-    backgroundColor: '#1E293B',
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#334155',
-  },
-  pttCard: {
-    borderColor: '#06B6D4',
-    backgroundColor: '#082538',
-  },
-  radarCard: {
-    borderColor: '#10B981',
-    backgroundColor: '#063327',
-  },
-  fileCard: {
-    borderColor: '#6366F1',
-    backgroundColor: '#1E1B4B',
-  },
-  sosCard: {
-    borderColor: '#F43F5E',
-    backgroundColor: '#3B0712',
   },
   featureIcon: {
     fontSize: 20,
     marginBottom: 4,
   },
   featureTitle: {
-    color: '#F8FAFC',
     fontSize: 13,
     fontWeight: 'bold',
   },
   featureSub: {
-    color: '#94A3B8',
     fontSize: 10,
     marginTop: 2,
   },
   rangeBanner: {
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 14,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: '#334155',
   },
   rangeRow: {
     flexDirection: 'row',
@@ -232,18 +327,15 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   rangeLabel: {
-    color: '#94A3B8',
     fontSize: 12,
     fontWeight: '600',
   },
   rangeValue: {
-    color: '#38BDF8',
     fontSize: 12,
     fontWeight: '700',
   },
   progressBarBg: {
     height: 6,
-    backgroundColor: '#0F172A',
     borderRadius: 3,
     overflow: 'hidden',
     marginBottom: 8,
@@ -251,22 +343,51 @@ const styles = StyleSheet.create({
   progressBarFill: {
     width: '85%',
     height: '100%',
-    backgroundColor: '#38BDF8',
   },
   rangeDisclaimer: {
-    color: '#64748B',
     fontSize: 11,
     lineHeight: 15,
+  },
+  simCallCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    padding: 12,
+    marginBottom: 14,
+  },
+  simCallIcon: {
+    fontSize: 22,
+    marginRight: 10,
+  },
+  simCallInfo: {
+    flex: 1,
+  },
+  simCallTitle: {
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  simCallSub: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  simCallTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  simCallTagText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
   },
   contactsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1E293B',
-    borderRadius: 12,
+    borderRadius: 14,
     padding: 12,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#334155',
   },
   contactsIcon: {
     fontSize: 20,
@@ -276,16 +397,13 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contactsTitle: {
-    color: '#F8FAFC',
     fontSize: 13,
     fontWeight: 'bold',
   },
   contactsSub: {
-    color: '#94A3B8',
     fontSize: 11,
   },
   contactsArrow: {
-    color: '#94A3B8',
     fontSize: 16,
     fontWeight: 'bold',
   },
