@@ -235,7 +235,7 @@
 
     <!-- Status Bar -->
     <div class="status-bar">
-      <span id="clock-display">20:06</span>
+      <span id="clock-display">20:12</span>
       <div class="status-icons">
         <span class="status-badge-offline">OFFLINE MESH</span>
         <span id="ws-indicator" style="color: #10B981;">● LIVE</span>
@@ -249,7 +249,7 @@
         <div>
           <div class="screen-title">OFFLINE MESH</div>
           <div id="self-status-sub" style="font-size: 11px; color: var(--accent-emerald); font-weight: 600;">
-            ● HD 48kHz Crystal Audio DSP
+            ● Continuous Liquid Audio Stream
           </div>
         </div>
         <div class="header-actions">
@@ -269,8 +269,8 @@
 
       <!-- DSP Clarity Status -->
       <div class="dsp-clarity-banner">
-        <span>✨ <strong>HD Voice DSP:</strong> Noise Filter + Voice EQ Active</span>
-        <span style="color: var(--accent-emerald); font-weight: bold;">AUTO-SYNC</span>
+        <span>✨ <strong>Continuous Jitter-Free Stream:</strong> Smooth Ring Buffer</span>
+        <span style="color: var(--accent-emerald); font-weight: bold;">ACTIVE</span>
       </div>
 
       <!-- Audio & Mic Activation Banner -->
@@ -300,7 +300,7 @@
         <div class="feature-card card-ptt" onclick="showScreen('ptt')">
           <div class="feature-icon">📻</div>
           <div class="feature-title">Walkie-Talkie (PTT)</div>
-          <div class="feature-sub">HD crystal clear audio</div>
+          <div class="feature-sub">Crystal clear voice</div>
         </div>
         <div class="feature-card card-radar" onclick="showScreen('radar')">
           <div class="feature-icon">🎯</div>
@@ -368,7 +368,7 @@
         <div id="btn-ptt-main" class="ptt-btn" onmousedown="startLivePTT()" onmouseup="stopLivePTT()" ontouchstart="startLivePTT()" ontouchend="stopLivePTT()">
           <div style="font-size: 32px;">🎙️</div>
           <div id="ptt-text" style="font-size: 14px; font-weight: 900; margin-top: 6px; letter-spacing: 1px;">HOLD TO TALK</div>
-          <div style="font-size: 9px; color: var(--text-sub);">Studio-Grade Voice Stream</div>
+          <div style="font-size: 9px; color: var(--text-sub);">Smooth Live Stream</div>
         </div>
       </div>
 
@@ -459,7 +459,7 @@
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; margin-top: 8px;">
           <div><div style="font-size: 9px; color: var(--text-sub);">RTT Latency</div><div id="m-latency" style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">12 ms</div></div>
           <div><div style="font-size: 9px; color: var(--text-sub);">Rx Packets</div><div id="m-rx-pkts" style="font-size: 12px; font-weight: 800; color: var(--accent-emerald);">0</div></div>
-          <div><div style="font-size: 9px; color: var(--text-sub);">DSP Filter</div><div style="font-size: 12px; font-weight: 800; color: var(--accent-emerald);">ACTIVE ✨</div></div>
+          <div><div style="font-size: 9px; color: var(--text-sub);">DSP Stream</div><div style="font-size: 12px; font-weight: 800; color: var(--accent-emerald);">LIQUID ✨</div></div>
           <div><div style="font-size: 9px; color: var(--text-sub);">Rate</div><div id="m-dsp-rate" style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">48 kHz</div></div>
         </div>
       </div>
@@ -520,7 +520,7 @@
         <div style="font-size: 10px; font-weight: 800; color: var(--text-sub); margin-bottom: 6px;">RADIO &amp; CRYPTO STATS</div>
         <div style="font-size: 11px; color: var(--accent-blue); font-family: var(--font-mono);" id="diag-node-id">Node ID: Initializing...</div>
         <div style="font-size: 11px; color: var(--text-sub); margin-top: 4px;">Crypto: Noise_XX_25519_ChaChaPoly</div>
-        <div style="font-size: 11px; color: var(--text-sub); margin-top: 2px;">Audio: Dynamic Hardware Rate Resampling + Voice DSP</div>
+        <div style="font-size: 11px; color: var(--text-sub); margin-top: 2px;">Audio: Continuous Smooth Ring Buffer Stream</div>
         <div style="font-size: 11px; color: var(--text-sub); margin-top: 2px;" id="diag-audio-state">AudioContext: Unknown</div>
       </div>
     </div>
@@ -608,10 +608,13 @@
     let callSeconds = 0;
     let isLightMode = false;
     let pttActive = false;
-    let nextPlayTime = 0;
     let peerConnection = null;
     let rxPacketCount = 0;
     let rxTimer = null;
+
+    // Continuous Playback Ring Buffer
+    let audioQueue = [];
+    let playbackProcessor = null;
 
     // DSP Filter Nodes
     let dspHighPass = null;
@@ -653,31 +656,47 @@
       if (target) target.classList.add('active');
     }
 
+    // Fast linear interpolation resampler
+    function resampleFloat32(input, fromRate, toRate) {
+      if (!fromRate || !toRate || fromRate === toRate) return input;
+      const ratio = fromRate / toRate;
+      const newLen = Math.round(input.length / ratio);
+      const output = new Float32Array(newLen);
+      for (let i = 0; i < newLen; i++) {
+        const srcPos = i * ratio;
+        const i0 = Math.floor(srcPos);
+        const i1 = Math.min(i0 + 1, input.length - 1);
+        const frac = srcPos - i0;
+        output[i] = input[i0] * (1 - frac) + input[i1] * frac;
+      }
+      return output;
+    }
+
     // Initialize Audio DSP Pipeline for Studio-Grade Clarity
     function setupAudioDSP() {
       if (!audioCtx) return;
 
-      // 1. High-Pass Filter (120 Hz): Strips microphone wind rumble, table vibrations, and handling thumps
+      // 1. High-Pass Filter (100 Hz): Strips microphone wind rumble and physical handling thumps
       dspHighPass = audioCtx.createBiquadFilter();
       dspHighPass.type = 'highpass';
-      dspHighPass.frequency.setValueAtTime(120, audioCtx.currentTime);
+      dspHighPass.frequency.setValueAtTime(100, audioCtx.currentTime);
       dspHighPass.Q.setValueAtTime(0.7, audioCtx.currentTime);
 
-      // 2. Presence Peaking EQ (2.8 kHz, +4dB): Enhances vocal presence, clarity, and consonants
+      // 2. Presence Peaking EQ (2.8 kHz, +3dB): Enhances vocal presence and clarity
       dspPeaking = audioCtx.createBiquadFilter();
       dspPeaking.type = 'peaking';
       dspPeaking.frequency.setValueAtTime(2800, audioCtx.currentTime);
-      dspPeaking.gain.setValueAtTime(4.0, audioCtx.currentTime);
-      dspPeaking.Q.setValueAtTime(1.2, audioCtx.currentTime);
+      dspPeaking.gain.setValueAtTime(3.0, audioCtx.currentTime);
+      dspPeaking.Q.setValueAtTime(1.0, audioCtx.currentTime);
 
-      // 3. Low-Pass Filter (8 kHz): Eliminates high-frequency background sensor hiss
+      // 3. Low-Pass Filter (8.5 kHz): Eliminates high-frequency background sensor hiss
       dspLowPass = audioCtx.createBiquadFilter();
       dspLowPass.type = 'lowpass';
-      dspLowPass.frequency.setValueAtTime(8000, audioCtx.currentTime);
+      dspLowPass.frequency.setValueAtTime(8500, audioCtx.currentTime);
 
-      // 4. Dynamics Compressor: Levels soft & loud speech, prevents speaker distortion/clipping
+      // 4. Dynamics Compressor: Levels speech, prevents speaker distortion/clipping
       dspCompressor = audioCtx.createDynamicsCompressor();
-      dspCompressor.threshold.setValueAtTime(-18, audioCtx.currentTime);
+      dspCompressor.threshold.setValueAtTime(-16, audioCtx.currentTime);
       dspCompressor.knee.setValueAtTime(10, audioCtx.currentTime);
       dspCompressor.ratio.setValueAtTime(4.0, audioCtx.currentTime);
       dspCompressor.attack.setValueAtTime(0.003, audioCtx.currentTime);
@@ -685,7 +704,7 @@
 
       // 5. Clean Master Gain Stage
       dspMasterGain = audioCtx.createGain();
-      dspMasterGain.gain.setValueAtTime(1.5, audioCtx.currentTime); // +3.5dB clean voice boost
+      dspMasterGain.gain.setValueAtTime(1.4, audioCtx.currentTime); // +3dB clean voice boost
 
       // Connect DSP Chain: [Source] -> HighPass -> Peaking -> LowPass -> Compressor -> MasterGain -> Destination
       dspHighPass.connect(dspPeaking);
@@ -693,6 +712,45 @@
       dspLowPass.connect(dspCompressor);
       dspCompressor.connect(dspMasterGain);
       dspMasterGain.connect(audioCtx.destination);
+
+      // Initialize continuous smooth playback queue node
+      initContinuousPlayback();
+    }
+
+    // Continuous Smooth Playback Engine (Zero Glitches, Zero Jitter Gaps)
+    function initContinuousPlayback() {
+      if (playbackProcessor || !audioCtx) return;
+      
+      playbackProcessor = audioCtx.createScriptProcessor(2048, 0, 1);
+      playbackProcessor.onaudioprocess = (e) => {
+        const output = e.outputBuffer.getChannelData(0);
+        let outIdx = 0;
+        
+        while (outIdx < output.length && audioQueue.length > 0) {
+          const chunk = audioQueue[0];
+          const needed = output.length - outIdx;
+          if (chunk.length <= needed) {
+            output.set(chunk, outIdx);
+            outIdx += chunk.length;
+            audioQueue.shift();
+          } else {
+            output.set(chunk.subarray(0, needed), outIdx);
+            audioQueue[0] = chunk.subarray(needed);
+            outIdx += needed;
+          }
+        }
+        
+        // Fill remaining with silence
+        while (outIdx < output.length) {
+          output[outIdx++] = 0;
+        }
+      };
+
+      if (dspHighPass) {
+        playbackProcessor.connect(dspHighPass);
+      } else {
+        playbackProcessor.connect(audioCtx.destination);
+      }
     }
 
     // Audio Context Initialization & Unlock
@@ -753,17 +811,15 @@
       const sampleRate = audioCtx.sampleRate || 48000;
       const numSamples = Math.floor(sampleRate * 0.8); // 800ms
       
-      // Packet Header: [0xAA, 0x55, rateHigh, rateLow] + Int16 PCM payload
       const buffer = new ArrayBuffer(4 + numSamples * 2);
       const headerView = new DataView(buffer);
       headerView.setUint8(0, 0xAA);
       headerView.setUint8(1, 0x55);
-      headerView.setUint16(2, sampleRate, false); // Big-endian sample rate
+      headerView.setUint16(2, sampleRate, false);
 
       const pcm16 = new Int16Array(buffer, 4, numSamples);
       for (let i = 0; i < numSamples; i++) {
         const t = i / sampleRate;
-        // Warm vocal harmonic sweep
         const f1 = 440 + 80 * Math.sin(2 * Math.PI * 4 * t);
         const f2 = 880 + 160 * Math.sin(2 * Math.PI * 4 * t);
         const sample = (0.4 * Math.sin(2 * Math.PI * f1 * t) + 0.2 * Math.sin(2 * Math.PI * f2 * t)) * (1 - t / 0.8);
@@ -778,6 +834,29 @@
       }
     }
 
+    // Play Chirp on PTT Click
+    function playChirp(isStart) {
+      if (!audioCtx) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        if (isStart) {
+          osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+          osc.frequency.setValueAtTime(1200, audioCtx.currentTime + 0.05);
+        } else {
+          osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
+          osc.frequency.setValueAtTime(600, audioCtx.currentTime + 0.05);
+        }
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.08);
+      } catch(e){}
+    }
+
     // Microphone Activation & Raw PCM Stream Setup
     async function startMicAndAudio() {
       await ensureAudioContextActive();
@@ -787,12 +866,10 @@
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true,
-            channelCount: 1,
-            sampleRate: 48000
+            channelCount: 1
           }
         });
 
-        // Set up Web Audio API PCM Processor
         micSource = audioCtx.createMediaStreamSource(localStream);
         scriptProcessor = audioCtx.createScriptProcessor(2048, 1, 1);
 
@@ -800,13 +877,11 @@
           if (!isTransmittingVoice) return;
           const inputData = e.inputBuffer.getChannelData(0);
 
-          // Animate wave bars when speaking
           let sum = 0;
           for (let i = 0; i < inputData.length; i++) sum += Math.abs(inputData[i]);
           const avg = sum / inputData.length;
           updateWaveformVisualizer(avg);
 
-          // Build Packet: [4-byte header: Magic(0xAA55) + uint16(sampleRate)] + PCM16 Payload
           const sampleRate = audioCtx.sampleRate || 48000;
           const packetBuffer = new ArrayBuffer(4 + inputData.length * 2);
           const header = new DataView(packetBuffer);
@@ -820,7 +895,6 @@
             pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
           }
 
-          // Send binary frame over WebSocket
           if (ws && ws.readyState === WebSocket.OPEN) {
             ws.send(packetBuffer);
           }
@@ -860,7 +934,7 @@
       }
     }
 
-    // Playback Inbound Audio Frame with Exact Sample Rate & Anti-Click Smoothing
+    // Playback Inbound Audio Frame into Continuous Ring Buffer
     async function playInboundPCMFrame(arrayBuffer) {
       await ensureAudioContextActive();
 
@@ -878,54 +952,39 @@
       let senderSampleRate = audioCtx.sampleRate || 48000;
       let pcm16;
 
-      // Check for 4-byte header [0xAA, 0x55, uint16(sampleRate)]
       const dataView = new DataView(arrayBuffer);
       if (arrayBuffer.byteLength >= 4 && dataView.getUint8(0) === 0xAA && dataView.getUint8(1) === 0x55) {
         senderSampleRate = dataView.getUint16(2, false);
         pcm16 = new Int16Array(arrayBuffer, 4);
       } else {
-        // Legacy fallback
         pcm16 = new Int16Array(arrayBuffer);
       }
 
       if (pcm16.length === 0) return;
 
-      const float32 = new Float32Array(pcm16.length);
+      const rawFloat32 = new Float32Array(pcm16.length);
       let sum = 0;
       for (let i = 0; i < pcm16.length; i++) {
-        float32[i] = pcm16[i] / (pcm16[i] < 0 ? 32768 : 32767);
-        sum += Math.abs(float32[i]);
+        rawFloat32[i] = pcm16[i] / (pcm16[i] < 0 ? 32768 : 32767);
+        sum += Math.abs(rawFloat32[i]);
       }
       updateWaveformVisualizer(sum / pcm16.length);
 
-      // Apply subtle 2ms Anti-Click Hann Windowing at buffer boundaries
-      const fadeLen = Math.min(32, Math.floor(float32.length / 8));
-      for (let i = 0; i < fadeLen; i++) {
-        const factor = 0.5 * (1 - Math.cos((Math.PI * i) / fadeLen));
-        float32[i] *= factor;
-        float32[float32.length - 1 - i] *= factor;
-      }
+      // Resample to receiver's native audioCtx.sampleRate (e.g. 48000 Hz)
+      const targetRate = audioCtx.sampleRate || 48000;
+      const resampled = resampleFloat32(rawFloat32, senderSampleRate, targetRate);
 
-      // Create buffer matching the sender's exact capture rate (Browser C++ resampler handles the rest perfectly!)
-      const buffer = audioCtx.createBuffer(1, float32.length, senderSampleRate);
-      buffer.copyToChannel(float32, 0);
+      // Push into smooth continuous playback queue
+      audioQueue.push(resampled);
 
-      const source = audioCtx.createBufferSource();
-      source.buffer = buffer;
-      
-      // Connect to DSP filter chain (HighPass -> Peaking EQ -> LowPass -> DynamicsCompressor -> MasterGain)
-      if (dspHighPass) {
-        source.connect(dspHighPass);
-      } else {
-        source.connect(audioCtx.destination);
+      // Cap queue lag to 180ms maximum to keep real-time latency tight
+      const maxBufferedSamples = Math.floor(targetRate * 0.18);
+      let totalBuffered = 0;
+      for (let i = 0; i < audioQueue.length; i++) totalBuffered += audioQueue[i].length;
+      while (totalBuffered > maxBufferedSamples && audioQueue.length > 1) {
+        const dropped = audioQueue.shift();
+        totalBuffered -= dropped.length;
       }
-
-      const now = audioCtx.currentTime;
-      if (nextPlayTime < now) {
-        nextPlayTime = now + 0.025; // 25ms jitter buffer
-      }
-      source.start(nextPlayTime);
-      nextPlayTime += buffer.duration;
     }
 
     // Initialize WebRTC PeerConnection
@@ -968,7 +1027,6 @@
 
       ws.onmessage = async (event) => {
         if (event.data instanceof ArrayBuffer) {
-          // Play incoming live audio frame immediately through DSP engine!
           playInboundPCMFrame(event.data);
           return;
         }
@@ -1007,9 +1065,11 @@
           } else if (data.type === 'PTT_START') {
             document.getElementById('ptt-speaker-status').innerText = `🎙️ ${data.senderName} (Speaking...)`;
             document.getElementById('ptt-speaker-status').style.color = '#F43F5E';
+            playChirp(true);
           } else if (data.type === 'PTT_STOP') {
             document.getElementById('ptt-speaker-status').innerText = `Floor Clear • Hold to broadcast voice`;
             document.getElementById('ptt-speaker-status').style.color = 'var(--accent-cyan)';
+            playChirp(false);
           } else if (data.type === 'CHAT_MSG') {
             appendInboundChat(data.senderName, data.text);
           }
@@ -1049,7 +1109,7 @@
               <span style="font-size: 14px;">🟢</span>
               <div>
                 <div class="peer-name">${peer.nickname} <span style="font-size: 10px; background: var(--card-border); padding: 2px 6px; border-radius: 4px;">${peer.deviceType}</span></div>
-                <div class="peer-meta">ID: ${peer.id} • Direct Local Mesh • HD Voice DSP Active</div>
+                <div class="peer-meta">ID: ${peer.id} • Direct Local Mesh • HD Voice Active</div>
               </div>
             </div>
             <div class="btn-group">
@@ -1068,7 +1128,6 @@
       ws.send(JSON.stringify({ type: 'CALL_INVITE', targetId: peerId }));
       startActiveCallScreen(peerName, true);
 
-      // WebRTC Offer
       createPeerConnection();
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
@@ -1156,6 +1215,7 @@
       document.getElementById('ptt-text').innerText = 'TRANSMITTING';
       document.getElementById('ptt-speaker-status').innerText = '🎙️ YOU (Broadcasting HD Voice)';
       document.getElementById('ptt-speaker-status').style.color = '#F43F5E';
+      playChirp(true);
 
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'PTT_START' }));
@@ -1171,6 +1231,7 @@
       document.getElementById('ptt-text').innerText = 'HOLD TO TALK';
       document.getElementById('ptt-speaker-status').innerText = 'Floor Clear • Hold to broadcast voice';
       document.getElementById('ptt-speaker-status').style.color = 'var(--accent-cyan)';
+      playChirp(false);
 
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'PTT_STOP' }));
