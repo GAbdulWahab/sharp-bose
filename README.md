@@ -1,35 +1,32 @@
 # Global Offline Voice Calling & Mesh Communication Platform
 
-An off-grid, peer-to-peer real-time voice and text messaging communication network over Bluetooth Low Energy (BLE L2CAP CoC), Wi-Fi Direct, and multi-hop mesh routing.
+An off-grid, peer-to-peer real-time voice, walkie-talkie (PTT), file sharing, and mesh communication network over Bluetooth Low Energy (BLE L2CAP CoC), Wi-Fi Direct, and multi-hop routing.
 
 ---
 
 ## 🚀 Key Features
 
 - **No Internet or Cellular Required**: Complete peer-to-peer communication over BLE L2CAP and Wi-Fi Direct.
-- **Multi-Hop Mesh Protocol**: Epidemic and routing-directed multi-hop packet propagation with dynamic TTL and duplicate suppression.
+- **Walkie-Talkie Push-To-Talk (PTT)**: Half-duplex tactical group voice intercom with multi-channel selection (Emergency, General, Recon, Tactical Ops).
+- **Offline P2P File & Media Transfer**: Chunks photos, vector maps, and voice logs with CRC32 verification and store-and-forward reassembly.
+- **Tactical Mesh Radar & Geolocation**: 360° node polar coordinates, distance estimation, RSSI signal rings, and offline rally point markers.
+- **Multi-Hop Mesh Routing**: Epidemic & routing-directed packet propagation with dynamic TTL and duplicate replay suppression.
 - **End-to-End Encryption (E2EE)**: Built on Noise Protocol Framework (Noise_XX) with Curve25519, ChaCha20-Poly1305, and SAS (Short Authentication String) voice verification.
 - **Real-Time Voice Calling**: Low-latency 16kHz PCM audio engine with hardware Acoustic Echo Cancellation (AEC) and Noise Suppression.
-- **Emergency SOS Broadcast**: High-priority broadcast channel relaying emergency beacon and optional geolocation across all reachable peers.
-- **Cross-Platform Architecture**:
-  - `core/`: Shared C++20 protocol frames, crypto engine, jitter buffer, store-and-forward queue, and mesh router.
-  - `mobile/android`: Native Android Kotlin engine with foreground service, L2CAP sockets, and real-time audio pipeline.
-  - `mobile/ios`: Native iOS Swift engine with CallKit integration and CoreBluetooth transport.
-  - `mobile/src`: React Native / TypeScript cross-platform UI.
-  - `web-preview`: Interactive web preview and mesh simulation tool.
+- **Emergency SOS Broadcast**: High-priority broadcast channel relaying emergency beacons across all reachable peers.
 
 ---
 
 ## 📁 Repository Structure
 
 ```
-├── core/                  # Core C++20 routing, crypto, jitter buffer & unit tests
-│   ├── include/           # Header files (crypto_engine.h, mesh_router.h, etc.)
-│   └── tests/             # CTest test suite (test_core_engine.cpp)
+├── core/                  # Core C++20 routing, crypto, jitter buffer, file chunker & tests
+│   ├── include/           # Header files (file_chunker.h, ptt_group_router.h, crypto_engine.h, etc.)
+│   └── tests/             # CTest unit test suite (test_core_engine.cpp)
 ├── mobile/                # Mobile application
-│   ├── android/           # Android native project (Kotlin, BLE L2CAP, Audio Engine)
+│   ├── android/           # Android native project (Kotlin, BLE L2CAP, Audio Engine, PTT)
 │   ├── ios/               # iOS native project (Swift, CoreBluetooth, CallKit)
-│   └── src/               # React Native screens, components, and native bridge
+│   └── src/               # React Native screens (PTT, Tactical Radar, File Share, Call, Chat)
 ├── docs/                  # Architecture, protocol, security & compliance specs
 │   ├── PROTOCOL_SPEC.md
 │   ├── SECURITY_MODEL.md
@@ -43,29 +40,21 @@ An off-grid, peer-to-peer real-time voice and text messaging communication netwo
 ## 🛠️ Building & Running
 
 ### 1. Build Android App
-Prerequisites: JDK 17, Android SDK (API 34/35).
+The Android app is automatically compiled in the cloud via GitHub Actions on every push. You can download the latest APK directly from the GitHub repository Actions tab:
+- **GitHub Actions**: [https://github.com/GAbdulWahab/sharp-bose/actions](https://github.com/GAbdulWahab/sharp-bose/actions)
 
+To build locally:
 ```bash
 cd mobile/android
 ./gradlew assembleDebug
 ```
-The compiled APK will be generated at `mobile/android/app/build/outputs/apk/debug/app-debug.apk`.
 
-### 2. Build Core C++ Engine & Tests
-```bash
-cd core
-mkdir build && cd build
-cmake ..
-cmake --build .
-ctest --output-on-failure
-```
-
-### 3. Web Simulation Preview
+### 2. Run Web Simulation Preview
 ```bash
 cd web-preview
 node server.js
 ```
-Open `http://localhost:3000` in your browser.
+Open `http://localhost:3000` in your browser to interact with the full mesh simulator, PTT walkie-talkie, and file transfer engine.
 
 ---
 

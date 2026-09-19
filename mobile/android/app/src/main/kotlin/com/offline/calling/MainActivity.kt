@@ -1,10 +1,12 @@
 package com.offline.calling
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.view.MotionEvent
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
@@ -23,14 +25,17 @@ class MainActivity : AppCompatActivity() {
     private lateinit var audioEngine: AndroidAudioEngine
     private var isCalling = false
     private var isSpeakerOn = false
+    private var isPttTransmitting = false
     private val localPeerId = "node-" + UUID.randomUUID().toString().substring(0, 8)
 
     private lateinit var tvStatus: TextView
     private lateinit var tvPeerId: TextView
     private lateinit var tvLogs: TextView
+    private lateinit var tvPttChannel: TextView
     private lateinit var btnCall: Button
     private lateinit var btnSpeaker: Button
     private lateinit var btnSos: Button
+    private lateinit var btnPtt: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,9 +46,11 @@ class MainActivity : AppCompatActivity() {
         tvStatus = findViewById(R.id.tvStatus)
         tvPeerId = findViewById(R.id.tvPeerId)
         tvLogs = findViewById(R.id.tvLogs)
+        tvPttChannel = findViewById(R.id.tvPttChannel)
         btnCall = findViewById(R.id.btnCall)
         btnSpeaker = findViewById(R.id.btnSpeaker)
         btnSos = findViewById(R.id.btnSos)
+        btnPtt = findViewById(R.id.btnPtt)
 
         tvPeerId.text = "Local Peer ID: $localPeerId • Noise_XX E2EE"
 
@@ -52,6 +59,7 @@ class MainActivity : AppCompatActivity() {
         setupUIListeners()
     }
 
+    @SuppressLint("ClickableViewAccessibility")
     private fun setupUIListeners() {
         btnCall.setOnClickListener {
             if (!isCalling) {
@@ -72,8 +80,51 @@ class MainActivity : AppCompatActivity() {
             broadcastEmergencySOS()
         }
 
+        btnPtt.setOnTouchListener { _, event ->
+            when (event.action) {
+                MotionEvent.ACTION_DOWN -> {
+                    startPttTransmit()
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    stopPttTransmit()
+                    true
+                }
+                else -> false
+            }
+        }
+
         audioEngine.onAudioFrameCaptured = { frame ->
-            // Voice frame captured and ready for packetization and mesh transmission
+            // Audio PCM frame captured for PTT or Voice Call mesh propagation
+        }
+    }
+
+    private fun startPttTransmit() {
+        isPttTransmitting = true
+        btnPtt.text = "TRANSMITTING (PTT CH 1)..."
+        btnPtt.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_rose))
+        tvPttChannel.text = "Channel 1: Emergency & Tactical • Floor: YOU (Broadcasting)"
+        logEvent("[PTT] Floor acquired. Broadcasting half-duplex voice to all Channel 1 peers...")
+        try {
+            audioEngine.startVoice()
+        } catch (e: Exception) {
+            logEvent("[PTT Error] " + e.message)
+        }
+    }
+
+    private fun stopPttTransmit() {
+        if (!isPttTransmitting) return
+        isPttTransmitting = false
+        btnPtt.text = "HOLD TO TALK (PTT)"
+        btnPtt.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_cyan))
+        tvPttChannel.text = "Channel 1: Emergency & Tactical Recon • Floor: Clear"
+        logEvent("[PTT] Floor released. Back to standby listening mode.")
+        if (!isCalling) {
+            try {
+                audioEngine.stopVoice()
+            } catch (e: Exception) {
+                logEvent("[PTT Error] " + e.message)
+            }
         }
     }
 
@@ -83,7 +134,7 @@ class MainActivity : AppCompatActivity() {
             isCalling = true
             btnCall.text = "End Call"
             btnCall.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_rose))
-            logEvent("[Voice] Call established with 16kHz PCM AEC/NS")
+            logEvent("[Voice] Full-duplex call established with 16kHz PCM AEC/NS")
             Toast.makeText(this, "Voice Call Started", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             logEvent("[Error] Could not start audio engine: ${e.message}")
@@ -115,7 +166,7 @@ class MainActivity : AppCompatActivity() {
         } else {
             startService(serviceIntent)
         }
-        logEvent("[Service] ForegroundMeshService started")
+        logEvent("[Service] ForegroundMeshService active")
     }
 
     private fun logEvent(msg: String) {
@@ -152,7 +203,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        if (isCalling) {
+        if (isCalling || isPttTransmitting) {
             audioEngine.stopVoice()
         }
     }

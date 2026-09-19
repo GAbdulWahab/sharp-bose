@@ -3,6 +3,8 @@
 #include "jitter_buffer.h"
 #include "mesh_router.h"
 #include "store_and_forward.h"
+#include "file_chunker.h"
+#include "ptt_group_router.h"
 #include <iostream>
 #include <cassert>
 #include <vector>
@@ -126,12 +128,61 @@ void TestMeshRouting() {
     std::cout << "[PASSED] TestMeshRouting\n";
 }
 
+void TestFileChunkerAndReassembly() {
+    std::cout << "[RUNNING] TestFileChunkerAndReassembly...\n";
+    std::vector<uint8_t> sample_data(1250);
+    for (size_t i = 0; i < sample_data.size(); ++i) {
+        sample_data[i] = static_cast<uint8_t>(i % 256);
+    }
+
+    uint32_t transfer_id = 9988;
+    auto chunks = mesh::transfer::FileChunker::chunk_file(transfer_id, "tactical_map.bin", sample_data, 512);
+    assert(chunks.size() == 3); // 512 + 512 + 226 = 1250 bytes
+
+    mesh::transfer::FileReassembler reassembler(transfer_id);
+    assert(reassembler.add_chunk(chunks[0]) == true);
+    assert(reassembler.is_complete() == false);
+    assert(reassembler.add_chunk(chunks[2]) == true); // Out-of-order chunk arrival
+    assert(reassembler.is_complete() == false);
+    assert(reassembler.add_chunk(chunks[1]) == true);
+    assert(reassembler.is_complete() == true);
+
+    auto recovered = reassembler.reassemble();
+    assert(recovered.size() == sample_data.size());
+    assert(recovered == sample_data);
+    std::cout << "[PASSED] TestFileChunkerAndReassembly (1250 bytes verified with CRC32)\n";
+}
+
+void TestPTTGroupRouter() {
+    std::cout << "[RUNNING] TestPTTGroupRouter...\n";
+    mesh::ptt::PTTGroupRouter router(101);
+
+    assert(router.select_channel(2) == true);
+    assert(router.get_current_channel() == 2);
+
+    // Acquire floor
+    assert(router.request_ptt_talk() == true);
+    assert(router.get_state() == mesh::ptt::PTTState::TRANSMITTING);
+
+    // Release floor
+    router.release_ptt_talk();
+    assert(router.get_state() == mesh::ptt::PTTState::IDLE);
+
+    // Incoming frame from speaker 202
+    router.handle_incoming_ptt_frame(2, 202, {0x11, 0x22});
+    assert(router.get_state() == mesh::ptt::PTTState::RECEIVING);
+
+    std::cout << "[PASSED] TestPTTGroupRouter\n";
+}
+
 int main() {
     std::cout << "=== RUNNING CORE MESH ENGINE AUTOMATED UNIT TESTS ===\n";
     TestProtocolSerialization();
     TestReplayFilter();
     TestJitterBufferAndPLC();
     TestMeshRouting();
-    std::cout << "=== ALL TESTS COMPLETED SUCCESSFULLY (4/4 PASSED) ===\n";
+    TestFileChunkerAndReassembly();
+    TestPTTGroupRouter();
+    std::cout << "=== ALL TESTS COMPLETED SUCCESSFULLY (6/6 PASSED) ===\n";
     return 0;
 }

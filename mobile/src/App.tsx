@@ -6,6 +6,9 @@ import { ChatScreen } from './screens/ChatScreen';
 import { DiagnosticsScreen } from './screens/DiagnosticsScreen';
 import { SOSBroadcastScreen } from './screens/SOSBroadcastScreen';
 import { ContactsScreen } from './screens/ContactsScreen';
+import { PTTIntercomScreen } from './screens/PTTIntercomScreen';
+import { FileShareScreen } from './screens/FileShareScreen';
+import { TacticalMapScreen } from './screens/TacticalMapScreen';
 import { PeerNode } from './types/protocol';
 
 type CurrentScreen =
@@ -14,7 +17,10 @@ type CurrentScreen =
   | { name: 'CHAT'; peer: PeerNode }
   | { name: 'DIAGNOSTICS' }
   | { name: 'SOS' }
-  | { name: 'CONTACTS' };
+  | { name: 'CONTACTS' }
+  | { name: 'PTT' }
+  | { name: 'FILE_SHARE' }
+  | { name: 'TACTICAL_MAP' };
 
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<CurrentScreen>({ name: 'HOME' });
@@ -30,6 +36,38 @@ export default function App() {
           onOpenSOS={() => setCurrentScreen({ name: 'SOS' })}
           onOpenDiagnostics={() => setCurrentScreen({ name: 'DIAGNOSTICS' })}
           onOpenContacts={() => setCurrentScreen({ name: 'CONTACTS' })}
+          onOpenPTT={() => setCurrentScreen({ name: 'PTT' })}
+          onOpenFileShare={() => setCurrentScreen({ name: 'FILE_SHARE' })}
+          onOpenTacticalMap={() => setCurrentScreen({ name: 'TACTICAL_MAP' })}
+        />
+      )}
+
+      {currentScreen.name === 'PTT' && (
+        <PTTIntercomScreen onBack={() => setCurrentScreen({ name: 'HOME' })} />
+      )}
+
+      {currentScreen.name === 'FILE_SHARE' && (
+        <FileShareScreen onBack={() => setCurrentScreen({ name: 'HOME' })} />
+      )}
+
+      {currentScreen.name === 'TACTICAL_MAP' && (
+        <TacticalMapScreen
+          onBack={() => setCurrentScreen({ name: 'HOME' })}
+          onCallNode={(nodeName, nodeId) =>
+            setCurrentScreen({
+              name: 'CALL',
+              peer: {
+                id: nodeId,
+                nickname: nodeName,
+                rssi: -65,
+                batteryPercent: 85,
+                hopCount: 1,
+                transport: 'BLE_L2CAP',
+                isPaired: true,
+                lastSeenMs: Date.now(),
+              },
+            })
+          }
         />
       )}
 
