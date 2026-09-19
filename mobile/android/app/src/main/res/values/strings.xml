@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">Offline Mesh Calling</string>
+    <string name="mesh_status_active">Mesh Status: Active (Listening on BLE L2CAP)</string>
+    <string name="start_voice_call">Start Voice Call</string>
+    <string name="end_voice_call">End Call</string>
+    <string name="trigger_sos">Broadcast Emergency SOS</string>
+    <string name="sas_verification">SAS Voice Code: 7492 (Verified)</string>
+</resources>

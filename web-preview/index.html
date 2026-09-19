@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Offline Mesh Voice Calling & Communication Engine</title>
+  <style>
+    :root {
+      --bg-dark: #090D16;
+      --card-bg: #1E293B;
+      --card-border: #334155;
+      --accent-blue: #38BDF8;
+      --accent-green: #10B981;
+      --accent-red: #EF4444;
+      --accent-amber: #F59E0B;
+      --text-main: #F8FAFC;
+      --text-sub: #94A3B8;
+      --font-mono: 'SF Mono', Consolas, Monaco, monospace;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    body { background: #020617; color: var(--text-main); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+    
+    .phone-container {
+      width: 400px;
+      height: 840px;
+      background: var(--bg-dark);
+      border-radius: 44px;
+      border: 10px solid #1E293B;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.8), 0 0 20px rgba(56, 189, 248, 0.2);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Notch & Status Bar */
+    .status-bar {
+      height: 44px;
+      padding: 0 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: 600;
+      color: #94A3B8;
+      background: var(--bg-dark);
+      border-bottom: 1px solid #131E31;
+    }
+    .status-icons { display: flex; gap: 8px; align-items: center; font-size: 11px; }
+    .status-badge-offline { background: #064E3B; color: #34D399; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+
+    /* Screen Views */
+    .screen { flex: 1; display: none; flex-direction: column; padding: 18px; overflow-y: auto; }
+    .screen.active { display: flex; }
+
+    /* Header */
+    .screen-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .screen-title { font-size: 20px; font-weight: 800; letter-spacing: 0.5px; }
+    .btn-diag { background: #1E293B; color: #38BDF8; font-size: 11px; font-weight: 700; border: 1px solid #334155; padding: 6px 10px; border-radius: 8px; cursor: pointer; }
+
+    /* Cards & Components */
+    .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+    .range-banner { border-left: 4px solid var(--accent-blue); }
+    .range-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; }
+    .range-bar-bg { height: 6px; background: #0F172A; border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
+    .range-bar-fill { width: 80%; height: 100%; background: var(--accent-blue); transition: width 0.3s; }
+    .disclaimer { font-size: 11px; color: var(--text-sub); line-height: 15px; }
+
+    /* Quick Grid */
+    .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .quick-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px; cursor: pointer; transition: transform 0.1s; }
+    .quick-card:active { transform: scale(0.98); }
+    .quick-sos { background: #3B0712; border-color: #991B1B; }
+    .quick-icon { font-size: 20px; margin-bottom: 4px; }
+    .quick-title { font-size: 12px; font-weight: 800; }
+    .quick-sub { font-size: 10px; color: var(--text-sub); }
+
+    /* Peer List */
+    .peer-card { display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px; margin-bottom: 8px; }
+    .peer-info { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+    .peer-name { font-size: 14px; font-weight: 700; }
+    .peer-signal { font-size: 11px; color: var(--accent-green); margin-top: 2px; }
+    .btn-group { display: flex; gap: 6px; }
+    .btn-sm { padding: 6px 12px; border-radius: 8px; border: none; font-size: 11px; font-weight: 700; cursor: pointer; color: #FFF; }
+    .btn-call { background: #059669; }
+    .btn-chat { background: #2563EB; }
+
+    /* Active Call Screen */
+    .call-top { text-align: center; margin-top: 20px; }
+    .sec-badge { display: inline-block; background: #064E3B; color: #34D399; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px; margin-bottom: 10px; }
+    .call-peer { font-size: 26px; font-weight: 800; margin-bottom: 4px; }
+    .call-route { font-size: 13px; color: var(--accent-blue); font-weight: 600; }
+    .call-timer { font-size: 36px; font-weight: 800; font-family: var(--font-mono); color: #E2E8F0; margin: 16px 0; }
+
+    /* Audio Meter */
+    .audio-meter { background: #1E293B; border: 1px solid #334155; border-radius: 14px; padding: 14px; margin: 16px 0; }
+    .meter-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; margin-top: 10px; }
+    .meter-item-label { font-size: 9px; color: var(--text-sub); }
+    .meter-item-val { font-size: 13px; font-weight: 800; color: #38BDF8; font-family: var(--font-mono); margin-top: 2px; }
+
+    /* Waveform visualizer */
+    .visualizer-box { height: 40px; display: flex; align-items: center; justify-content: center; gap: 4px; margin: 10px 0; }
+    .v-bar { width: 4px; height: 10px; background: #38BDF8; border-radius: 2px; animation: pulse 0.8s infinite ease-in-out alternate; }
+    .v-bar:nth-child(2) { animation-delay: 0.2s; }
+    .v-bar:nth-child(3) { animation-delay: 0.4s; }
+    .v-bar:nth-child(4) { animation-delay: 0.1s; }
+    .v-bar:nth-child(5) { animation-delay: 0.3s; }
+    .v-bar:nth-child(6) { animation-delay: 0.5s; }
+    @keyframes pulse { from { height: 6px; background: #0284C7; } to { height: 32px; background: #38BDF8; } }
+
+    /* Controls Grid */
+    .call-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-top: auto; margin-bottom: 20px; }
+    .btn-ctrl { height: 75px; background: #1E293B; border: 1px solid #334155; border-radius: 16px; display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; color: #FFF; font-size: 11px; font-weight: 700; gap: 4px; }
+    .btn-ctrl.active { background: #D97706; border-color: #F59E0B; }
+    .btn-hangup { background: #991B1B; border-color: #DC2626; }
+
+    /* Chat Messages */
+    .chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .chat-bubble { max-width: 80%; padding: 10px 14px; border-radius: 14px; font-size: 13px; line-height: 18px; }
+    .chat-bubble.mine { align-self: flex-end; background: #1D4ED8; color: #FFF; border-bottom-right-radius: 2px; }
+    .chat-bubble.theirs { align-self: flex-start; background: #1E293B; color: #F8FAFC; border-bottom-left-radius: 2px; border: 1px solid #334155; }
+    .chat-meta { font-size: 9px; color: #93C5FD; text-align: right; margin-top: 4px; }
+    .chat-input-row { display: flex; gap: 8px; }
+    .chat-input { flex: 1; background: #1E293B; border: 1px solid #334155; border-radius: 20px; padding: 10px 14px; color: #FFF; font-size: 13px; outline: none; }
+    .btn-send { background: #2563EB; border: none; border-radius: 20px; padding: 0 16px; color: #FFF; font-weight: 700; cursor: pointer; }
+
+    /* SOS Screen */
+    .sos-banner { background: #450A0A; border: 1px solid #991B1B; border-radius: 10px; padding: 12px; font-size: 11px; color: #FECACA; margin-bottom: 16px; line-height: 16px; }
+    .sos-btn-big { width: 100%; padding: 20px; background: #DC2626; border: none; border-radius: 16px; color: #FFF; font-size: 18px; font-weight: 800; cursor: pointer; margin-top: auto; margin-bottom: 20px; }
+    .sos-broadcasting { background: #1E293B; border: 2px solid #DC2626; }
+
+    /* Modal */
+    .modal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.85); display: none; justify-content: center; align-items: center; padding: 20px; z-index: 100; }
+    .modal-overlay.active { display: flex; }
+    .modal-box { background: #1E293B; border: 1px solid #334155; border-radius: 18px; padding: 20px; width: 100%; text-align: center; }
+    .sas-code { font-size: 32px; font-family: var(--font-mono); color: #38BDF8; letter-spacing: 6px; font-weight: 800; margin: 14px 0; }
+    .sas-words { display: flex; justify-content: center; gap: 6px; margin-bottom: 16px; }
+    .sas-tag { background: #334155; padding: 4px 8px; border-radius: 6px; font-size: 11px; color: #E2E8F0; }
+
+    /* Simulator Panel */
+    .sim-panel {
+      position: fixed;
+      right: 20px;
+      top: 20px;
+      width: 340px;
+      background: #0F172A;
+      border: 1px solid #1E293B;
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .sim-title { font-size: 14px; font-weight: 800; color: #38BDF8; margin-bottom: 12px; display: flex; justify-content: space-between; }
+    .sim-group { margin-bottom: 12px; }
+    .sim-label { font-size: 11px; color: var(--text-sub); margin-bottom: 4px; display: flex; justify-content: space-between; }
+    .sim-slider { width: 100%; accent-color: #38BDF8; }
+  </style>
+</head>
+<body>
+
+  <!-- Physical Phone Container -->
+  <div class="phone-container">
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <span>18:42</span>
+      <div class="status-icons">
+        <span class="status-badge-offline">OFFLINE MESH</span>
+        <span>BLE 5.3</span>
+        <span>🔋 88%</span>
+      </div>
+    </div>
+
+    <!-- 1. HOME SCREEN -->
+    <div id="screen-home" class="screen active">
+      <div class="screen-header">
+        <div>
+          <div class="screen-title">OFFLINE CALLING</div>
+          <div style="font-size: 11px; color: #10B981; font-weight: 600;">● Local Radios Active (0 MB Data)</div>
+        </div>
+        <button class="btn-diag" onclick="showScreen('diagnostics')">⚙️ DEV STATS</button>
+      </div>
+
+      <div class="card range-banner">
+        <div class="range-row">
+          <span style="color: #94A3B8; font-weight: 600;">Direct Wireless Range</span>
+          <span style="color: #38BDF8; font-weight: 700;">~25m Direct / Mesh Relay</span>
+        </div>
+        <div class="range-bar-bg">
+          <div class="range-bar-fill"></div>
+        </div>
+        <div class="disclaimer">No internet, Wi-Fi router, or cellular network required. Real-time direct device connection.</div>
+      </div>
+
+      <div class="quick-grid">
+        <div class="quick-card quick-sos" onclick="showScreen('sos')">
+          <div class="quick-icon">🚨</div>
+          <div class="quick-title">EMERGENCY SOS</div>
+          <div class="quick-sub">Priority mesh flood</div>
+        </div>
+        <div class="quick-card" onclick="showScreen('contacts')">
+          <div class="quick-icon">👥</div>
+          <div class="quick-title">SAVED CONTACTS</div>
+          <div class="quick-sub">Verified offline keys</div>
+        </div>
+      </div>
+
+      <div style="font-size: 11px; font-weight: 800; color: #94A3B8; margin-bottom: 8px;">NEARBY DISCOVERED DEVICES (3)</div>
+      
+      <div class="peer-card">
+        <div class="peer-info" onclick="openSAS('Sarah-iPhone')">
+          <span style="font-size: 14px;">🟢</span>
+          <div>
+            <div class="peer-name">Sarah-iPhone</div>
+            <div class="peer-signal">Direct (BLE L2CAP) • -58 dBm</div>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn-sm btn-call" onclick="startCall('Sarah-iPhone', 'Direct (BLE L2CAP)', 38)">📞 Call</button>
+          <button class="btn-sm btn-chat" onclick="openChat('Sarah-iPhone')">💬</button>
+        </div>
+      </div>
+
+      <div class="peer-card">
+        <div class="peer-info" onclick="openSAS('David-Pixel')">
+          <span style="font-size: 14px;">🔵</span>
+          <div>
+            <div class="peer-name">David-Pixel</div>
+            <div class="peer-signal">Direct (Wi-Fi P2P) • -68 dBm</div>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn-sm btn-call" onclick="startCall('David-Pixel', 'Direct (Wi-Fi P2P)', 22)">📞 Call</button>
+          <button class="btn-sm btn-chat" onclick="openChat('David-Pixel')">💬</button>
+        </div>
+      </div>
+
+      <div class="peer-card">
+        <div class="peer-info" onclick="openSAS('Relay-Node-C')">
+          <span style="font-size: 14px;">🟣</span>
+          <div>
+            <div class="peer-name">Relay-Node-C</div>
+            <div class="peer-signal" style="color: #A855F7;">Mesh Relay (2 Hops) • -84 dBm</div>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn-sm btn-call" onclick="startCall('Relay-Node-C', 'Mesh Relay (2 Hops)', 68)">📞 Call</button>
+          <button class="btn-sm btn-chat" onclick="openChat('Relay-Node-C')">💬</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. ACTIVE CALL SCREEN -->
+    <div id="screen-call" class="screen">
+      <div class="call-top">
+        <div class="sec-badge">🔒 End-to-End Encrypted (Noise_XX)</div>
+        <div id="call-peer-name" class="call-peer">Sarah-iPhone</div>
+        <div id="call-peer-route" class="call-route">Direct (BLE L2CAP)</div>
+        <div id="call-timer" class="call-timer">00:00</div>
+      </div>
+
+      <div class="visualizer-box">
+        <div class="v-bar"></div><div class="v-bar"></div><div class="v-bar"></div>
+        <div class="v-bar"></div><div class="v-bar"></div><div class="v-bar"></div>
+      </div>
+
+      <div class="audio-meter">
+        <div style="font-size: 10px; font-weight: 800; color: #94A3B8;">MEASURED LINK & AUDIO DSP TELEMETRY</div>
+        <div class="meter-grid">
+          <div><div class="meter-item-label">RTT Latency</div><div id="m-latency" class="meter-item-val">38 ms</div></div>
+          <div><div class="meter-item-label">Packet Loss</div><div id="m-loss" class="meter-item-val">0.4%</div></div>
+          <div><div class="meter-item-label">Jitter</div><div id="m-jitter" class="meter-item-val">3.8 ms</div></div>
+          <div><div class="meter-item-label">Bitrate</div><div id="m-bitrate" class="meter-item-val">14.4 kbps</div></div>
+        </div>
+        <div style="font-size: 9px; color: #64748B; text-align: center; margin-top: 8px;">
+          Codec: Opus 16kHz VBR + In-Band FEC | AEC & NS Active
+        </div>
+      </div>
+
+      <div class="call-controls">
+        <div class="btn-ctrl" id="btn-mute" onclick="toggleMute()">
+          <span style="font-size: 20px;">🎤</span>
+          <span id="label-mute">Mute</span>
+        </div>
+        <div class="btn-ctrl" id="btn-speaker" onclick="toggleSpeaker()">
+          <span style="font-size: 20px;">🔊</span>
+          <span id="label-speaker">Speaker</span>
+        </div>
+        <div class="btn-ctrl btn-hangup" onclick="endCall()">
+          <span style="font-size: 20px;">🛑</span>
+          <span>End Call</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. CHAT SCREEN -->
+    <div id="screen-chat" class="screen">
+      <div class="screen-header">
+        <button class="btn-diag" onclick="showScreen('home')">← Back</button>
+        <div id="chat-title" style="font-weight: 700; font-size: 15px;">Sarah-iPhone</div>
+        <button class="btn-sm btn-call" onclick="startCall(currentChatPeer, 'Direct (BLE L2CAP)', 38)">📞 Call</button>
+      </div>
+
+      <div id="chat-messages" class="chat-list">
+        <div class="chat-bubble theirs">
+          Hey! Are you in range for an offline voice call?
+          <div class="chat-meta">18:38 • 1 hop</div>
+        </div>
+        <div class="chat-bubble mine">
+          Yes! Bluetooth L2CAP connection is solid at -58 dBm.
+          <div class="chat-meta">18:39 • ✓✓ Delivered</div>
+        </div>
+      </div>
+
+      <div class="chat-input-row">
+        <input type="text" id="chat-input" class="chat-input" placeholder="Type offline message..." onkeydown="if(event.key==='Enter')sendMessage()" />
+        <button class="btn-send" onclick="sendMessage()">Send</button>
+      </div>
+    </div>
+
+    <!-- 4. SOS SCREEN -->
+    <div id="screen-sos" class="screen">
+      <div class="screen-header">
+        <button class="btn-diag" onclick="showScreen('home')">← Back</button>
+        <div style="font-weight: 800; color: var(--accent-red); font-size: 16px;">EMERGENCY SOS</div>
+        <div style="width: 40px;"></div>
+      </div>
+
+      <div class="sos-banner">
+        ⚠️ <strong>CRITICAL LIMITATION:</strong> This emergency alert floods directly to nearby participating devices in radio range. It does NOT call 911/112 without cellular coverage.
+      </div>
+
+      <div class="card">
+        <div style="font-size: 11px; font-weight: 700; color: #94A3B8; margin-bottom: 8px;">DISTRESS TYPE</div>
+        <div style="font-size: 14px; font-weight: 700; color: #FFF;">🚨 MEDICAL EMERGENCY & RESCUE</div>
+      </div>
+
+      <button id="btn-sos-trigger" class="sos-btn-big" onclick="toggleSOS()">
+        🚨 BROADCAST SOS ALERT
+      </button>
+    </div>
+
+    <!-- 5. DIAGNOSTICS SCREEN -->
+    <div id="screen-diagnostics" class="screen">
+      <div class="screen-header">
+        <button class="btn-diag" onclick="showScreen('home')">← Back</button>
+        <div style="font-weight: 800; font-size: 15px;">ENGINE DIAGNOSTICS</div>
+        <div style="width: 40px;"></div>
+      </div>
+
+      <div class="card">
+        <div style="font-size: 10px; font-weight: 800; color: #94A3B8; margin-bottom: 6px;">LOCAL RADIO & CRYPTO</div>
+        <div style="font-size: 11px; color: #38BDF8; font-family: var(--font-mono);">Node ID: 0x4D457F4A21B9</div>
+        <div style="font-size: 11px; color: #94A3B8; margin-top: 4px;">Crypto: Noise_XX_25519_ChaChaPoly</div>
+        <div style="font-size: 11px; color: #94A3B8; margin-top: 2px;">Replay Filter: 64-bit Window (0 drops)</div>
+      </div>
+
+      <div class="card">
+        <div style="font-size: 10px; font-weight: 800; color: #94A3B8; margin-bottom: 6px;">AODV-LITE MESH TOPOLOGY</div>
+        <div style="font-size: 11px; font-family: var(--font-mono); color: #FFF; line-height: 18px;">
+          • Sarah-iPhone -> Direct (1 hop, RSSI -58 dBm)<br>
+          • David-Pixel  -> Direct (1 hop, RSSI -68 dBm)<br>
+          • Relay-Node-C -> via Sarah (2 hops, RSSI -84 dBm)
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. CONTACTS SCREEN -->
+    <div id="screen-contacts" class="screen">
+      <div class="screen-header">
+        <button class="btn-diag" onclick="showScreen('home')">← Back</button>
+        <div style="font-weight: 800; font-size: 15px;">SAVED CONTACTS</div>
+        <div style="width: 40px;"></div>
+      </div>
+
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: 700; font-size: 14px;">Sarah Jenkins</div>
+            <div style="font-size: 11px; color: #10B981;">✅ Verified Public Key</div>
+          </div>
+          <button class="btn-sm btn-call" onclick="startCall('Sarah Jenkins', 'Direct (BLE L2CAP)', 38)">📞</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <div style="font-weight: 700; font-size: 14px;">David Miller</div>
+            <div style="font-size: 11px; color: #F59E0B; cursor: pointer;" onclick="openSAS('David Miller')">⚠️ Verify SAS Code</div>
+          </div>
+          <button class="btn-sm btn-call" onclick="startCall('David Miller', 'Direct (Wi-Fi P2P)', 22)">📞</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- SAS Verification Modal -->
+    <div id="sas-modal" class="modal-overlay">
+      <div class="modal-box">
+        <div style="font-size: 18px; font-weight: 800; margin-bottom: 6px;">🔐 Verify Encryption Key</div>
+        <div style="font-size: 11px; color: #94A3B8; margin-bottom: 12px;">Confirm matching code on peer's screen:</div>
+        <div class="sas-code">841 920</div>
+        <div class="sas-words">
+          <span class="sas-tag">falcon</span>
+          <span class="sas-tag">river</span>
+          <span class="sas-tag">beacon</span>
+          <span class="sas-tag">summit</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-sm" style="flex:1; background:#EF4444;" onclick="closeSAS()">Cancel</button>
+          <button class="btn-sm" style="flex:1; background:#10B981;" onclick="closeSAS(true)">Confirm Match</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Side Interactive Simulation Controller -->
+  <div class="sim-panel">
+    <div class="sim-title">
+      <span>📡 MESH SIMULATOR CONTROLS</span>
+      <span style="font-size: 10px; color: #10B981;">RUNNING</span>
+    </div>
+
+    <div class="sim-group">
+      <div class="sim-label"><span>Simulated Distance (RSSI)</span><span id="sim-rssi-val">-58 dBm</span></div>
+      <input type="range" class="sim-slider" min="-95" max="-40" value="-58" oninput="updateSimRSSI(this.value)" />
+    </div>
+
+    <div class="sim-group">
+      <div class="sim-label"><span>Simulated Packet Loss %</span><span id="sim-loss-val">0.4%</span></div>
+      <input type="range" class="sim-slider" min="0" max="15" step="0.5" value="0.4" oninput="updateSimLoss(this.value)" />
+    </div>
+
+    <div class="sim-group">
+      <div class="sim-label"><span>Network Hop Relay Count</span><span id="sim-hop-val">1 (Direct)</span></div>
+      <input type="range" class="sim-slider" min="1" max="4" value="1" oninput="updateSimHops(this.value)" />
+    </div>
+
+    <div style="font-size: 11px; color: #64748B; margin-top: 10px; line-height: 15px;">
+      Adjust sliders to test adaptive jitter buffering, PLC concealment, and multi-hop mesh routing metrics in real time.
+    </div>
+  </div>
+
+  <script>
+    let currentScreen = 'home';
+    let callTimerInterval = null;
+    let callSeconds = 0;
+    let currentChatPeer = 'Sarah-iPhone';
+    let isSOS = false;
+    let isMuted = false;
+    let isSpeaker = false;
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      const target = document.getElementById('screen-' + id);
+      if (target) {
+        target.classList.add('active');
+        currentScreen = id;
+      }
+    }
+
+    function startCall(peerName, route, baseLatency) {
+      document.getElementById('call-peer-name').innerText = peerName;
+      document.getElementById('call-peer-route').innerText = route;
+      document.getElementById('m-latency').innerText = baseLatency + ' ms';
+      showScreen('call');
+      callSeconds = 0;
+      updateTimerDisplay();
+      if (callTimerInterval) clearInterval(callTimerInterval);
+      callTimerInterval = setInterval(() => {
+        callSeconds++;
+        updateTimerDisplay();
+      }, 1000);
+    }
+
+    function updateTimerDisplay() {
+      const m = Math.floor(callSeconds / 60).toString().padStart(2, '0');
+      const s = (callSeconds % 60).toString().padStart(2, '0');
+      document.getElementById('call-timer').innerText = `${m}:${s}`;
+    }
+
+    function endCall() {
+      if (callTimerInterval) clearInterval(callTimerInterval);
+      showScreen('home');
+    }
+
+    function toggleMute() {
+      isMuted = !isMuted;
+      document.getElementById('btn-mute').classList.toggle('active', isMuted);
+      document.getElementById('label-mute').innerText = isMuted ? 'Unmute' : 'Mute';
+    }
+
+    function toggleSpeaker() {
+      isSpeaker = !isSpeaker;
+      document.getElementById('btn-speaker').classList.toggle('active', isSpeaker);
+      document.getElementById('label-speaker').innerText = isSpeaker ? 'Earpiece' : 'Speaker';
+    }
+
+    function openChat(peerName) {
+      currentChatPeer = peerName;
+      document.getElementById('chat-title').innerText = peerName;
+      showScreen('chat');
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('chat-input');
+      const text = input.value.trim();
+      if (!text) return;
+      
+      const container = document.getElementById('chat-messages');
+      const bubble = document.createElement('div');
+      bubble.className = 'chat-bubble mine';
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      bubble.innerHTML = `${text}<div class="chat-meta">${timeStr} • ↗️ Sent</div>`;
+      container.appendChild(bubble);
+      input.value = '';
+      container.scrollTop = container.scrollHeight;
+
+      setTimeout(() => {
+        bubble.querySelector('.chat-meta').innerHTML = `${timeStr} • ✓✓ Delivered (Offline P2P)`;
+      }, 600);
+    }
+
+    function toggleSOS() {
+      isSOS = !isSOS;
+      const btn = document.getElementById('btn-sos-trigger');
+      if (isSOS) {
+        btn.classList.add('sos-broadcasting');
+        btn.innerHTML = '🛑 STOP SOS BROADCAST<br><span style="font-size:11px;font-weight:500;">● Flooding alert across local mesh...</span>';
+      } else {
+        btn.classList.remove('sos-broadcasting');
+        btn.innerHTML = '🚨 BROADCAST SOS ALERT';
+      }
+    }
+
+    function openSAS(name) {
+      document.getElementById('sas-modal').classList.add('active');
+    }
+
+    function closeSAS(confirmed) {
+      document.getElementById('sas-modal').classList.remove('active');
+      if (confirmed) {
+        alert('Cryptographic public key verified and saved to offline secure storage.');
+      }
+    }
+
+    function updateSimRSSI(val) {
+      document.getElementById('sim-rssi-val').innerText = val + ' dBm';
+    }
+
+    function updateSimLoss(val) {
+      document.getElementById('sim-loss-val').innerText = val + '%';
+      document.getElementById('m-loss').innerText = val + '%';
+    }
+
+    function updateSimHops(val) {
+      const hopStr = val == 1 ? '1 (Direct)' : `${val} (Mesh Relay)`;
+      document.getElementById('sim-hop-val').innerText = hopStr;
+      document.getElementById('m-latency').innerText = (20 + val * 22) + ' ms';
+    }
+  </script>
+</body>
+</html>

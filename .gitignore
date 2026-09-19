@@ -1,0 +1,54 @@
+# Node & NPM
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Android build outputs & caches
+.gradle/
+build/
+app/build/
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/.gradle/
+mobile/android/local.properties
+*.apk
+*.aab
+*.ap_
+*.dex
+captures/
+.externalNativeBuild/
+.cxx/
+
+# iOS build outputs
+mobile/ios/Pods/
+mobile/ios/build/
+*.xcworkspace
+*.xcuserdatad
+DerivedData/
+
+# C++ build outputs
+core/build/
+core/bin/
+core/out/
+*.o
+*.obj
+*.exe
+*.dll
+*.dylib
+*.so
+*.a
+*.lib
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Scratch & Logs
+scratch/
+*.log

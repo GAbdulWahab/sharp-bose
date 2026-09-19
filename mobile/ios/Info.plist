@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>Offline Call</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.offline.calling</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>OfflineCall</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0.0</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    
+    <!-- Privacy & Hardware Permissions -->
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Offline Call needs access to your microphone to capture your voice for real-time peer-to-peer offline calling.</string>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Offline Call uses Bluetooth Low Energy to discover nearby devices and transmit encrypted voice packets without internet.</string>
+    <key>NSBluetoothPeripheralUsageDescription</key>
+    <string>Offline Call advertises local mesh availability so nearby peers can initiate direct voice calls.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Offline Call uses local peer-to-peer Wi-Fi networks for high-bandwidth direct offline voice streaming.</string>
+    
+    <!-- Background Modes -->
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>audio</string>
+        <string>voip</string>
+        <string>bluetooth-central</string>
+        <string>bluetooth-peripheral</string>
+    </array>
+</dict>
+</plist>
