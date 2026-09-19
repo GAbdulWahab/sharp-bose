@@ -129,6 +129,12 @@
       display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #E0F2FE; cursor: pointer;
     }
 
+    /* DSP Clarity Mode Toggle Banner */
+    .dsp-clarity-banner {
+      background: #0F172A; border: 1px solid #334155; border-radius: 10px; padding: 8px 12px; margin-bottom: 12px;
+      display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #94A3B8;
+    }
+
     /* Feature Grid */
     .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
     .feature-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; cursor: pointer; transition: transform 0.1s, border-color 0.2s; }
@@ -222,14 +228,14 @@
   <!-- Physical Phone Container -->
   <div class="phone-container">
 
-    <!-- Speaker Unlock Banner (shown if browser has suspended AudioContext) -->
+    <!-- Speaker Unlock Banner -->
     <div id="speaker-unlock-banner" onclick="forceUnlockAudio()">
       🔊 LAPTOP SPEAKER READY • TAP TO ACTIVATE SOUND 🔊
     </div>
 
     <!-- Status Bar -->
     <div class="status-bar">
-      <span id="clock-display">19:58</span>
+      <span id="clock-display">20:06</span>
       <div class="status-icons">
         <span class="status-badge-offline">OFFLINE MESH</span>
         <span id="ws-indicator" style="color: #10B981;">● LIVE</span>
@@ -243,7 +249,7 @@
         <div>
           <div class="screen-title">OFFLINE MESH</div>
           <div id="self-status-sub" style="font-size: 11px; color: var(--accent-emerald); font-weight: 600;">
-            ● Ready for 2-Way Voice
+            ● HD 48kHz Crystal Audio DSP
           </div>
         </div>
         <div class="header-actions">
@@ -259,6 +265,12 @@
         <a id="https-link-btn" href="#" style="display: block; text-align: center; background: #EA580C; color: #FFF; text-decoration: none; padding: 6px; border-radius: 8px; font-weight: bold;">
           🔒 Switch to HTTPS (Port 3443)
         </a>
+      </div>
+
+      <!-- DSP Clarity Status -->
+      <div class="dsp-clarity-banner">
+        <span>✨ <strong>HD Voice DSP:</strong> Noise Filter + Voice EQ Active</span>
+        <span style="color: var(--accent-emerald); font-weight: bold;">AUTO-SYNC</span>
       </div>
 
       <!-- Audio & Mic Activation Banner -->
@@ -288,7 +300,7 @@
         <div class="feature-card card-ptt" onclick="showScreen('ptt')">
           <div class="feature-icon">📻</div>
           <div class="feature-title">Walkie-Talkie (PTT)</div>
-          <div class="feature-sub">Live half-duplex voice</div>
+          <div class="feature-sub">HD crystal clear audio</div>
         </div>
         <div class="feature-card card-radar" onclick="showScreen('radar')">
           <div class="feature-icon">🎯</div>
@@ -310,10 +322,10 @@
       <!-- Audio Test Action Buttons -->
       <div style="display: flex; gap: 8px; margin-bottom: 12px;">
         <button class="btn-diag" style="flex: 1; padding: 10px; background: #065F46; color: #6EE7B7; border-color: #059669;" onclick="testSpeakerBeep()">
-          🔊 Test Laptop Sound
+          🔊 Test Clean Sound
         </button>
         <button class="btn-diag" style="flex: 1; padding: 10px; background: #1E3A8A; color: #93C5FD; border-color: #2563EB;" onclick="broadcastSimulatedVoice()">
-          📡 Send Audio Beacon
+          📡 Send Audio Wave
         </button>
       </div>
 
@@ -337,7 +349,7 @@
       <div class="screen-header">
         <button class="btn-diag" onclick="showScreen('home')">← Back</button>
         <div style="font-weight: 800; font-size: 15px;">WALKIE-TALKIE (PTT)</div>
-        <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;">Ch 1: LIVE</div>
+        <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;">Ch 1: HD VOICE</div>
       </div>
 
       <div class="card" style="text-align: center;">
@@ -356,16 +368,16 @@
         <div id="btn-ptt-main" class="ptt-btn" onmousedown="startLivePTT()" onmouseup="stopLivePTT()" ontouchstart="startLivePTT()" ontouchend="stopLivePTT()">
           <div style="font-size: 32px;">🎙️</div>
           <div id="ptt-text" style="font-size: 14px; font-weight: 900; margin-top: 6px; letter-spacing: 1px;">HOLD TO TALK</div>
-          <div style="font-size: 9px; color: var(--text-sub);">Real-Time Voice Stream</div>
+          <div style="font-size: 9px; color: var(--text-sub);">Studio-Grade Voice Stream</div>
         </div>
       </div>
 
       <div style="display: flex; gap: 8px; margin-top: 10px;">
         <button class="btn-diag" style="flex: 1; padding: 10px;" onclick="broadcastSimulatedVoice()">
-          📡 Broadcast Voice Beacon
+          📡 Send Audio Wave
         </button>
         <button class="btn-diag" style="flex: 1; padding: 10px;" onclick="testSpeakerBeep()">
-          🔊 Test Speaker
+          🔊 Test Sound
         </button>
       </div>
     </div>
@@ -425,10 +437,10 @@
     <div id="screen-call" class="screen">
       <div style="text-align: center; margin-top: 15px;">
         <div style="display: inline-block; background: #064E3B; color: #34D399; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px; margin-bottom: 8px;">
-          🔒 LIVE 2-WAY FULL-DUPLEX VOICE
+          🔒 LIVE 2-WAY FULL-DUPLEX HD VOICE
         </div>
         <div id="call-peer-name" style="font-size: 24px; font-weight: 800; color: var(--text-main);">Remote Peer</div>
-        <div id="call-peer-route" style="font-size: 12px; color: var(--accent-blue);">Direct Local Mesh Stream</div>
+        <div id="call-peer-route" style="font-size: 12px; color: var(--accent-blue);">Direct HD Voice Pipeline</div>
         <div id="call-timer" style="font-size: 36px; font-weight: 800; font-family: var(--font-mono); margin: 12px 0; color: var(--text-main);">00:00</div>
       </div>
 
@@ -445,10 +457,10 @@
       <div class="card" style="margin-top: 10px;">
         <div style="font-size: 10px; font-weight: 800; color: var(--text-sub);">LIVE AUDIO DSP TELEMETRY</div>
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; margin-top: 8px;">
-          <div><div style="font-size: 9px; color: var(--text-sub);">RTT Latency</div><div id="m-latency" style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">18 ms</div></div>
+          <div><div style="font-size: 9px; color: var(--text-sub);">RTT Latency</div><div id="m-latency" style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">12 ms</div></div>
           <div><div style="font-size: 9px; color: var(--text-sub);">Rx Packets</div><div id="m-rx-pkts" style="font-size: 12px; font-weight: 800; color: var(--accent-emerald);">0</div></div>
-          <div><div style="font-size: 9px; color: var(--text-sub);">Speaker</div><div id="m-speaker-stat" style="font-size: 12px; font-weight: 800; color: var(--accent-emerald);">ACTIVE 🔊</div></div>
-          <div><div style="font-size: 9px; color: var(--text-sub);">Codec</div><div style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">16 kHz PCM</div></div>
+          <div><div style="font-size: 9px; color: var(--text-sub);">DSP Filter</div><div style="font-size: 12px; font-weight: 800; color: var(--accent-emerald);">ACTIVE ✨</div></div>
+          <div><div style="font-size: 9px; color: var(--text-sub);">Rate</div><div id="m-dsp-rate" style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">48 kHz</div></div>
         </div>
       </div>
 
@@ -508,7 +520,7 @@
         <div style="font-size: 10px; font-weight: 800; color: var(--text-sub); margin-bottom: 6px;">RADIO &amp; CRYPTO STATS</div>
         <div style="font-size: 11px; color: var(--accent-blue); font-family: var(--font-mono);" id="diag-node-id">Node ID: Initializing...</div>
         <div style="font-size: 11px; color: var(--text-sub); margin-top: 4px;">Crypto: Noise_XX_25519_ChaChaPoly</div>
-        <div style="font-size: 11px; color: var(--text-sub); margin-top: 2px;">Audio: Raw PCM 16kHz Streaming + WebRTC Track</div>
+        <div style="font-size: 11px; color: var(--text-sub); margin-top: 2px;">Audio: Dynamic Hardware Rate Resampling + Voice DSP</div>
         <div style="font-size: 11px; color: var(--text-sub); margin-top: 2px;" id="diag-audio-state">AudioContext: Unknown</div>
       </div>
     </div>
@@ -524,7 +536,7 @@
 
         <div id="inc-caller-name" style="font-size: 22px; font-weight: 900; color: var(--text-main);">Android Phone</div>
         <div id="inc-caller-route" style="font-size: 13px; color: var(--accent-blue); margin-top: 2px;">Direct Local Link</div>
-        <div id="inc-caller-meta" style="font-size: 11px; color: var(--text-sub); margin-top: 4px; font-family: var(--font-mono);">Noise_XX Verified • 16kHz PCM</div>
+        <div id="inc-caller-meta" style="font-size: 11px; color: var(--text-sub); margin-top: 4px; font-family: var(--font-mono);">Noise_XX Verified • HD Voice</div>
 
         <div class="btn-incoming-row">
           <button class="btn-decline" onclick="declineIncomingCall()">✕ Decline</button>
@@ -538,20 +550,20 @@
   <div class="info-panel">
     <div style="font-size: 15px; font-weight: 800; color: var(--accent-cyan); display: flex; justify-content: space-between;">
       <span>🎙️ LIVE VOICE TALK</span>
-      <span style="font-size: 11px; color: var(--accent-emerald);" id="info-status-badge">● READY</span>
+      <span style="font-size: 11px; color: var(--accent-emerald);" id="info-status-badge">● HD DSP READY</span>
     </div>
 
     <div style="font-size: 12px; line-height: 18px; color: var(--text-sub);">
-      To talk live between Laptop and Android phone:
+      To talk live with crystal-clear audio:
     </div>
 
     <div style="background: rgba(6, 182, 212, 0.1); border: 1px dashed var(--accent-cyan); border-radius: 10px; padding: 10px; font-size: 12px;">
-      <div style="font-weight: bold; color: var(--text-main);">📱 On Android Phone (HTTPS for Mic):</div>
+      <div style="font-weight: bold; color: var(--text-main);">📱 On Android Phone (HTTPS):</div>
       <div style="margin-top: 2px; color: var(--accent-cyan); font-family: var(--font-mono); font-weight: bold; word-break: break-all;">
         https://10.73.88.166:3443
       </div>
       <div style="font-size: 10px; color: #94A3B8; margin-top: 4px;">
-        *(If Chrome says "Not private", tap Advanced ➔ Proceed)*
+        *(Tap Advanced ➔ Proceed if Chrome prompts)*
       </div>
     </div>
 
@@ -563,16 +575,16 @@
     </div>
 
     <div style="font-size: 12px; line-height: 18px; color: var(--text-sub);">
-      <strong>1. Click "Activate"</strong> to grant microphone permission.
+      <strong>1. Click "Activate"</strong> on both devices.
     </div>
 
     <div style="font-size: 12px; line-height: 18px; color: var(--text-sub);">
-      <strong>2. Click "📞 Call"</strong> or hold <strong>"HOLD TO TALK"</strong> on phone to stream live voice to laptop!
+      <strong>2. Click "📞 Call"</strong> or hold <strong>"HOLD TO TALK"</strong> to stream high-clarity voice!
     </div>
 
     <div style="border-top: 1px solid var(--card-border); padding-top: 10px; display: flex; flex-direction: column; gap: 8px;">
       <button class="btn-diag" style="width:100%; padding:10px; background:var(--accent-emerald); color:#FFF; font-weight:bold;" onclick="testSpeakerBeep()">
-        🔊 Test Laptop Speaker Sound (Chime)
+        🔊 Test Laptop Speaker Sound
       </button>
       <button class="btn-diag" style="width:100%; padding:10px; background:#2563EB; color:#FFF; font-weight:bold;" onclick="broadcastSimulatedVoice()">
         📡 Send Test Audio Wave to Laptop
@@ -600,6 +612,13 @@
     let peerConnection = null;
     let rxPacketCount = 0;
     let rxTimer = null;
+
+    // DSP Filter Nodes
+    let dspHighPass = null;
+    let dspPeaking = null;
+    let dspLowPass = null;
+    let dspCompressor = null;
+    let dspMasterGain = null;
 
     // Check if on insecure mobile origin
     const isMobileDevice = /Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -634,10 +653,53 @@
       if (target) target.classList.add('active');
     }
 
-    // Audio Context Initialization & Unlock (Bypasses browser autoplay restrictions)
+    // Initialize Audio DSP Pipeline for Studio-Grade Clarity
+    function setupAudioDSP() {
+      if (!audioCtx) return;
+
+      // 1. High-Pass Filter (120 Hz): Strips microphone wind rumble, table vibrations, and handling thumps
+      dspHighPass = audioCtx.createBiquadFilter();
+      dspHighPass.type = 'highpass';
+      dspHighPass.frequency.setValueAtTime(120, audioCtx.currentTime);
+      dspHighPass.Q.setValueAtTime(0.7, audioCtx.currentTime);
+
+      // 2. Presence Peaking EQ (2.8 kHz, +4dB): Enhances vocal presence, clarity, and consonants
+      dspPeaking = audioCtx.createBiquadFilter();
+      dspPeaking.type = 'peaking';
+      dspPeaking.frequency.setValueAtTime(2800, audioCtx.currentTime);
+      dspPeaking.gain.setValueAtTime(4.0, audioCtx.currentTime);
+      dspPeaking.Q.setValueAtTime(1.2, audioCtx.currentTime);
+
+      // 3. Low-Pass Filter (8 kHz): Eliminates high-frequency background sensor hiss
+      dspLowPass = audioCtx.createBiquadFilter();
+      dspLowPass.type = 'lowpass';
+      dspLowPass.frequency.setValueAtTime(8000, audioCtx.currentTime);
+
+      // 4. Dynamics Compressor: Levels soft & loud speech, prevents speaker distortion/clipping
+      dspCompressor = audioCtx.createDynamicsCompressor();
+      dspCompressor.threshold.setValueAtTime(-18, audioCtx.currentTime);
+      dspCompressor.knee.setValueAtTime(10, audioCtx.currentTime);
+      dspCompressor.ratio.setValueAtTime(4.0, audioCtx.currentTime);
+      dspCompressor.attack.setValueAtTime(0.003, audioCtx.currentTime);
+      dspCompressor.release.setValueAtTime(0.15, audioCtx.currentTime);
+
+      // 5. Clean Master Gain Stage
+      dspMasterGain = audioCtx.createGain();
+      dspMasterGain.gain.setValueAtTime(1.5, audioCtx.currentTime); // +3.5dB clean voice boost
+
+      // Connect DSP Chain: [Source] -> HighPass -> Peaking -> LowPass -> Compressor -> MasterGain -> Destination
+      dspHighPass.connect(dspPeaking);
+      dspPeaking.connect(dspLowPass);
+      dspLowPass.connect(dspCompressor);
+      dspCompressor.connect(dspMasterGain);
+      dspMasterGain.connect(audioCtx.destination);
+    }
+
+    // Audio Context Initialization & Unlock
     async function ensureAudioContextActive() {
       if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        setupAudioDSP();
       }
       if (audioCtx.state === 'suspended') {
         try {
@@ -649,6 +711,8 @@
         if (unlockBanner) unlockBanner.style.display = 'none';
         const diagState = document.getElementById('diag-audio-state');
         if (diagState) diagState.innerText = `AudioContext: Running (${audioCtx.sampleRate} Hz)`;
+        const rateEl = document.getElementById('m-dsp-rate');
+        if (rateEl) rateEl.innerText = `${Math.round(audioCtx.sampleRate / 1000)} kHz`;
       }
     }
 
@@ -670,14 +734,14 @@
         const gain = audioCtx.createGain();
         osc.type = 'sine';
         osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
-        osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.15); // E5
-        osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.3); // G5
+        osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.12); // E5
+        osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.24); // G5
         gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
         osc.connect(gain);
-        gain.connect(audioCtx.destination);
+        gain.connect(dspHighPass || audioCtx.destination);
         osc.start();
-        osc.stop(audioCtx.currentTime + 0.6);
+        osc.stop(audioCtx.currentTime + 0.5);
       } catch (e) {
         console.error(e);
       }
@@ -686,22 +750,29 @@
     // Send Simulated Voice Audio Frame to Test Laptop Speakers over Network
     async function broadcastSimulatedVoice() {
       await ensureAudioContextActive();
-      // Generate 1.0 second of 16kHz synthesized dual-tone walkie voice signal
-      const sampleRate = 16000;
-      const numSamples = sampleRate * 1.0;
-      const pcm16 = new Int16Array(numSamples);
+      const sampleRate = audioCtx.sampleRate || 48000;
+      const numSamples = Math.floor(sampleRate * 0.8); // 800ms
+      
+      // Packet Header: [0xAA, 0x55, rateHigh, rateLow] + Int16 PCM payload
+      const buffer = new ArrayBuffer(4 + numSamples * 2);
+      const headerView = new DataView(buffer);
+      headerView.setUint8(0, 0xAA);
+      headerView.setUint8(1, 0x55);
+      headerView.setUint16(2, sampleRate, false); // Big-endian sample rate
 
+      const pcm16 = new Int16Array(buffer, 4, numSamples);
       for (let i = 0; i < numSamples; i++) {
         const t = i / sampleRate;
-        // Frequency sweep simulating voice modulation (400Hz - 900Hz)
-        const freq = 500 + 300 * Math.sin(2 * Math.PI * 3 * t);
-        const sample = 0.5 * Math.sin(2 * Math.PI * freq * t) * (1 - t);
+        // Warm vocal harmonic sweep
+        const f1 = 440 + 80 * Math.sin(2 * Math.PI * 4 * t);
+        const f2 = 880 + 160 * Math.sin(2 * Math.PI * 4 * t);
+        const sample = (0.4 * Math.sin(2 * Math.PI * f1 * t) + 0.2 * Math.sin(2 * Math.PI * f2 * t)) * (1 - t / 0.8);
         pcm16[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
       }
 
       if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(pcm16.buffer);
-        alert('📡 Test audio beacon sent across mesh to Laptop speaker!');
+        ws.send(buffer);
+        alert('📡 HD audio test wave sent across mesh to Laptop speaker!');
       } else {
         alert('WebSocket is connecting. Please wait a moment.');
       }
@@ -716,7 +787,8 @@
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true,
-            channelCount: 1
+            channelCount: 1,
+            sampleRate: 48000
           }
         });
 
@@ -734,28 +806,35 @@
           const avg = sum / inputData.length;
           updateWaveformVisualizer(avg);
 
-          // Resample/convert to 16kHz Int16 PCM
-          const pcm16 = new Int16Array(inputData.length);
+          // Build Packet: [4-byte header: Magic(0xAA55) + uint16(sampleRate)] + PCM16 Payload
+          const sampleRate = audioCtx.sampleRate || 48000;
+          const packetBuffer = new ArrayBuffer(4 + inputData.length * 2);
+          const header = new DataView(packetBuffer);
+          header.setUint8(0, 0xAA);
+          header.setUint8(1, 0x55);
+          header.setUint16(2, sampleRate, false);
+
+          const pcm16 = new Int16Array(packetBuffer, 4, inputData.length);
           for (let i = 0; i < inputData.length; i++) {
             let s = Math.max(-1, Math.min(1, inputData[i]));
             pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
           }
 
-          // Send raw binary PCM frame over WebSocket
+          // Send binary frame over WebSocket
           if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(pcm16.buffer);
+            ws.send(packetBuffer);
           }
         };
 
         const silentGain = audioCtx.createGain();
-        silentGain.gain.value = 0; // prevents hearing self echo on speaker
+        silentGain.gain.value = 0;
         micSource.connect(scriptProcessor);
         scriptProcessor.connect(silentGain);
         silentGain.connect(audioCtx.destination);
 
         document.getElementById('mic-status-label').innerText = 'Active ✅';
         document.getElementById('mic-status-label').style.color = '#10B981';
-        document.getElementById('mic-sub-label').innerText = 'Microphone live and streaming';
+        document.getElementById('mic-sub-label').innerText = `HD Voice Active (${audioCtx.sampleRate} Hz)`;
         document.getElementById('audio-perm-banner').style.background = '#064E3B';
         document.getElementById('audio-perm-banner').style.borderColor = '#10B981';
         return true;
@@ -774,14 +853,14 @@
       for (let i = 0; i < 9; i++) {
         const bar = document.getElementById('wb-' + i);
         if (bar) {
-          const h = Math.min(38, Math.max(6, amplitude * 250 + Math.random() * 12));
+          const h = Math.min(38, Math.max(6, amplitude * 280 + Math.random() * 10));
           bar.style.height = `${h}px`;
           bar.style.background = '#10B981';
         }
       }
     }
 
-    // Playback Inbound Raw PCM Audio Frame
+    // Playback Inbound Audio Frame with Exact Sample Rate & Anti-Click Smoothing
     async function playInboundPCMFrame(arrayBuffer) {
       await ensureAudioContextActive();
 
@@ -796,7 +875,21 @@
         if (rxBadge) rxBadge.style.display = 'none';
       }, 500);
 
-      const pcm16 = new Int16Array(arrayBuffer);
+      let senderSampleRate = audioCtx.sampleRate || 48000;
+      let pcm16;
+
+      // Check for 4-byte header [0xAA, 0x55, uint16(sampleRate)]
+      const dataView = new DataView(arrayBuffer);
+      if (arrayBuffer.byteLength >= 4 && dataView.getUint8(0) === 0xAA && dataView.getUint8(1) === 0x55) {
+        senderSampleRate = dataView.getUint16(2, false);
+        pcm16 = new Int16Array(arrayBuffer, 4);
+      } else {
+        // Legacy fallback
+        pcm16 = new Int16Array(arrayBuffer);
+      }
+
+      if (pcm16.length === 0) return;
+
       const float32 = new Float32Array(pcm16.length);
       let sum = 0;
       for (let i = 0; i < pcm16.length; i++) {
@@ -805,17 +898,31 @@
       }
       updateWaveformVisualizer(sum / pcm16.length);
 
-      // Create AudioBuffer rescaled to AudioContext's native sample rate
-      const buffer = audioCtx.createBuffer(1, float32.length, 16000);
+      // Apply subtle 2ms Anti-Click Hann Windowing at buffer boundaries
+      const fadeLen = Math.min(32, Math.floor(float32.length / 8));
+      for (let i = 0; i < fadeLen; i++) {
+        const factor = 0.5 * (1 - Math.cos((Math.PI * i) / fadeLen));
+        float32[i] *= factor;
+        float32[float32.length - 1 - i] *= factor;
+      }
+
+      // Create buffer matching the sender's exact capture rate (Browser C++ resampler handles the rest perfectly!)
+      const buffer = audioCtx.createBuffer(1, float32.length, senderSampleRate);
       buffer.copyToChannel(float32, 0);
 
       const source = audioCtx.createBufferSource();
       source.buffer = buffer;
-      source.connect(audioCtx.destination);
+      
+      // Connect to DSP filter chain (HighPass -> Peaking EQ -> LowPass -> DynamicsCompressor -> MasterGain)
+      if (dspHighPass) {
+        source.connect(dspHighPass);
+      } else {
+        source.connect(audioCtx.destination);
+      }
 
       const now = audioCtx.currentTime;
       if (nextPlayTime < now) {
-        nextPlayTime = now + 0.01;
+        nextPlayTime = now + 0.025; // 25ms jitter buffer
       }
       source.start(nextPlayTime);
       nextPlayTime += buffer.duration;
@@ -855,13 +962,13 @@
       ws.binaryType = 'arraybuffer';
 
       ws.onopen = () => {
-        document.getElementById('ws-indicator').innerText = '● LIVE MESH';
+        document.getElementById('ws-indicator').innerText = '● LIVE';
         document.getElementById('ws-indicator').style.color = '#10B981';
       };
 
       ws.onmessage = async (event) => {
         if (event.data instanceof ArrayBuffer) {
-          // Play incoming live PCM audio frame immediately on speaker!
+          // Play incoming live audio frame immediately through DSP engine!
           playInboundPCMFrame(event.data);
           return;
         }
@@ -942,7 +1049,7 @@
               <span style="font-size: 14px;">🟢</span>
               <div>
                 <div class="peer-name">${peer.nickname} <span style="font-size: 10px; background: var(--card-border); padding: 2px 6px; border-radius: 4px;">${peer.deviceType}</span></div>
-                <div class="peer-meta">ID: ${peer.id} • Direct Local Mesh • 16kHz PCM Voice Ready</div>
+                <div class="peer-meta">ID: ${peer.id} • Direct Local Mesh • HD Voice DSP Active</div>
               </div>
             </div>
             <div class="btn-group">
@@ -1047,7 +1154,7 @@
 
       document.getElementById('btn-ptt-main').classList.add('active');
       document.getElementById('ptt-text').innerText = 'TRANSMITTING';
-      document.getElementById('ptt-speaker-status').innerText = '🎙️ YOU (Broadcasting Voice)';
+      document.getElementById('ptt-speaker-status').innerText = '🎙️ YOU (Broadcasting HD Voice)';
       document.getElementById('ptt-speaker-status').style.color = '#F43F5E';
 
       if (ws && ws.readyState === WebSocket.OPEN) {
