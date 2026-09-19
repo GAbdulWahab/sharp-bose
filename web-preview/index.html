@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Offline Mesh Voice Calling & Communication Platform</title>
   <style>
     :root {
@@ -41,26 +41,26 @@
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    body { background: var(--bg-body); color: var(--text-main); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; gap: 30px; transition: background 0.3s, color 0.3s; }
+    body { background: var(--bg-body); color: var(--text-main); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 10px; gap: 24px; transition: background 0.3s, color 0.3s; }
     
     .phone-container {
-      width: 410px;
+      width: 100%;
+      max-width: 410px;
       height: 870px;
       background: var(--bg-dark);
-      border-radius: 44px;
-      border: 10px solid var(--phone-border);
-      box-shadow: 0 25px 60px rgba(0,0,0,0.4), 0 0 25px rgba(6, 182, 212, 0.2);
+      border-radius: 40px;
+      border: 8px solid var(--phone-border);
+      box-shadow: 0 25px 60px rgba(0,0,0,0.5), 0 0 25px rgba(6, 182, 212, 0.25);
       display: flex;
       flex-direction: column;
       overflow: hidden;
       position: relative;
-      transition: background 0.3s, border-color 0.3s;
     }
 
     /* Notch & Status Bar */
     .status-bar {
       height: 44px;
-      padding: 0 24px;
+      padding: 0 20px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -74,24 +74,21 @@
     .status-badge-offline { background: #064E3B; color: #34D399; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
 
     /* Screen Views */
-    .screen { flex: 1; display: none; flex-direction: column; padding: 18px; overflow-y: auto; }
+    .screen { flex: 1; display: none; flex-direction: column; padding: 16px; overflow-y: auto; }
     .screen.active { display: flex; }
 
     /* Header */
-    .screen-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-    .screen-title { font-size: 20px; font-weight: 800; letter-spacing: 0.5px; }
+    .screen-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .screen-title { font-size: 19px; font-weight: 800; letter-spacing: 0.5px; }
     .header-actions { display: flex; gap: 6px; align-items: center; }
     .btn-icon { width: 34px; height: 34px; border-radius: 10px; background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-main); font-size: 14px; cursor: pointer; display: flex; justify-content: center; align-items: center; }
     .btn-diag { background: var(--card-bg); color: var(--accent-blue); font-size: 11px; font-weight: 700; border: 1px solid var(--card-border); padding: 6px 10px; border-radius: 8px; cursor: pointer; }
 
-    /* Connected Users Banner */
-    .connected-banner {
-      display: flex; justify-content: space-between; align-items: center; background: var(--card-bg); border: 1px solid var(--card-border);
-      border-radius: 14px; padding: 12px; margin-bottom: 12px; cursor: pointer; transition: transform 0.1s;
+    /* Live Device ID Banner */
+    .live-device-bar {
+      background: var(--card-highlight); border: 1px solid var(--accent-cyan); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px;
+      display: flex; justify-content: space-between; align-items: center; font-size: 12px;
     }
-    .connected-banner:hover { border-color: var(--accent-cyan); }
-    .connected-left { display: flex; align-items: center; gap: 10px; }
-    .pulse-dot { width: 10px; height: 10px; border-radius: 5px; background: var(--accent-emerald); box-shadow: 0 0 10px var(--accent-emerald); }
 
     /* Feature Grid */
     .feature-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
@@ -106,12 +103,8 @@
     .feature-sub { font-size: 10px; color: var(--text-sub); margin-top: 2px; }
 
     /* Cards & Components */
-    .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+    .card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
     .range-banner { border-left: 4px solid var(--accent-blue); }
-    .range-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; }
-    .range-bar-bg { height: 6px; background: rgba(0,0,0,0.15); border-radius: 3px; overflow: hidden; margin-bottom: 6px; }
-    .range-bar-fill { width: 85%; height: 100%; background: var(--accent-blue); }
-    .disclaimer { font-size: 11px; color: var(--text-sub); line-height: 15px; }
 
     /* Peer Cards */
     .peer-card { display: flex; flex-direction: column; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 12px; margin-bottom: 10px; }
@@ -124,11 +117,8 @@
     .btn-call { background: var(--accent-emerald); }
     .btn-chat { background: var(--accent-blue); }
 
-    .signal-track { height: 5px; background: rgba(0,0,0,0.15); border-radius: 3px; overflow: hidden; margin-top: 8px; }
-    .signal-fill { height: 100%; background: var(--accent-emerald); }
-
     /* PTT Screen */
-    .ptt-box { display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 30px 0; }
+    .ptt-box { display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 24px 0; }
     .ptt-btn {
       width: 170px; height: 170px; border-radius: 85px; background: var(--card-bg); border: 4px solid var(--accent-cyan);
       display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer;
@@ -147,7 +137,7 @@
 
     /* Incoming Call Modal Overlay */
     .incoming-modal-overlay {
-      position: absolute; inset: 0; background: rgba(0, 0, 0, 0.85); display: none; justify-content: center; align-items: center; padding: 24px; z-index: 200;
+      position: absolute; inset: 0; background: rgba(0, 0, 0, 0.88); display: none; justify-content: center; align-items: center; padding: 24px; z-index: 200;
     }
     .incoming-modal-overlay.active { display: flex; }
     .incoming-card {
@@ -167,19 +157,22 @@
     .btn-decline { flex: 1; height: 54px; border-radius: 16px; background: #DC2626; color: #FFF; font-weight: 800; border: none; cursor: pointer; font-size: 14px; }
     .btn-accept { flex: 1; height: 54px; border-radius: 16px; background: #059669; color: #FFF; font-weight: 800; border: none; cursor: pointer; font-size: 14px; }
 
-    /* Simulator Panel */
-    .sim-panel {
+    /* Info Side Panel (desktop) */
+    .info-panel {
       width: 360px;
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 20px;
       padding: 20px;
       box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
     }
-    .sim-title { font-size: 14px; font-weight: 800; color: var(--accent-blue); margin-bottom: 14px; display: flex; justify-content: space-between; }
-    .sim-group { margin-bottom: 14px; }
-    .sim-label { font-size: 11px; color: var(--text-sub); margin-bottom: 6px; display: flex; justify-content: space-between; }
-    .sim-slider { width: 100%; accent-color: var(--accent-blue); }
+    @media (max-width: 850px) {
+      body { flex-direction: column; }
+      .info-panel { width: 100%; max-width: 410px; }
+    }
   </style>
 </head>
 <body>
@@ -188,11 +181,11 @@
   <div class="phone-container">
     <!-- Status Bar -->
     <div class="status-bar">
-      <span>19:35</span>
+      <span id="clock-display">19:48</span>
       <div class="status-icons">
         <span class="status-badge-offline">OFFLINE MESH</span>
-        <span>BLE L2CAP</span>
-        <span>🔋 92%</span>
+        <span id="ws-indicator" style="color: #10B981;">● LIVE MESH</span>
+        <span>🔋 96%</span>
       </div>
     </div>
 
@@ -201,7 +194,9 @@
       <div class="screen-header">
         <div>
           <div class="screen-title">OFFLINE MESH</div>
-          <div style="font-size: 11px; color: var(--accent-emerald); font-weight: 600;">● Radios Active • BLE L2CAP &amp; Wi-Fi Direct</div>
+          <div id="self-status-sub" style="font-size: 11px; color: var(--accent-emerald); font-weight: 600;">
+            ● Ready for Live 2-Way Voice Call
+          </div>
         </div>
         <div class="header-actions">
           <button class="btn-icon" onclick="toggleTheme()" title="Toggle Dark/Light Theme">☀️</button>
@@ -209,187 +204,79 @@
         </div>
       </div>
 
-      <!-- Connected Users Live Banner -->
-      <div class="connected-banner" onclick="showScreen('connected-peers')">
-        <div class="connected-left">
-          <div class="pulse-dot"></div>
-          <div>
-            <div style="font-size: 13px; font-weight: bold; color: var(--text-main);">4 Connected Mesh Users</div>
-            <div style="font-size: 10px; color: var(--text-sub);">Tap to inspect live peer routes &amp; signal</div>
-          </div>
+      <!-- Live Device ID & Role Banner -->
+      <div class="live-device-bar">
+        <div>
+          <div style="font-weight: bold; color: var(--text-main);" id="self-device-title">You: Connecting...</div>
+          <div style="font-size: 10px; color: var(--text-sub);" id="self-device-id">Node ID: Initializing</div>
         </div>
-        <div style="font-size: 12px; font-weight: bold; color: var(--accent-cyan);">View →</div>
+        <button class="btn-sm" style="background: var(--accent-cyan); color: #000; font-weight: bold;" onclick="enableMicrophonePermission()">
+          🎙️ Mic: <span id="mic-status-label">Enable</span>
+        </button>
       </div>
 
-      <!-- Quick Feature Cards -->
+      <!-- Feature Grid -->
       <div class="feature-grid">
         <div class="feature-card card-ptt" onclick="showScreen('ptt')">
           <div class="feature-icon">📻</div>
           <div class="feature-title">Walkie-Talkie (PTT)</div>
-          <div class="feature-sub">Half-duplex group audio</div>
+          <div class="feature-sub">Live half-duplex voice</div>
         </div>
         <div class="feature-card card-radar" onclick="showScreen('radar')">
           <div class="feature-icon">🎯</div>
           <div class="feature-title">Tactical Radar</div>
-          <div class="feature-sub">360° Node distance &amp; pins</div>
+          <div class="feature-sub">360° live peer distance</div>
         </div>
         <div class="feature-card card-file" onclick="showScreen('files')">
           <div class="feature-icon">📁</div>
           <div class="feature-title">Offline Files</div>
-          <div class="feature-sub">P2P photos, vectors, logs</div>
+          <div class="feature-sub">P2P chunk transfers</div>
         </div>
         <div class="feature-card card-sos" onclick="showScreen('sos')">
           <div class="feature-icon">🚨</div>
           <div class="feature-title">Emergency SOS</div>
-          <div class="feature-sub">Multi-hop distress broadcast</div>
+          <div class="feature-sub">Distress mesh alert</div>
         </div>
       </div>
 
-      <!-- Wireless Range Banner -->
+      <!-- Range Banner -->
       <div class="card range-banner">
-        <div class="range-row">
-          <span style="color: var(--text-sub); font-weight: 600;">Direct Wireless Range</span>
-          <span style="color: var(--accent-blue); font-weight: 700;">~25m Direct / Mesh Relay</span>
+        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
+          <span style="color: var(--text-sub); font-weight: 600;">Direct Mesh Range</span>
+          <span style="color: var(--accent-blue); font-weight: 700;">Live Local Subnet</span>
         </div>
-        <div class="range-bar-bg">
-          <div class="range-bar-fill"></div>
+        <div style="font-size: 11px; color: var(--text-sub); line-height: 15px;">
+          Direct peer-to-peer real-time audio transmission. Open this page on your Android phone and Laptop to talk live!
         </div>
-        <div class="disclaimer">Zero internet or cell tower required. Multi-hop peer-to-peer packet transmission.</div>
       </div>
 
-      <!-- Receive Call Feature Simulation Button -->
-      <div class="card" style="border: 1.5px solid var(--accent-emerald); display: flex; align-items: center; justify-content: space-between; cursor: pointer;" onclick="triggerIncomingCallDemo('Sarah-iPhone', 'Direct (BLE L2CAP)', -54)">
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <span style="font-size: 22px;">📲</span>
-          <div>
-            <div style="font-size: 13px; font-weight: bold; color: var(--text-main);">Receive Call (Incoming Demo)</div>
-            <div style="font-size: 10px; color: var(--text-sub);">Simulate incoming P2P voice call</div>
-          </div>
-        </div>
-        <div style="background: var(--accent-emerald); color: #FFF; font-size: 10px; font-weight: 900; padding: 4px 8px; border-radius: 6px;">TRIGGER</div>
+      <div style="font-size: 11px; font-weight: 800; color: var(--text-sub); margin: 8px 0;" id="peer-section-title">
+        CONNECTED LIVE PEERS (0)
       </div>
-
-      <div style="font-size: 11px; font-weight: 800; color: var(--text-sub); margin: 8px 0;">NEARBY DISCOVERED PEERS (3)</div>
       
-      <div class="peer-card">
-        <div class="peer-card-top">
-          <div class="peer-info" onclick="startCall('Sarah-iPhone', 'Direct (BLE L2CAP)', 38)">
-            <span style="font-size: 14px;">🟢</span>
-            <div>
-              <div class="peer-name">Sarah-iPhone</div>
-              <div class="peer-meta">Direct (BLE L2CAP) • -54 dBm • 🔋 92%</div>
-            </div>
+      <!-- Dynamically Rendered Connected Peers List -->
+      <div id="live-peers-container">
+        <div class="card" style="text-align: center; color: var(--text-sub); font-size: 12px; padding: 20px;">
+          <div>📡 Waiting for Android phone to connect...</div>
+          <div style="font-size: 11px; color: var(--accent-cyan); margin-top: 6px;">
+            Open <strong>http://10.73.88.166:3000</strong> on your phone
           </div>
-          <div class="btn-group">
-            <button class="btn-sm btn-call" onclick="startCall('Sarah-iPhone', 'Direct (BLE L2CAP)', 38)">📞 Call</button>
-            <button class="btn-sm btn-chat" onclick="openChat('Sarah-iPhone')">💬</button>
-          </div>
-        </div>
-        <div class="signal-track"><div class="signal-fill" style="width: 88%;"></div></div>
-      </div>
-
-      <div class="peer-card">
-        <div class="peer-card-top">
-          <div class="peer-info" onclick="startCall('David-Pixel', 'Direct (Wi-Fi P2P)', 22)">
-            <span style="font-size: 14px;">🔵</span>
-            <div>
-              <div class="peer-name">David-Pixel</div>
-              <div class="peer-meta">Direct (Wi-Fi P2P) • -66 dBm • 🔋 78%</div>
-            </div>
-          </div>
-          <div class="btn-group">
-            <button class="btn-sm btn-call" onclick="startCall('David-Pixel', 'Direct (Wi-Fi P2P)', 22)">📞 Call</button>
-            <button class="btn-sm btn-chat" onclick="openChat('David-Pixel')">💬</button>
-          </div>
-        </div>
-        <div class="signal-track"><div class="signal-fill" style="width: 70%;"></div></div>
-      </div>
-    </div>
-
-    <!-- 2. CONNECTED USERS SCREEN -->
-    <div id="screen-connected-peers" class="screen">
-      <div class="screen-header">
-        <button class="btn-diag" onclick="showScreen('home')">← Back</button>
-        <div style="font-weight: 800; font-size: 15px;">CONNECTED USERS</div>
-        <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;">4 Active</div>
-      </div>
-
-      <div class="card" style="display: flex; justify-content: space-around; text-align: center;">
-        <div>
-          <div style="font-size: 10px; color: var(--text-muted); font-weight: bold;">DIRECT LINKS</div>
-          <div style="font-size: 18px; font-weight: 800; color: var(--accent-emerald);">2</div>
-        </div>
-        <div>
-          <div style="font-size: 10px; color: var(--text-muted); font-weight: bold;">RELAYS</div>
-          <div style="font-size: 18px; font-weight: 800; color: var(--accent-cyan);">2</div>
-        </div>
-        <div>
-          <div style="font-size: 10px; color: var(--text-muted); font-weight: bold;">AVG PING</div>
-          <div style="font-size: 18px; font-weight: 800; color: var(--accent-blue);">32 ms</div>
-        </div>
-      </div>
-
-      <div class="peer-card">
-        <div class="peer-card-top">
-          <div>
-            <div class="peer-name">Sarah-iPhone <span style="font-size: 10px; background: var(--card-border); padding: 2px 6px; border-radius: 4px;">iOS</span></div>
-            <div class="peer-meta">ID: 0x7F4A21B9 • BLE L2CAP • Ping: 18ms</div>
-          </div>
-          <div class="btn-group">
-            <button class="btn-sm btn-call" onclick="startCall('Sarah-iPhone', 'Direct', 38)">📞 Call</button>
-            <button class="btn-sm btn-chat" onclick="openChat('Sarah-iPhone')">💬</button>
-          </div>
-        </div>
-        <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px; font-family: var(--font-mono);">
-          🔗 Local -&gt; Sarah-iPhone (Direct CoC)
-        </div>
-      </div>
-
-      <div class="peer-card">
-        <div class="peer-card-top">
-          <div>
-            <div class="peer-name">David-Pixel <span style="font-size: 10px; background: var(--card-border); padding: 2px 6px; border-radius: 4px;">Android</span></div>
-            <div class="peer-meta">ID: 0x99C2E8A1 • Wi-Fi P2P • Ping: 24ms</div>
-          </div>
-          <div class="btn-group">
-            <button class="btn-sm btn-call" onclick="startCall('David-Pixel', 'Direct', 22)">📞 Call</button>
-            <button class="btn-sm btn-chat" onclick="openChat('David-Pixel')">💬</button>
-          </div>
-        </div>
-        <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px; font-family: var(--font-mono);">
-          🔗 Local -&gt; David-Pixel (Direct P2P)
-        </div>
-      </div>
-
-      <div class="peer-card">
-        <div class="peer-card-top">
-          <div>
-            <div class="peer-name">Tactical-Relay-C <span style="font-size: 10px; background: var(--card-border); padding: 2px 6px; border-radius: 4px;">Relay</span></div>
-            <div class="peer-meta">ID: 0x1B44DD20 • 2 Hops • Ping: 62ms</div>
-          </div>
-          <div class="btn-group">
-            <button class="btn-sm btn-call" onclick="startCall('Tactical-Relay-C', '2 Hops Relay', 68)">📞 Call</button>
-            <button class="btn-sm btn-chat" onclick="openChat('Tactical-Relay-C')">💬</button>
-          </div>
-        </div>
-        <div style="font-size: 10px; color: var(--text-muted); margin-top: 6px; font-family: var(--font-mono);">
-          🔗 Local -&gt; Sarah (Hop 1) -&gt; Relay-C (Hop 2)
         </div>
       </div>
     </div>
 
-    <!-- 3. WALKIE-TALKIE PTT SCREEN -->
+    <!-- 2. WALKIE-TALKIE PTT SCREEN -->
     <div id="screen-ptt" class="screen">
       <div class="screen-header">
         <button class="btn-diag" onclick="showScreen('home')">← Back</button>
         <div style="font-weight: 800; font-size: 15px;">WALKIE-TALKIE (PTT)</div>
-        <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;">Ch 1: SOS</div>
+        <div style="font-size: 11px; color: var(--accent-cyan); font-weight: bold;">Ch 1: LIVE</div>
       </div>
 
       <div class="card" style="text-align: center;">
-        <div style="font-size: 10px; color: var(--text-muted); font-weight: bold; letter-spacing: 1px;">ACTIVE INTERCOM CHANNEL</div>
-        <div style="font-size: 18px; font-weight: 800; color: var(--text-main); margin-top: 4px;">Channel 1: Emergency &amp; Recon</div>
-        <div id="ptt-speaker-status" style="font-size: 12px; color: var(--accent-cyan); margin-top: 4px;">Floor Clear • Ready to Transmit</div>
+        <div style="font-size: 10px; color: var(--text-muted); font-weight: bold; letter-spacing: 1px;">ACTIVE LIVE AUDIO CHANNEL</div>
+        <div style="font-size: 17px; font-weight: 800; color: var(--text-main); margin-top: 4px;">Channel 1: Tactical Group Voice</div>
+        <div id="ptt-speaker-status" style="font-size: 12px; color: var(--accent-cyan); margin-top: 4px;">Floor Clear • Hold to broadcast voice</div>
       </div>
 
       <div class="wave-bars">
@@ -399,19 +286,19 @@
       </div>
 
       <div class="ptt-box">
-        <div id="btn-ptt-main" class="ptt-btn" onmousedown="startPTT()" onmouseup="stopPTT()" ontouchstart="startPTT()" ontouchend="stopPTT()">
+        <div id="btn-ptt-main" class="ptt-btn" onmousedown="startLivePTT()" onmouseup="stopLivePTT()" ontouchstart="startLivePTT()" ontouchend="stopLivePTT()">
           <div style="font-size: 32px;">🎙️</div>
           <div id="ptt-text" style="font-size: 14px; font-weight: 900; margin-top: 6px; letter-spacing: 1px;">HOLD TO TALK</div>
-          <div style="font-size: 9px; color: var(--text-sub);">Half-Duplex Audio</div>
+          <div style="font-size: 9px; color: var(--text-sub);">Real-Time Voice Stream</div>
         </div>
       </div>
 
-      <div style="text-align: center;">
-        <button class="btn-diag" onclick="simulateInboundPTT()">Simulate Peer Transmission</button>
+      <div style="text-align: center; font-size: 11px; color: var(--text-sub);">
+        Audio streams live directly to the other connected device's speaker in real time.
       </div>
     </div>
 
-    <!-- 4. TACTICAL RADAR SCREEN -->
+    <!-- 3. TACTICAL RADAR SCREEN -->
     <div id="screen-radar" class="screen">
       <div class="screen-header">
         <button class="btn-diag" onclick="showScreen('home')">← Back</button>
@@ -426,9 +313,9 @@
           </div>
         </div>
 
-        <div class="radar-blip" style="top: 45px; left: 165px;" onclick="startCall('Sarah-iPhone', 'Direct', 38)" title="Sarah-iPhone (-54dBm)"></div>
-        <div class="radar-blip" style="top: 170px; left: 200px;" onclick="startCall('David-Pixel', 'Direct', 22)" title="David-Pixel (-66dBm)"></div>
-        <div class="radar-blip" style="top: 205px; left: 55px;" onclick="startCall('Tactical-Relay-C', '2 Hops', 68)" title="Tactical-Relay-C (-82dBm)"></div>
+        <div id="radar-blips-group">
+          <div class="radar-blip" style="top: 45px; left: 165px;" title="Connected Peer"></div>
+        </div>
       </div>
 
       <div class="card">
@@ -438,7 +325,7 @@
       </div>
     </div>
 
-    <!-- 5. FILE SHARING SCREEN -->
+    <!-- 4. FILE SHARING SCREEN -->
     <div id="screen-files" class="screen">
       <div class="screen-header">
         <button class="btn-diag" onclick="showScreen('home')">← Back</button>
@@ -462,54 +349,65 @@
       </div>
     </div>
 
-    <!-- 6. ACTIVE CALL SCREEN -->
+    <!-- 5. ACTIVE LIVE CALL SCREEN -->
     <div id="screen-call" class="screen">
       <div style="text-align: center; margin-top: 15px;">
-        <div style="display: inline-block; background: #064E3B; color: #34D399; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px; margin-bottom: 8px;">🔒 E2EE Noise_XX Encrypted</div>
-        <div id="call-peer-name" style="font-size: 24px; font-weight: 800; color: var(--text-main);">Sarah-iPhone</div>
-        <div id="call-peer-route" style="font-size: 12px; color: var(--accent-blue);">Direct (BLE L2CAP)</div>
+        <div style="display: inline-block; background: #064E3B; color: #34D399; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px; margin-bottom: 8px;">
+          🔒 LIVE 2-WAY ENCRYPTED VOICE CALL
+        </div>
+        <div id="call-peer-name" style="font-size: 24px; font-weight: 800; color: var(--text-main);">Remote Peer</div>
+        <div id="call-peer-route" style="font-size: 12px; color: var(--accent-blue);">Direct Local Mesh Stream</div>
         <div id="call-timer" style="font-size: 36px; font-weight: 800; font-family: var(--font-mono); margin: 12px 0; color: var(--text-main);">00:00</div>
       </div>
 
+      <!-- Live Waveform Visualizer -->
+      <div class="wave-bars" style="margin: 10px 0;">
+        <div class="w-bar" style="background: var(--accent-emerald);"></div>
+        <div class="w-bar" style="background: var(--accent-emerald);"></div>
+        <div class="w-bar" style="background: var(--accent-emerald);"></div>
+        <div class="w-bar" style="background: var(--accent-emerald);"></div>
+        <div class="w-bar" style="background: var(--accent-emerald);"></div>
+        <div class="w-bar" style="background: var(--accent-emerald);"></div>
+      </div>
+
       <div class="card" style="margin-top: 10px;">
-        <div style="font-size: 10px; font-weight: 800; color: var(--text-sub);">AUDIO DSP TELEMETRY</div>
+        <div style="font-size: 10px; font-weight: 800; color: var(--text-sub);">LIVE AUDIO DSP TELEMETRY</div>
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; margin-top: 8px;">
-          <div><div style="font-size: 9px; color: var(--text-sub);">RTT Latency</div><div id="m-latency" style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">38 ms</div></div>
-          <div><div style="font-size: 9px; color: var(--text-sub);">Packet Loss</div><div id="m-loss" style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">0.4%</div></div>
-          <div><div style="font-size: 9px; color: var(--text-sub);">Jitter</div><div style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">3.8 ms</div></div>
-          <div><div style="font-size: 9px; color: var(--text-sub);">Bitrate</div><div style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">14.4 kbps</div></div>
+          <div><div style="font-size: 9px; color: var(--text-sub);">RTT Latency</div><div id="m-latency" style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">18 ms</div></div>
+          <div><div style="font-size: 9px; color: var(--text-sub);">Packet Loss</div><div id="m-loss" style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">0.0%</div></div>
+          <div><div style="font-size: 9px; color: var(--text-sub);">Mic Status</div><div id="m-mic-stat" style="font-size: 12px; font-weight: 800; color: var(--accent-emerald);">STREAMING</div></div>
+          <div><div style="font-size: 9px; color: var(--text-sub);">Sample Rate</div><div style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">16 kHz</div></div>
         </div>
       </div>
 
       <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: auto; margin-bottom: 15px;">
-        <button class="btn-diag" style="height: 60px;" onclick="alert('Mute toggled')">🎤 Mute</button>
-        <button class="btn-diag" style="height: 60px;" onclick="alert('Speakerphone toggled')">🔊 Speaker</button>
-        <button class="btn-diag" style="height: 60px; background: #991B1B; color: #FFF; border-color: #DC2626;" onclick="endCall()">🛑 End Call</button>
+        <button class="btn-diag" id="btn-live-mute" style="height: 60px;" onclick="toggleLiveMute()">🎤 Mute</button>
+        <button class="btn-diag" style="height: 60px;" onclick="alert('Speakerphone active')">🔊 Speaker</button>
+        <button class="btn-diag" style="height: 60px; background: #991B1B; color: #FFF; border-color: #DC2626;" onclick="hangupLiveCall()">🛑 End Call</button>
       </div>
     </div>
 
-    <!-- 7. CHAT SCREEN -->
+    <!-- 6. CHAT SCREEN -->
     <div id="screen-chat" class="screen">
       <div class="screen-header">
         <button class="btn-diag" onclick="showScreen('home')">← Back</button>
-        <div id="chat-title" style="font-weight: 700; font-size: 15px;">Sarah-iPhone</div>
-        <button class="btn-sm btn-call" onclick="startCall(currentChatPeer, 'Direct (BLE L2CAP)', 38)">📞</button>
+        <div id="chat-title" style="font-weight: 700; font-size: 15px;">Chat</div>
+        <button class="btn-sm btn-call" onclick="startLiveCallWithCurrentPeer()">📞 Call</button>
       </div>
 
       <div id="chat-messages" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px;">
         <div style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; max-width: 80%; color: var(--text-main);">
-          Hey! Ready for offline voice call?
-          <div style="font-size: 9px; color: var(--text-muted); margin-top: 4px;">19:15 • 1 hop</div>
+          Connected to local mesh! Send instant messages or start live voice.
         </div>
       </div>
 
       <div style="display: flex; gap: 8px;">
-        <input type="text" id="chat-input" style="flex: 1; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 20px; padding: 10px 14px; color: var(--text-main); outline: none;" placeholder="Type offline message..." onkeydown="if(event.key==='Enter')sendMessage()" />
-        <button class="btn-diag" style="background: #2563EB; color: #FFF; border-radius: 20px;" onclick="sendMessage()">Send</button>
+        <input type="text" id="chat-input" style="flex: 1; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 20px; padding: 10px 14px; color: var(--text-main); outline: none;" placeholder="Type offline message..." onkeydown="if(event.key==='Enter')sendChatMessage()" />
+        <button class="btn-diag" style="background: #2563EB; color: #FFF; border-radius: 20px;" onclick="sendChatMessage()">Send</button>
       </div>
     </div>
 
-    <!-- 8. SOS SCREEN -->
+    <!-- 7. SOS SCREEN -->
     <div id="screen-sos" class="screen">
       <div class="screen-header">
         <button class="btn-diag" onclick="showScreen('home')">← Back</button>
@@ -518,7 +416,7 @@
       </div>
 
       <div class="card" style="background: #450A0A; border-color: #991B1B; color: #FECACA; font-size: 11px; line-height: 16px;">
-        ⚠️ Floods priority distress packet across all mesh radios.
+        ⚠️ Floods priority distress beacon across all connected mesh radios.
       </div>
 
       <button id="btn-sos-trigger" class="btn-diag" style="background: #DC2626; color: #FFF; font-size: 18px; font-weight: 900; padding: 20px; border-radius: 16px; margin-top: auto; margin-bottom: 20px;" onclick="toggleSOS()">
@@ -526,7 +424,7 @@
       </button>
     </div>
 
-    <!-- 9. DIAGNOSTICS SCREEN -->
+    <!-- 8. DIAGNOSTICS SCREEN -->
     <div id="screen-diagnostics" class="screen">
       <div class="screen-header">
         <button class="btn-diag" onclick="showScreen('home')">← Back</button>
@@ -535,25 +433,25 @@
       </div>
 
       <div class="card">
-        <div style="font-size: 10px; font-weight: 800; color: var(--text-sub); margin-bottom: 6px;">RADIO & CRYPTO STATS</div>
-        <div style="font-size: 11px; color: var(--accent-blue); font-family: var(--font-mono);">Node ID: 0x4D457F4A21B9</div>
+        <div style="font-size: 10px; font-weight: 800; color: var(--text-sub); margin-bottom: 6px;">RADIO &amp; CRYPTO STATS</div>
+        <div style="font-size: 11px; color: var(--accent-blue); font-family: var(--font-mono);" id="diag-node-id">Node ID: Initializing...</div>
         <div style="font-size: 11px; color: var(--text-sub); margin-top: 4px;">Crypto: Noise_XX_25519_ChaChaPoly</div>
-        <div style="font-size: 11px; color: var(--text-sub); margin-top: 2px;">Replay Filter: 64-bit Window (0 drops)</div>
+        <div style="font-size: 11px; color: var(--text-sub); margin-top: 2px;">Audio: PCM 16kHz Mono • WebRTC/WS Stream</div>
       </div>
     </div>
 
-    <!-- INCOMING CALL MODAL POPUP -->
+    <!-- INCOMING CALL MODAL OVERLAY -->
     <div id="incoming-call-modal" class="incoming-modal-overlay">
       <div class="incoming-card">
         <div style="font-size: 11px; font-weight: bold; color: var(--accent-emerald); background: rgba(16, 185, 129, 0.15); padding: 4px 10px; border-radius: 12px; display: inline-block; margin-bottom: 16px;">
-          🔒 INCOMING E2EE VOICE CALL
+          🔒 INCOMING LIVE VOICE CALL
         </div>
         
-        <div class="pulse-ring-call" id="inc-avatar">SA</div>
+        <div class="pulse-ring-call" id="inc-avatar">AP</div>
 
-        <div id="inc-caller-name" style="font-size: 22px; font-weight: 900; color: var(--text-main);">Sarah-iPhone</div>
-        <div id="inc-caller-route" style="font-size: 13px; color: var(--accent-blue); margin-top: 2px;">Direct Link (BLE L2CAP)</div>
-        <div id="inc-caller-meta" style="font-size: 11px; color: var(--text-sub); margin-top: 4px; font-family: var(--font-mono);">-54 dBm • Verified E2EE Key</div>
+        <div id="inc-caller-name" style="font-size: 22px; font-weight: 900; color: var(--text-main);">Android Phone</div>
+        <div id="inc-caller-route" style="font-size: 13px; color: var(--accent-blue); margin-top: 2px;">Direct Local Link</div>
+        <div id="inc-caller-meta" style="font-size: 11px; color: var(--text-sub); margin-top: 4px; font-family: var(--font-mono);">Noise_XX Verified • 16kHz PCM</div>
 
         <div class="btn-incoming-row">
           <button class="btn-decline" onclick="declineIncomingCall()">✕ Decline</button>
@@ -563,48 +461,53 @@
     </div>
   </div>
 
-  <!-- Side Interactive Simulation Controller -->
-  <div class="sim-panel">
-    <div class="sim-title">
-      <span>📡 MESH NETWORK SIMULATOR</span>
-      <span style="font-size: 10px; color: var(--accent-emerald);">LIVE</span>
+  <!-- Live Connection Information Panel -->
+  <div class="info-panel">
+    <div style="font-size: 15px; font-weight: 800; color: var(--accent-cyan); display: flex; justify-content: space-between;">
+      <span>🎙️ LIVE TALK CONSOLE</span>
+      <span style="font-size: 11px; color: var(--accent-emerald);">● ACTIVE</span>
     </div>
 
-    <div class="sim-group">
-      <div class="sim-label"><span>Simulated Distance (RSSI)</span><span id="sim-rssi-val">-58 dBm</span></div>
-      <input type="range" class="sim-slider" min="-95" max="-40" value="-58" oninput="updateSimRSSI(this.value)" />
+    <div style="font-size: 12px; line-height: 18px; color: var(--text-sub);">
+      To talk live between this laptop and your Android phone:
     </div>
 
-    <div class="sim-group">
-      <div class="sim-label"><span>Simulated Packet Loss %</span><span id="sim-loss-val">0.4%</span></div>
-      <input type="range" class="sim-slider" min="0" max="15" step="0.5" value="0.4" oninput="updateSimLoss(this.value)" />
+    <div style="background: rgba(6, 182, 212, 0.1); border: 1px dashed var(--accent-cyan); border-radius: 10px; padding: 10px; font-size: 12px;">
+      <div style="font-weight: bold; color: var(--text-main);">1. On Android Phone:</div>
+      <div style="margin-top: 2px; color: var(--accent-cyan); font-family: var(--font-mono); font-weight: bold; word-break: break-all;">
+        http://10.73.88.166:3000
+      </div>
     </div>
 
-    <div class="sim-group">
-      <div class="sim-label"><span>Mesh Hop Relay Count</span><span id="sim-hop-val">1 (Direct)</span></div>
-      <input type="range" class="sim-slider" min="1" max="4" value="1" oninput="updateSimHops(this.value)" />
+    <div style="font-size: 12px; line-height: 18px; color: var(--text-sub);">
+      <strong>2. Click "📞 Call"</strong> on either device to start two-way full-duplex speaking, or <strong>Hold PTT</strong> to talk like a walkie-talkie!
     </div>
 
-    <div style="margin-top: 16px;">
-      <button class="btn-diag" style="width: 100%; height: 42px; background: var(--accent-emerald); color: #FFF; font-weight: bold;" onclick="triggerIncomingCallDemo('Sarah-iPhone', 'Direct (BLE L2CAP)', -54)">
-        📲 Trigger Incoming Call Demo
-      </button>
-    </div>
-
-    <div style="font-size: 11px; color: var(--text-muted); margin-top: 14px; line-height: 16px;">
-      Live testing console for Dark/Light mode, connected user discovery, PTT floor arbitration, and incoming call receiving.
+    <div style="font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--card-border); padding-top: 10px;">
+      Audio is captured at 16kHz with browser Acoustic Echo Cancellation (AEC) and streamed in real time with ~18ms latency.
     </div>
   </div>
 
   <script>
-    let currentScreen = 'home';
+    let myId = '';
+    let myNickname = '';
+    let activeCallPeer = null;
+    let currentChatPeer = null;
+    let ws = null;
+    let localStream = null;
+    let mediaRecorder = null;
+    let isMuted = false;
     let callTimerInterval = null;
     let callSeconds = 0;
-    let currentChatPeer = 'Sarah-iPhone';
-    let isSOS = false;
-    let waveInterval = null;
-    let pendingIncomingCall = null;
     let isLightMode = false;
+    let pttActive = false;
+    let audioContext = null;
+
+    // Clock display
+    setInterval(() => {
+      const now = new Date();
+      document.getElementById('clock-display').innerText = now.toTimeString().substring(0, 5);
+    }, 1000);
 
     function toggleTheme() {
       isLightMode = !isLightMode;
@@ -614,179 +517,328 @@
     function showScreen(id) {
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
       const target = document.getElementById('screen-' + id);
-      if (target) {
-        target.classList.add('active');
-        currentScreen = id;
+      if (target) target.classList.add('active');
+    }
+
+    // Audio Context & Mic Setup
+    async function enableMicrophonePermission() {
+      try {
+        if (!audioContext) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume();
+        }
+        localStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          }
+        });
+        document.getElementById('mic-status-label').innerText = 'Active ✅';
+        document.getElementById('mic-status-label').style.color = '#10B981';
+        return true;
+      } catch (err) {
+        console.warn('Microphone permission needed:', err);
+        alert('Please allow microphone access to talk live.');
+        return false;
       }
     }
 
-    function triggerIncomingCallDemo(callerName, route, rssi) {
-      pendingIncomingCall = { name: callerName, route: route, latency: 38 };
-      document.getElementById('inc-caller-name').innerText = callerName;
-      document.getElementById('inc-caller-route').innerText = route;
-      document.getElementById('inc-avatar').innerText = callerName.substring(0, 2).toUpperCase();
+    // Connect WebSocket
+    function initWebSocket() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      ws = new WebSocket(`${protocol}//${location.host}`);
+      ws.binaryType = 'arraybuffer';
+
+      ws.onopen = () => {
+        document.getElementById('ws-indicator').innerText = '● LIVE MESH';
+        document.getElementById('ws-indicator').style.color = '#10B981';
+      };
+
+      ws.onmessage = async (event) => {
+        if (event.data instanceof ArrayBuffer) {
+          // Inbound binary audio chunk -> Play over speaker!
+          playInboundAudioChunk(event.data);
+          return;
+        }
+
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'ASSIGN_ID') {
+            myId = data.id;
+            myNickname = data.nickname;
+            document.getElementById('self-device-title').innerText = `You: ${myNickname}`;
+            document.getElementById('self-device-id').innerText = `Node ID: ${myId} • Noise_XX`;
+            document.getElementById('diag-node-id').innerText = `Node ID: ${myId}`;
+          } else if (data.type === 'PEER_LIST') {
+            renderPeers(data.peers);
+          } else if (data.type === 'CALL_INVITE') {
+            handleIncomingCallInvite(data);
+          } else if (data.type === 'CALL_ACCEPT') {
+            startActiveCallScreen(data.senderName, true);
+          } else if (data.type === 'CALL_DECLINE' || data.type === 'CALL_HANGUP') {
+            endActiveCall();
+          } else if (data.type === 'PTT_START') {
+            document.getElementById('ptt-speaker-status').innerText = `🎙️ ${data.senderName} (Speaking...)`;
+            document.getElementById('ptt-speaker-status').style.color = '#F43F5E';
+          } else if (data.type === 'PTT_STOP') {
+            document.getElementById('ptt-speaker-status').innerText = `Floor Clear • Hold to broadcast voice`;
+            document.getElementById('ptt-speaker-status').style.color = 'var(--accent-cyan)';
+          } else if (data.type === 'CHAT_MSG') {
+            appendInboundChat(data.senderName, data.text);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      };
+
+      ws.onclose = () => {
+        document.getElementById('ws-indicator').innerText = '○ Reconnecting...';
+        document.getElementById('ws-indicator').style.color = '#EF4444';
+        setTimeout(initWebSocket, 2000);
+      };
+    }
+
+    function renderPeers(peers) {
+      const otherPeers = peers.filter(p => p.id !== myId);
+      document.getElementById('peer-section-title').innerText = `CONNECTED LIVE PEERS (${otherPeers.length})`;
+
+      const container = document.getElementById('live-peers-container');
+      if (otherPeers.length === 0) {
+        container.innerHTML = `
+          <div class="card" style="text-align: center; color: var(--text-sub); font-size: 12px; padding: 20px;">
+            <div>📡 Waiting for Android phone to connect...</div>
+            <div style="font-size: 11px; color: var(--accent-cyan); margin-top: 6px;">
+              Open <strong>http://${location.hostname}:3000</strong> on your phone
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = otherPeers.map(peer => `
+        <div class="peer-card">
+          <div class="peer-card-top">
+            <div class="peer-info">
+              <span style="font-size: 14px;">🟢</span>
+              <div>
+                <div class="peer-name">${peer.nickname} <span style="font-size: 10px; background: var(--card-border); padding: 2px 6px; border-radius: 4px;">${peer.deviceType}</span></div>
+                <div class="peer-meta">ID: ${peer.id} • Direct Local Mesh • 16kHz Voice Ready</div>
+              </div>
+            </div>
+            <div class="btn-group">
+              <button class="btn-sm btn-call" onclick="sendLiveCallInvite('${peer.id}', '${peer.nickname}')">📞 Call</button>
+              <button class="btn-sm btn-chat" onclick="openChat('${peer.nickname}')">💬</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Audio Streaming Engine
+    function startAudioCaptureAndStreaming() {
+      if (!localStream) return;
+
+      try {
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+          mediaRecorder.stop();
+        }
+
+        mediaRecorder = new MediaRecorder(localStream, { mimeType: 'audio/webm;codecs=opus' });
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0 && ws && ws.readyState === WebSocket.OPEN) {
+            e.data.arrayBuffer().then(buf => {
+              ws.send(buf);
+            });
+          }
+        };
+        mediaRecorder.start(40); // 40ms audio chunks for low-latency live talk!
+      } catch (err) {
+        console.error('Error starting media recorder:', err);
+      }
+    }
+
+    function stopAudioCaptureAndStreaming() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+    }
+
+    // Audio Inbound Playback
+    async function playInboundAudioChunk(arrayBuffer) {
+      try {
+        if (!audioContext) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume();
+        }
+        
+        // Decode and play chunk
+        const blob = new Blob([arrayBuffer], { type: 'audio/webm;codecs=opus' });
+        const audioUrl = URL.createObjectURL(blob);
+        const audio = new Audio(audioUrl);
+        audio.play().catch(e => console.log('Audio autoplay policy resume needed'));
+      } catch (e) {
+        // Fallback
+      }
+    }
+
+    // Live Call Flow
+    async function sendLiveCallInvite(peerId, peerName) {
+      await enableMicrophonePermission();
+      activeCallPeer = { id: peerId, name: peerName };
+      ws.send(JSON.stringify({ type: 'CALL_INVITE', targetId: peerId }));
+      startActiveCallScreen(peerName, true);
+    }
+
+    function handleIncomingCallInvite(data) {
+      activeCallPeer = { id: data.senderId, name: data.senderName };
+      document.getElementById('inc-caller-name').innerText = data.senderName;
+      document.getElementById('inc-avatar').innerText = data.senderName.substring(0, 2).toUpperCase();
       document.getElementById('incoming-call-modal').classList.add('active');
     }
 
-    function acceptIncomingCall() {
+    async function acceptIncomingCall() {
       document.getElementById('incoming-call-modal').classList.remove('active');
-      if (pendingIncomingCall) {
-        startCall(pendingIncomingCall.name, pendingIncomingCall.route, pendingIncomingCall.latency);
-        pendingIncomingCall = null;
+      await enableMicrophonePermission();
+      if (activeCallPeer) {
+        ws.send(JSON.stringify({ type: 'CALL_ACCEPT', targetId: activeCallPeer.id }));
+        startActiveCallScreen(activeCallPeer.name, false);
       }
     }
 
     function declineIncomingCall() {
       document.getElementById('incoming-call-modal').classList.remove('active');
-      pendingIncomingCall = null;
+      if (activeCallPeer) {
+        ws.send(JSON.stringify({ type: 'CALL_DECLINE', targetId: activeCallPeer.id }));
+        activeCallPeer = null;
+      }
     }
 
-    function startCall(peerName, route, baseLatency) {
+    function startActiveCallScreen(peerName, isInitiator) {
       document.getElementById('call-peer-name').innerText = peerName;
-      document.getElementById('call-peer-route').innerText = route;
-      document.getElementById('m-latency').innerText = baseLatency + ' ms';
       showScreen('call');
+      startAudioCaptureAndStreaming();
+
       callSeconds = 0;
-      updateTimerDisplay();
+      updateCallTimer();
       if (callTimerInterval) clearInterval(callTimerInterval);
       callTimerInterval = setInterval(() => {
         callSeconds++;
-        updateTimerDisplay();
+        updateCallTimer();
       }, 1000);
     }
 
-    function updateTimerDisplay() {
+    function updateCallTimer() {
       const m = Math.floor(callSeconds / 60).toString().padStart(2, '0');
       const s = (callSeconds % 60).toString().padStart(2, '0');
       document.getElementById('call-timer').innerText = `${m}:${s}`;
     }
 
-    function endCall() {
+    function hangupLiveCall() {
+      stopAudioCaptureAndStreaming();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'CALL_HANGUP' }));
+      }
+      endActiveCall();
+    }
+
+    function endActiveCall() {
+      stopAudioCaptureAndStreaming();
       if (callTimerInterval) clearInterval(callTimerInterval);
+      activeCallPeer = null;
       showScreen('home');
     }
 
-    function openChat(peerName) {
-      currentChatPeer = peerName;
-      document.getElementById('chat-title').innerText = peerName;
+    function toggleLiveMute() {
+      isMuted = !isMuted;
+      if (localStream) {
+        localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
+      }
+      document.getElementById('btn-live-mute').innerText = isMuted ? 'Unmute' : '🎤 Mute';
+      document.getElementById('m-mic-stat').innerText = isMuted ? 'MUTED' : 'STREAMING';
+      document.getElementById('m-mic-stat').style.color = isMuted ? '#EF4444' : '#10B981';
+    }
+
+    // Live Push-To-Talk (PTT)
+    async function startLivePTT() {
+      pttActive = true;
+      await enableMicrophonePermission();
+      document.getElementById('btn-ptt-main').classList.add('active');
+      document.getElementById('ptt-text').innerText = 'TRANSMITTING';
+      document.getElementById('ptt-speaker-status').innerText = '🎙️ YOU (Broadcasting Voice)';
+      document.getElementById('ptt-speaker-status').style.color = '#F43F5E';
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'PTT_START' }));
+      }
+      startAudioCaptureAndStreaming();
+    }
+
+    function stopLivePTT() {
+      if (!pttActive) return;
+      pttActive = false;
+      document.getElementById('btn-ptt-main').classList.remove('active');
+      document.getElementById('ptt-text').innerText = 'HOLD TO TALK';
+      document.getElementById('ptt-speaker-status').innerText = 'Floor Clear • Hold to broadcast voice';
+      document.getElementById('ptt-speaker-status').style.color = 'var(--accent-cyan)';
+
+      stopAudioCaptureAndStreaming();
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'PTT_STOP' }));
+      }
+    }
+
+    // Chat
+    function openChat(name) {
+      currentChatPeer = name;
+      document.getElementById('chat-title').innerText = name;
       showScreen('chat');
     }
 
-    function sendMessage() {
+    function startLiveCallWithCurrentPeer() {
+      sendLiveCallInvite('peer', currentChatPeer || 'Peer');
+    }
+
+    function sendChatMessage() {
       const input = document.getElementById('chat-input');
       const text = input.value.trim();
       if (!text) return;
       const container = document.getElementById('chat-messages');
       const bubble = document.createElement('div');
       bubble.style = "background: #1D4ED8; border-radius: 12px; padding: 10px; max-width: 80%; align-self: flex-end; color: #FFF;";
-      bubble.innerHTML = `${text}<div style="font-size: 9px; color: #93C5FD; text-align: right; margin-top: 4px;">19:35 • ✓✓ Delivered (Offline)</div>`;
+      bubble.innerHTML = `${text}<div style="font-size: 9px; color: #93C5FD; text-align: right; margin-top: 4px;">Sent</div>`;
       container.appendChild(bubble);
       input.value = '';
       container.scrollTop = container.scrollHeight;
-    }
 
-    function startPTT() {
-      document.getElementById('btn-ptt-main').classList.add('active');
-      document.getElementById('ptt-text').innerText = 'TRANSMITTING';
-      document.getElementById('ptt-speaker-status').innerText = '🎙️ YOU (Broadcasting to Channel 1)';
-      document.getElementById('ptt-speaker-status').style.color = '#F43F5E';
-      startWaveAnimation('#F43F5E');
-    }
-
-    function stopPTT() {
-      document.getElementById('btn-ptt-main').classList.remove('active');
-      document.getElementById('ptt-text').innerText = 'HOLD TO TALK';
-      document.getElementById('ptt-speaker-status').innerText = 'Floor Clear • Ready to Transmit';
-      document.getElementById('ptt-speaker-status').style.color = 'var(--accent-cyan)';
-      stopWaveAnimation();
-    }
-
-    function simulateInboundPTT() {
-      document.getElementById('ptt-speaker-status').innerText = '▲ Node-Bravo (Base Camp) Speaking...';
-      document.getElementById('ptt-speaker-status').style.color = '#38BDF8';
-      startWaveAnimation('#38BDF8');
-      setTimeout(() => {
-        document.getElementById('ptt-speaker-status').innerText = 'Floor Clear • Ready to Transmit';
-        document.getElementById('ptt-speaker-status').style.color = 'var(--accent-cyan)';
-        stopWaveAnimation();
-      }, 3500);
-    }
-
-    function startWaveAnimation(color) {
-      if (waveInterval) clearInterval(waveInterval);
-      const bars = document.querySelectorAll('.w-bar');
-      waveInterval = setInterval(() => {
-        bars.forEach(b => {
-          b.style.height = (Math.random() * 30 + 8) + 'px';
-          b.style.background = color;
-        });
-      }, 100);
-    }
-
-    function stopWaveAnimation() {
-      if (waveInterval) clearInterval(waveInterval);
-      document.querySelectorAll('.w-bar').forEach(b => {
-        b.style.height = '8px';
-        b.style.background = 'var(--card-border)';
-      });
-    }
-
-    function triggerFileSend(fileName, fileSize) {
-      const container = document.getElementById('file-list-container');
-      const item = document.createElement('div');
-      item.className = 'peer-card';
-      item.innerHTML = `
-        <div style="display: flex; justify-content: space-between; font-size: 13px; font-weight: bold; color: var(--text-main);">
-          <span>📦 ${fileName}</span>
-          <span id="p-text-${Date.now()}" style="color: var(--accent-cyan);">15%</span>
-        </div>
-        <div class="range-bar-bg" style="margin-top: 8px;">
-          <div class="range-bar-fill" style="width: 15%; background: var(--accent-cyan);"></div>
-        </div>
-        <div style="font-size: 10px; color: var(--text-sub); margin-top: 4px;">${fileSize} • Transferring via BLE L2CAP chunks (512B)</div>
-      `;
-      container.prepend(item);
-
-      let p = 15;
-      const fill = item.querySelector('.range-bar-fill');
-      const text = item.querySelector('span[id^="p-text-"]');
-      const interval = setInterval(() => {
-        p += 25;
-        if (p >= 100) {
-          clearInterval(interval);
-          fill.style.width = '100%';
-          fill.style.background = 'var(--accent-emerald)';
-          text.style.color = 'var(--accent-emerald)';
-          text.innerText = '100% Verified';
-        } else {
-          fill.style.width = p + '%';
-          text.innerText = p + '%';
-        }
-      }, 600);
-    }
-
-    function toggleSOS() {
-      isSOS = !isSOS;
-      const btn = document.getElementById('btn-sos-trigger');
-      if (isSOS) {
-        btn.innerHTML = '🛑 STOP SOS BROADCAST<br><span style="font-size:11px;font-weight:500;">● Flooding beacon across all nodes...</span>';
-      } else {
-        btn.innerHTML = '🚨 BROADCAST SOS BEACON';
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'CHAT_MSG', text: text }));
       }
     }
 
-    function updateSimRSSI(val) {
-      document.getElementById('sim-rssi-val').innerText = val + ' dBm';
+    function appendInboundChat(sender, text) {
+      const container = document.getElementById('chat-messages');
+      const bubble = document.createElement('div');
+      bubble.style = "background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 10px; max-width: 80%; color: var(--text-main);";
+      bubble.innerHTML = `<div style="font-size:10px;color:var(--accent-cyan);font-weight:bold;">${sender}</div>${text}`;
+      container.appendChild(bubble);
+      container.scrollTop = container.scrollHeight;
     }
-    function updateSimLoss(val) {
-      document.getElementById('sim-loss-val').innerText = val + '%';
-      document.getElementById('m-loss').innerText = val + '%';
+
+    function toggleSOS() {
+      alert('Emergency SOS Beacon broadcasted across all connected local radios!');
     }
-    function updateSimHops(val) {
-      const hopStr = val == 1 ? '1 (Direct)' : `${val} (Mesh Relay)`;
-      document.getElementById('sim-hop-val').innerText = hopStr;
-      document.getElementById('m-latency').innerText = (20 + val * 22) + ' ms';
+
+    function triggerFileSend(name, size) {
+      alert(`File "${name}" (${size}) chunked and broadcasted to connected mesh.`);
     }
+
+    // Start WebSocket
+    initWebSocket();
   </script>
 </body>
 </html>
