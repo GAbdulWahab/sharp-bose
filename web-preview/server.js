@@ -1,13 +1,15 @@
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { WebSocketServer } = require('ws');
+const { generateSelfSignedCert } = require('./gencert');
 
-const PORT = 3000;
+const HTTP_PORT = 3000;
+const HTTPS_PORT = 3443;
 const FILE_PATH = path.join(__dirname, 'index.html');
 
-// Create HTTP Server
-const server = http.createServer((req, res) => {
+function handleHttpRequest(req, res) {
   fs.readFile(FILE_PATH, (err, data) => {
     if (err) {
       res.writeHead(500, { 'Content-Type': 'text/plain' });
@@ -17,11 +19,25 @@ const server = http.createServer((req, res) => {
       res.end(data);
     }
   });
-});
+}
 
-// Attach WebSocket Server
-const wss = new WebSocketServer({ server });
+// 1. HTTP Server
+const httpServer = http.createServer(handleHttpRequest);
+const wssHttp = new WebSocketServer({ server: httpServer });
 
+// 2. HTTPS Server (for Mobile Secure Context / Microphone permission)
+let httpsServer = null;
+let wssHttps = null;
+try {
+  const { key, cert } = generateSelfSignedCert();
+  httpsServer = https.createServer({ key, cert }, handleHttpRequest);
+  wssHttps = new WebSocketServer({ server: httpsServer });
+  console.log('✅ Generated self-signed SSL certificate for HTTPS.');
+} catch (e) {
+  console.warn('⚠️ Could not start HTTPS server:', e.message);
+}
+
+const allWebSockets = new Set();
 let clients = new Map(); // ws -> clientInfo
 
 function broadcastPeerList() {
@@ -33,14 +49,15 @@ function broadcastPeerList() {
   }));
 
   const msg = JSON.stringify({ type: 'PEER_LIST', peers: peerList });
-  for (const client of wss.clients) {
+  for (const client of allWebSockets) {
     if (client.readyState === 1) { // OPEN
       client.send(msg);
     }
   }
 }
 
-wss.on('connection', (ws, req) => {
+function handleWsConnection(ws, req) {
+  allWebSockets.add(ws);
   const isMobile = /Android|iPhone|iPad/i.test(req.headers['user-agent'] || '');
   const clientInfo = {
     id: 'node-' + Math.random().toString(36).substring(2, 7),
@@ -62,7 +79,7 @@ wss.on('connection', (ws, req) => {
     // If binary, it's a live audio frame chunk
     if (isBinary) {
       // Forward binary audio frame to all other connected peers
-      for (const client of wss.clients) {
+      for (const client of allWebSockets) {
         if (client !== ws && client.readyState === 1) {
           client.send(message, { binary: true });
         }
@@ -82,7 +99,7 @@ wss.on('connection', (ws, req) => {
         data.senderName = clientInfo.nickname;
         const outMsg = JSON.stringify(data);
 
-        for (const client of wss.clients) {
+        for (const client of allWebSockets) {
           if (client !== ws && client.readyState === 1) {
             client.send(outMsg);
           }
@@ -95,15 +112,28 @@ wss.on('connection', (ws, req) => {
 
   ws.on('close', () => {
     console.log(`[Mesh Radio] Disconnected: ${clientInfo.nickname} (${clientInfo.id})`);
+    allWebSockets.delete(ws);
     clients.delete(ws);
     broadcastPeerList();
   });
-});
+}
 
-server.listen(PORT, '0.0.0.0', () => {
+wssHttp.on('connection', handleWsConnection);
+if (wssHttps) {
+  wssHttps.on('connection', handleWsConnection);
+}
+
+httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
   console.log(`\n=============================================================`);
   console.log(`📡 [OFFLINE MESH LIVE AUDIO SERVER RUNNING]`);
-  console.log(`💻 Laptop Browser URL:  http://localhost:${PORT}`);
-  console.log(`📱 Android Phone URL:   http://10.73.88.166:${PORT}`);
-  console.log(`=============================================================\n`);
+  console.log(`💻 Laptop Browser URL:  http://localhost:${HTTP_PORT}`);
+  console.log(`📱 Android Phone HTTP:  http://10.73.88.166:${HTTP_PORT}`);
+  if (httpsServer) {
+    httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
+      console.log(`🔒 Android Phone HTTPS: https://10.73.88.166:${HTTPS_PORT} (Enables Mobile Mic)`);
+      console.log(`=============================================================\n`);
+    });
+  } else {
+    console.log(`=============================================================\n`);
+  }
 });

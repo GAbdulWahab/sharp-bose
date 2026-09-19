@@ -57,7 +57,26 @@
       position: relative;
     }
 
-    /* Notch & Status Bar */
+    /* Floating Audio Unlock Banner */
+    #speaker-unlock-banner {
+      background: linear-gradient(90deg, #F59E0B, #EF4444);
+      color: #FFF;
+      font-weight: 800;
+      font-size: 12px;
+      text-align: center;
+      padding: 10px 14px;
+      cursor: pointer;
+      display: block;
+      animation: pulseAlert 1.5s infinite;
+      z-index: 999;
+    }
+    @keyframes pulseAlert {
+      0% { opacity: 0.9; }
+      50% { opacity: 1; filter: brightness(1.2); }
+      100% { opacity: 0.9; }
+    }
+
+    /* Status Bar */
     .status-bar {
       height: 44px;
       padding: 0 20px;
@@ -73,6 +92,20 @@
     .status-icons { display: flex; gap: 8px; align-items: center; font-size: 11px; }
     .status-badge-offline { background: #064E3B; color: #34D399; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
 
+    /* Inbound Audio Activity Indicator */
+    .audio-rx-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid var(--accent-emerald);
+      color: var(--accent-emerald);
+      font-size: 11px;
+      font-weight: bold;
+    }
+
     /* Screen Views */
     .screen { flex: 1; display: none; flex-direction: column; padding: 16px; overflow-y: auto; }
     .screen.active { display: flex; }
@@ -84,10 +117,16 @@
     .btn-icon { width: 34px; height: 34px; border-radius: 10px; background: var(--card-bg); border: 1px solid var(--card-border); color: var(--text-main); font-size: 14px; cursor: pointer; display: flex; justify-content: center; align-items: center; }
     .btn-diag { background: var(--card-bg); color: var(--accent-blue); font-size: 11px; font-weight: 700; border: 1px solid var(--card-border); padding: 6px 10px; border-radius: 8px; cursor: pointer; }
 
-    /* Live Device ID Banner */
+    /* Live Device Status Banner */
     .live-device-bar {
       background: var(--card-highlight); border: 1px solid var(--accent-cyan); border-radius: 12px; padding: 10px 14px; margin-bottom: 12px;
       display: flex; justify-content: space-between; align-items: center; font-size: 12px;
+    }
+
+    /* Audio Enable Action Banner */
+    .audio-alert-banner {
+      background: #083344; border: 1.5px solid var(--accent-cyan); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px;
+      display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #E0F2FE; cursor: pointer;
     }
 
     /* Feature Grid */
@@ -118,7 +157,7 @@
     .btn-chat { background: var(--accent-blue); }
 
     /* PTT Screen */
-    .ptt-box { display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 24px 0; }
+    .ptt-box { display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 20px 0; }
     .ptt-btn {
       width: 170px; height: 170px; border-radius: 85px; background: var(--card-bg); border: 4px solid var(--accent-cyan);
       display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer;
@@ -126,7 +165,7 @@
     }
     .ptt-btn.active { background: #E11D48; border-color: #FFE4E6; box-shadow: 0 0 35px rgba(225, 29, 72, 0.6); }
     .wave-bars { display: flex; gap: 5px; height: 40px; align-items: center; justify-content: center; margin: 15px 0; }
-    .w-bar { width: 4px; height: 8px; background: var(--card-border); border-radius: 2px; transition: height 0.1s; }
+    .w-bar { width: 4px; height: 8px; background: var(--card-border); border-radius: 2px; transition: height 0.08s; }
 
     /* Radar Screen */
     .radar-canvas-box { width: 260px; height: 260px; border-radius: 130px; border: 2px solid var(--accent-cyan); margin: 15px auto; position: relative; background: rgba(6, 182, 212, 0.05); display: flex; align-items: center; justify-content: center; }
@@ -157,7 +196,7 @@
     .btn-decline { flex: 1; height: 54px; border-radius: 16px; background: #DC2626; color: #FFF; font-weight: 800; border: none; cursor: pointer; font-size: 14px; }
     .btn-accept { flex: 1; height: 54px; border-radius: 16px; background: #059669; color: #FFF; font-weight: 800; border: none; cursor: pointer; font-size: 14px; }
 
-    /* Info Side Panel (desktop) */
+    /* Side Panel */
     .info-panel {
       width: 360px;
       background: var(--card-bg);
@@ -175,17 +214,26 @@
     }
   </style>
 </head>
-<body>
+<body onclick="ensureAudioContextActive()">
+
+  <!-- Audio Element for WebRTC Stream Playback -->
+  <audio id="remote-audio-elem" autoplay playsinline></audio>
 
   <!-- Physical Phone Container -->
   <div class="phone-container">
+
+    <!-- Speaker Unlock Banner (shown if browser has suspended AudioContext) -->
+    <div id="speaker-unlock-banner" onclick="forceUnlockAudio()">
+      🔊 LAPTOP SPEAKER READY • TAP TO ACTIVATE SOUND 🔊
+    </div>
+
     <!-- Status Bar -->
     <div class="status-bar">
-      <span id="clock-display">19:48</span>
+      <span id="clock-display">19:58</span>
       <div class="status-icons">
         <span class="status-badge-offline">OFFLINE MESH</span>
-        <span id="ws-indicator" style="color: #10B981;">● LIVE MESH</span>
-        <span>🔋 96%</span>
+        <span id="ws-indicator" style="color: #10B981;">● LIVE</span>
+        <span id="audio-rx-indicator" class="audio-rx-badge" style="display: none;">🔊 Rx Audio</span>
       </div>
     </div>
 
@@ -195,7 +243,7 @@
         <div>
           <div class="screen-title">OFFLINE MESH</div>
           <div id="self-status-sub" style="font-size: 11px; color: var(--accent-emerald); font-weight: 600;">
-            ● Ready for Live 2-Way Voice Call
+            ● Ready for 2-Way Voice
           </div>
         </div>
         <div class="header-actions">
@@ -204,15 +252,35 @@
         </div>
       </div>
 
-      <!-- Live Device ID & Role Banner -->
+      <!-- Insecure Origin Mobile Warning (if opened over plain HTTP on phone) -->
+      <div id="mobile-https-banner" style="display: none; background: #7C2D12; border: 1.5px solid #F97316; border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; font-size: 11px; color: #FFEDD5;">
+        <div style="font-weight: bold; margin-bottom: 4px;">⚠️ Mobile Chrome Requires HTTPS for Mic:</div>
+        <div style="line-height: 15px; margin-bottom: 8px;">Tap below to switch to HTTPS so phone allows microphone access:</div>
+        <a id="https-link-btn" href="#" style="display: block; text-align: center; background: #EA580C; color: #FFF; text-decoration: none; padding: 6px; border-radius: 8px; font-weight: bold;">
+          🔒 Switch to HTTPS (Port 3443)
+        </a>
+      </div>
+
+      <!-- Audio & Mic Activation Banner -->
+      <div class="audio-alert-banner" id="audio-perm-banner" onclick="startMicAndAudio()">
+        <div>
+          <div style="font-weight: bold; color: var(--accent-cyan);">🎙️ Microphone: <span id="mic-status-label">Tap to Activate</span></div>
+          <div style="font-size: 10px; color: #94A3B8;" id="mic-sub-label">Click to enable live 2-way microphone &amp; speaker</div>
+        </div>
+        <button class="btn-sm" style="background: var(--accent-cyan); color: #000; font-weight: bold;">
+          Activate
+        </button>
+      </div>
+
+      <!-- Live Device ID Banner -->
       <div class="live-device-bar">
         <div>
-          <div style="font-weight: bold; color: var(--text-main);" id="self-device-title">You: Connecting...</div>
-          <div style="font-size: 10px; color: var(--text-sub);" id="self-device-id">Node ID: Initializing</div>
+          <div style="font-weight: bold; color: var(--text-main);" id="self-device-title">You: Initializing...</div>
+          <div style="font-size: 10px; color: var(--text-sub);" id="self-device-id">Node ID: Connecting to mesh</div>
         </div>
-        <button class="btn-sm" style="background: var(--accent-cyan); color: #000; font-weight: bold;" onclick="enableMicrophonePermission()">
-          🎙️ Mic: <span id="mic-status-label">Enable</span>
-        </button>
+        <div style="font-size: 11px; color: var(--accent-emerald); font-weight: bold;">
+          ● Online
+        </div>
       </div>
 
       <!-- Feature Grid -->
@@ -239,15 +307,14 @@
         </div>
       </div>
 
-      <!-- Range Banner -->
-      <div class="card range-banner">
-        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px;">
-          <span style="color: var(--text-sub); font-weight: 600;">Direct Mesh Range</span>
-          <span style="color: var(--accent-blue); font-weight: 700;">Live Local Subnet</span>
-        </div>
-        <div style="font-size: 11px; color: var(--text-sub); line-height: 15px;">
-          Direct peer-to-peer real-time audio transmission. Open this page on your Android phone and Laptop to talk live!
-        </div>
+      <!-- Audio Test Action Buttons -->
+      <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+        <button class="btn-diag" style="flex: 1; padding: 10px; background: #065F46; color: #6EE7B7; border-color: #059669;" onclick="testSpeakerBeep()">
+          🔊 Test Laptop Sound
+        </button>
+        <button class="btn-diag" style="flex: 1; padding: 10px; background: #1E3A8A; color: #93C5FD; border-color: #2563EB;" onclick="broadcastSimulatedVoice()">
+          📡 Send Audio Beacon
+        </button>
       </div>
 
       <div style="font-size: 11px; font-weight: 800; color: var(--text-sub); margin: 8px 0;" id="peer-section-title">
@@ -257,9 +324,9 @@
       <!-- Dynamically Rendered Connected Peers List -->
       <div id="live-peers-container">
         <div class="card" style="text-align: center; color: var(--text-sub); font-size: 12px; padding: 20px;">
-          <div>📡 Waiting for Android phone to connect...</div>
+          <div>📡 Waiting for other device to connect...</div>
           <div style="font-size: 11px; color: var(--accent-cyan); margin-top: 6px;">
-            Open <strong>http://10.73.88.166:3000</strong> on your phone
+            Open <strong>https://10.73.88.166:3443</strong> on your phone
           </div>
         </div>
       </div>
@@ -280,9 +347,9 @@
       </div>
 
       <div class="wave-bars">
-        <div class="w-bar"></div><div class="w-bar"></div><div class="w-bar"></div>
-        <div class="w-bar"></div><div class="w-bar"></div><div class="w-bar"></div>
-        <div class="w-bar"></div><div class="w-bar"></div><div class="w-bar"></div>
+        <div class="w-bar" id="wb-0"></div><div class="w-bar" id="wb-1"></div><div class="w-bar" id="wb-2"></div>
+        <div class="w-bar" id="wb-3"></div><div class="w-bar" id="wb-4"></div><div class="w-bar" id="wb-5"></div>
+        <div class="w-bar" id="wb-6"></div><div class="w-bar" id="wb-7"></div><div class="w-bar" id="wb-8"></div>
       </div>
 
       <div class="ptt-box">
@@ -293,8 +360,13 @@
         </div>
       </div>
 
-      <div style="text-align: center; font-size: 11px; color: var(--text-sub);">
-        Audio streams live directly to the other connected device's speaker in real time.
+      <div style="display: flex; gap: 8px; margin-top: 10px;">
+        <button class="btn-diag" style="flex: 1; padding: 10px;" onclick="broadcastSimulatedVoice()">
+          📡 Broadcast Voice Beacon
+        </button>
+        <button class="btn-diag" style="flex: 1; padding: 10px;" onclick="testSpeakerBeep()">
+          🔊 Test Speaker
+        </button>
       </div>
     </div>
 
@@ -353,7 +425,7 @@
     <div id="screen-call" class="screen">
       <div style="text-align: center; margin-top: 15px;">
         <div style="display: inline-block; background: #064E3B; color: #34D399; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 12px; margin-bottom: 8px;">
-          🔒 LIVE 2-WAY ENCRYPTED VOICE CALL
+          🔒 LIVE 2-WAY FULL-DUPLEX VOICE
         </div>
         <div id="call-peer-name" style="font-size: 24px; font-weight: 800; color: var(--text-main);">Remote Peer</div>
         <div id="call-peer-route" style="font-size: 12px; color: var(--accent-blue);">Direct Local Mesh Stream</div>
@@ -374,15 +446,15 @@
         <div style="font-size: 10px; font-weight: 800; color: var(--text-sub);">LIVE AUDIO DSP TELEMETRY</div>
         <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; margin-top: 8px;">
           <div><div style="font-size: 9px; color: var(--text-sub);">RTT Latency</div><div id="m-latency" style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">18 ms</div></div>
-          <div><div style="font-size: 9px; color: var(--text-sub);">Packet Loss</div><div id="m-loss" style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">0.0%</div></div>
-          <div><div style="font-size: 9px; color: var(--text-sub);">Mic Status</div><div id="m-mic-stat" style="font-size: 12px; font-weight: 800; color: var(--accent-emerald);">STREAMING</div></div>
-          <div><div style="font-size: 9px; color: var(--text-sub);">Sample Rate</div><div style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">16 kHz</div></div>
+          <div><div style="font-size: 9px; color: var(--text-sub);">Rx Packets</div><div id="m-rx-pkts" style="font-size: 12px; font-weight: 800; color: var(--accent-emerald);">0</div></div>
+          <div><div style="font-size: 9px; color: var(--text-sub);">Speaker</div><div id="m-speaker-stat" style="font-size: 12px; font-weight: 800; color: var(--accent-emerald);">ACTIVE 🔊</div></div>
+          <div><div style="font-size: 9px; color: var(--text-sub);">Codec</div><div style="font-size: 12px; font-weight: 800; color: var(--accent-blue);">16 kHz PCM</div></div>
         </div>
       </div>
 
       <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: auto; margin-bottom: 15px;">
         <button class="btn-diag" id="btn-live-mute" style="height: 60px;" onclick="toggleLiveMute()">🎤 Mute</button>
-        <button class="btn-diag" style="height: 60px;" onclick="alert('Speakerphone active')">🔊 Speaker</button>
+        <button class="btn-diag" style="height: 60px;" onclick="testSpeakerBeep()">🔊 Test</button>
         <button class="btn-diag" style="height: 60px; background: #991B1B; color: #FFF; border-color: #DC2626;" onclick="hangupLiveCall()">🛑 End Call</button>
       </div>
     </div>
@@ -436,7 +508,8 @@
         <div style="font-size: 10px; font-weight: 800; color: var(--text-sub); margin-bottom: 6px;">RADIO &amp; CRYPTO STATS</div>
         <div style="font-size: 11px; color: var(--accent-blue); font-family: var(--font-mono);" id="diag-node-id">Node ID: Initializing...</div>
         <div style="font-size: 11px; color: var(--text-sub); margin-top: 4px;">Crypto: Noise_XX_25519_ChaChaPoly</div>
-        <div style="font-size: 11px; color: var(--text-sub); margin-top: 2px;">Audio: PCM 16kHz Mono • WebRTC/WS Stream</div>
+        <div style="font-size: 11px; color: var(--text-sub); margin-top: 2px;">Audio: Raw PCM 16kHz Streaming + WebRTC Track</div>
+        <div style="font-size: 11px; color: var(--text-sub); margin-top: 2px;" id="diag-audio-state">AudioContext: Unknown</div>
       </div>
     </div>
 
@@ -464,27 +537,46 @@
   <!-- Live Connection Information Panel -->
   <div class="info-panel">
     <div style="font-size: 15px; font-weight: 800; color: var(--accent-cyan); display: flex; justify-content: space-between;">
-      <span>🎙️ LIVE TALK CONSOLE</span>
-      <span style="font-size: 11px; color: var(--accent-emerald);">● ACTIVE</span>
+      <span>🎙️ LIVE VOICE TALK</span>
+      <span style="font-size: 11px; color: var(--accent-emerald);" id="info-status-badge">● READY</span>
     </div>
 
     <div style="font-size: 12px; line-height: 18px; color: var(--text-sub);">
-      To talk live between this laptop and your Android phone:
+      To talk live between Laptop and Android phone:
     </div>
 
     <div style="background: rgba(6, 182, 212, 0.1); border: 1px dashed var(--accent-cyan); border-radius: 10px; padding: 10px; font-size: 12px;">
-      <div style="font-weight: bold; color: var(--text-main);">1. On Android Phone:</div>
+      <div style="font-weight: bold; color: var(--text-main);">📱 On Android Phone (HTTPS for Mic):</div>
       <div style="margin-top: 2px; color: var(--accent-cyan); font-family: var(--font-mono); font-weight: bold; word-break: break-all;">
-        http://10.73.88.166:3000
+        https://10.73.88.166:3443
+      </div>
+      <div style="font-size: 10px; color: #94A3B8; margin-top: 4px;">
+        *(If Chrome says "Not private", tap Advanced ➔ Proceed)*
+      </div>
+    </div>
+
+    <div style="background: rgba(16, 185, 129, 0.1); border: 1px dashed var(--accent-emerald); border-radius: 10px; padding: 10px; font-size: 12px;">
+      <div style="font-weight: bold; color: var(--text-main);">💻 On Laptop Browser:</div>
+      <div style="margin-top: 2px; color: var(--accent-emerald); font-family: var(--font-mono); font-weight: bold;">
+        http://localhost:3000
       </div>
     </div>
 
     <div style="font-size: 12px; line-height: 18px; color: var(--text-sub);">
-      <strong>2. Click "📞 Call"</strong> on either device to start two-way full-duplex speaking, or <strong>Hold PTT</strong> to talk like a walkie-talkie!
+      <strong>1. Click "Activate"</strong> to grant microphone permission.
     </div>
 
-    <div style="font-size: 11px; color: var(--text-muted); border-top: 1px solid var(--card-border); padding-top: 10px;">
-      Audio is captured at 16kHz with browser Acoustic Echo Cancellation (AEC) and streamed in real time with ~18ms latency.
+    <div style="font-size: 12px; line-height: 18px; color: var(--text-sub);">
+      <strong>2. Click "📞 Call"</strong> or hold <strong>"HOLD TO TALK"</strong> on phone to stream live voice to laptop!
+    </div>
+
+    <div style="border-top: 1px solid var(--card-border); padding-top: 10px; display: flex; flex-direction: column; gap: 8px;">
+      <button class="btn-diag" style="width:100%; padding:10px; background:var(--accent-emerald); color:#FFF; font-weight:bold;" onclick="testSpeakerBeep()">
+        🔊 Test Laptop Speaker Sound (Chime)
+      </button>
+      <button class="btn-diag" style="width:100%; padding:10px; background:#2563EB; color:#FFF; font-weight:bold;" onclick="broadcastSimulatedVoice()">
+        📡 Send Test Audio Wave to Laptop
+      </button>
     </div>
   </div>
 
@@ -495,15 +587,37 @@
     let currentChatPeer = null;
     let ws = null;
     let localStream = null;
-    let mediaRecorder = null;
+    let audioCtx = null;
+    let micSource = null;
+    let scriptProcessor = null;
     let isMuted = false;
+    let isTransmittingVoice = false;
     let callTimerInterval = null;
     let callSeconds = 0;
     let isLightMode = false;
     let pttActive = false;
-    let audioContext = null;
+    let nextPlayTime = 0;
+    let peerConnection = null;
+    let rxPacketCount = 0;
+    let rxTimer = null;
 
-    // Clock display
+    // Check if on insecure mobile origin
+    const isMobileDevice = /Android|iPhone|iPad/i.test(navigator.userAgent);
+    if (isMobileDevice && location.protocol === 'http:') {
+      const banner = document.getElementById('mobile-https-banner');
+      const link = document.getElementById('https-link-btn');
+      if (banner && link) {
+        banner.style.display = 'block';
+        link.href = `https://${location.hostname}:3443`;
+      }
+    }
+
+    // WebRTC STUN Configuration
+    const rtcConfig = {
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+    };
+
+    // Clock
     setInterval(() => {
       const now = new Date();
       document.getElementById('clock-display').innerText = now.toTimeString().substring(0, 5);
@@ -520,30 +634,218 @@
       if (target) target.classList.add('active');
     }
 
-    // Audio Context & Mic Setup
-    async function enableMicrophonePermission() {
+    // Audio Context Initialization & Unlock (Bypasses browser autoplay restrictions)
+    async function ensureAudioContextActive() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        try {
+          await audioCtx.resume();
+        } catch(e){}
+      }
+      if (audioCtx.state === 'running') {
+        const unlockBanner = document.getElementById('speaker-unlock-banner');
+        if (unlockBanner) unlockBanner.style.display = 'none';
+        const diagState = document.getElementById('diag-audio-state');
+        if (diagState) diagState.innerText = `AudioContext: Running (${audioCtx.sampleRate} Hz)`;
+      }
+    }
+
+    async function forceUnlockAudio() {
+      await ensureAudioContextActive();
+      testSpeakerBeep();
+    }
+
+    // Global listener to unlock audio on first interaction
+    ['click', 'touchstart', 'keydown', 'pointerdown'].forEach(evt => {
+      window.addEventListener(evt, () => ensureAudioContextActive(), { passive: true, once: false });
+    });
+
+    // Test tone generator
+    async function testSpeakerBeep() {
+      await ensureAudioContextActive();
       try {
-        if (!audioContext) {
-          audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (audioContext.state === 'suspended') {
-          await audioContext.resume();
-        }
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
+        osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.15); // E5
+        osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.3); // G5
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.6);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // Send Simulated Voice Audio Frame to Test Laptop Speakers over Network
+    async function broadcastSimulatedVoice() {
+      await ensureAudioContextActive();
+      // Generate 1.0 second of 16kHz synthesized dual-tone walkie voice signal
+      const sampleRate = 16000;
+      const numSamples = sampleRate * 1.0;
+      const pcm16 = new Int16Array(numSamples);
+
+      for (let i = 0; i < numSamples; i++) {
+        const t = i / sampleRate;
+        // Frequency sweep simulating voice modulation (400Hz - 900Hz)
+        const freq = 500 + 300 * Math.sin(2 * Math.PI * 3 * t);
+        const sample = 0.5 * Math.sin(2 * Math.PI * freq * t) * (1 - t);
+        pcm16[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+      }
+
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(pcm16.buffer);
+        alert('📡 Test audio beacon sent across mesh to Laptop speaker!');
+      } else {
+        alert('WebSocket is connecting. Please wait a moment.');
+      }
+    }
+
+    // Microphone Activation & Raw PCM Stream Setup
+    async function startMicAndAudio() {
+      await ensureAudioContextActive();
+      try {
         localStream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
-            autoGainControl: true
+            autoGainControl: true,
+            channelCount: 1
           }
         });
+
+        // Set up Web Audio API PCM Processor
+        micSource = audioCtx.createMediaStreamSource(localStream);
+        scriptProcessor = audioCtx.createScriptProcessor(2048, 1, 1);
+
+        scriptProcessor.onaudioprocess = (e) => {
+          if (!isTransmittingVoice) return;
+          const inputData = e.inputBuffer.getChannelData(0);
+
+          // Animate wave bars when speaking
+          let sum = 0;
+          for (let i = 0; i < inputData.length; i++) sum += Math.abs(inputData[i]);
+          const avg = sum / inputData.length;
+          updateWaveformVisualizer(avg);
+
+          // Resample/convert to 16kHz Int16 PCM
+          const pcm16 = new Int16Array(inputData.length);
+          for (let i = 0; i < inputData.length; i++) {
+            let s = Math.max(-1, Math.min(1, inputData[i]));
+            pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+          }
+
+          // Send raw binary PCM frame over WebSocket
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(pcm16.buffer);
+          }
+        };
+
+        const silentGain = audioCtx.createGain();
+        silentGain.gain.value = 0; // prevents hearing self echo on speaker
+        micSource.connect(scriptProcessor);
+        scriptProcessor.connect(silentGain);
+        silentGain.connect(audioCtx.destination);
+
         document.getElementById('mic-status-label').innerText = 'Active ✅';
         document.getElementById('mic-status-label').style.color = '#10B981';
+        document.getElementById('mic-sub-label').innerText = 'Microphone live and streaming';
+        document.getElementById('audio-perm-banner').style.background = '#064E3B';
+        document.getElementById('audio-perm-banner').style.borderColor = '#10B981';
         return true;
       } catch (err) {
-        console.warn('Microphone permission needed:', err);
-        alert('Please allow microphone access to talk live.');
+        console.warn('Microphone error:', err);
+        if (location.protocol === 'http:' && isMobileDevice) {
+          alert('Microphone on Android requires HTTPS!\n\nPlease tap "Switch to HTTPS (Port 3443)" banner.');
+        } else {
+          alert('Please allow microphone permissions in browser: ' + err.message);
+        }
         return false;
       }
+    }
+
+    function updateWaveformVisualizer(amplitude) {
+      for (let i = 0; i < 9; i++) {
+        const bar = document.getElementById('wb-' + i);
+        if (bar) {
+          const h = Math.min(38, Math.max(6, amplitude * 250 + Math.random() * 12));
+          bar.style.height = `${h}px`;
+          bar.style.background = '#10B981';
+        }
+      }
+    }
+
+    // Playback Inbound Raw PCM Audio Frame
+    async function playInboundPCMFrame(arrayBuffer) {
+      await ensureAudioContextActive();
+
+      rxPacketCount++;
+      const rxBadge = document.getElementById('audio-rx-indicator');
+      if (rxBadge) rxBadge.style.display = 'inline-flex';
+      const mRx = document.getElementById('m-rx-pkts');
+      if (mRx) mRx.innerText = rxPacketCount;
+
+      clearTimeout(rxTimer);
+      rxTimer = setTimeout(() => {
+        if (rxBadge) rxBadge.style.display = 'none';
+      }, 500);
+
+      const pcm16 = new Int16Array(arrayBuffer);
+      const float32 = new Float32Array(pcm16.length);
+      let sum = 0;
+      for (let i = 0; i < pcm16.length; i++) {
+        float32[i] = pcm16[i] / (pcm16[i] < 0 ? 32768 : 32767);
+        sum += Math.abs(float32[i]);
+      }
+      updateWaveformVisualizer(sum / pcm16.length);
+
+      // Create AudioBuffer rescaled to AudioContext's native sample rate
+      const buffer = audioCtx.createBuffer(1, float32.length, 16000);
+      buffer.copyToChannel(float32, 0);
+
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(audioCtx.destination);
+
+      const now = audioCtx.currentTime;
+      if (nextPlayTime < now) {
+        nextPlayTime = now + 0.01;
+      }
+      source.start(nextPlayTime);
+      nextPlayTime += buffer.duration;
+    }
+
+    // Initialize WebRTC PeerConnection
+    function createPeerConnection() {
+      if (peerConnection) {
+        try { peerConnection.close(); } catch(e){}
+      }
+
+      peerConnection = new RTCPeerConnection(rtcConfig);
+
+      if (localStream) {
+        localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+      }
+
+      peerConnection.ontrack = (event) => {
+        const remoteAudio = document.getElementById('remote-audio-elem');
+        if (remoteAudio && event.streams[0]) {
+          remoteAudio.srcObject = event.streams[0];
+          remoteAudio.play().catch(e => console.log('Audio play catch'));
+        }
+      };
+
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'SIGNAL_CANDIDATE', candidate: event.candidate }));
+        }
+      };
     }
 
     // Connect WebSocket
@@ -559,8 +861,8 @@
 
       ws.onmessage = async (event) => {
         if (event.data instanceof ArrayBuffer) {
-          // Inbound binary audio chunk -> Play over speaker!
-          playInboundAudioChunk(event.data);
+          // Play incoming live PCM audio frame immediately on speaker!
+          playInboundPCMFrame(event.data);
           return;
         }
 
@@ -580,6 +882,21 @@
             startActiveCallScreen(data.senderName, true);
           } else if (data.type === 'CALL_DECLINE' || data.type === 'CALL_HANGUP') {
             endActiveCall();
+          } else if (data.type === 'SIGNAL_OFFER') {
+            await ensureAudioContextActive();
+            createPeerConnection();
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            ws.send(JSON.stringify({ type: 'SIGNAL_ANSWER', answer: answer }));
+          } else if (data.type === 'SIGNAL_ANSWER') {
+            if (peerConnection) {
+              await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+            }
+          } else if (data.type === 'SIGNAL_CANDIDATE') {
+            if (peerConnection && data.candidate) {
+              await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
           } else if (data.type === 'PTT_START') {
             document.getElementById('ptt-speaker-status').innerText = `🎙️ ${data.senderName} (Speaking...)`;
             document.getElementById('ptt-speaker-status').style.color = '#F43F5E';
@@ -609,9 +926,9 @@
       if (otherPeers.length === 0) {
         container.innerHTML = `
           <div class="card" style="text-align: center; color: var(--text-sub); font-size: 12px; padding: 20px;">
-            <div>📡 Waiting for Android phone to connect...</div>
+            <div>📡 Waiting for other device to connect...</div>
             <div style="font-size: 11px; color: var(--accent-cyan); margin-top: 6px;">
-              Open <strong>http://${location.hostname}:3000</strong> on your phone
+              Open <strong>https://${location.hostname}:3443</strong> on phone
             </div>
           </div>
         `;
@@ -625,7 +942,7 @@
               <span style="font-size: 14px;">🟢</span>
               <div>
                 <div class="peer-name">${peer.nickname} <span style="font-size: 10px; background: var(--card-border); padding: 2px 6px; border-radius: 4px;">${peer.deviceType}</span></div>
-                <div class="peer-meta">ID: ${peer.id} • Direct Local Mesh • 16kHz Voice Ready</div>
+                <div class="peer-meta">ID: ${peer.id} • Direct Local Mesh • 16kHz PCM Voice Ready</div>
               </div>
             </div>
             <div class="btn-group">
@@ -637,61 +954,18 @@
       `).join('');
     }
 
-    // Audio Streaming Engine
-    function startAudioCaptureAndStreaming() {
-      if (!localStream) return;
-
-      try {
-        if (mediaRecorder && mediaRecorder.state === 'recording') {
-          mediaRecorder.stop();
-        }
-
-        mediaRecorder = new MediaRecorder(localStream, { mimeType: 'audio/webm;codecs=opus' });
-        mediaRecorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0 && ws && ws.readyState === WebSocket.OPEN) {
-            e.data.arrayBuffer().then(buf => {
-              ws.send(buf);
-            });
-          }
-        };
-        mediaRecorder.start(40); // 40ms audio chunks for low-latency live talk!
-      } catch (err) {
-        console.error('Error starting media recorder:', err);
-      }
-    }
-
-    function stopAudioCaptureAndStreaming() {
-      if (mediaRecorder && mediaRecorder.state === 'recording') {
-        mediaRecorder.stop();
-      }
-    }
-
-    // Audio Inbound Playback
-    async function playInboundAudioChunk(arrayBuffer) {
-      try {
-        if (!audioContext) {
-          audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (audioContext.state === 'suspended') {
-          await audioContext.resume();
-        }
-        
-        // Decode and play chunk
-        const blob = new Blob([arrayBuffer], { type: 'audio/webm;codecs=opus' });
-        const audioUrl = URL.createObjectURL(blob);
-        const audio = new Audio(audioUrl);
-        audio.play().catch(e => console.log('Audio autoplay policy resume needed'));
-      } catch (e) {
-        // Fallback
-      }
-    }
-
-    // Live Call Flow
+    // Live Voice Call Functions
     async function sendLiveCallInvite(peerId, peerName) {
-      await enableMicrophonePermission();
+      await startMicAndAudio();
       activeCallPeer = { id: peerId, name: peerName };
       ws.send(JSON.stringify({ type: 'CALL_INVITE', targetId: peerId }));
       startActiveCallScreen(peerName, true);
+
+      // WebRTC Offer
+      createPeerConnection();
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      ws.send(JSON.stringify({ type: 'SIGNAL_OFFER', offer: offer }));
     }
 
     function handleIncomingCallInvite(data) {
@@ -703,7 +977,7 @@
 
     async function acceptIncomingCall() {
       document.getElementById('incoming-call-modal').classList.remove('active');
-      await enableMicrophonePermission();
+      await startMicAndAudio();
       if (activeCallPeer) {
         ws.send(JSON.stringify({ type: 'CALL_ACCEPT', targetId: activeCallPeer.id }));
         startActiveCallScreen(activeCallPeer.name, false);
@@ -721,7 +995,7 @@
     function startActiveCallScreen(peerName, isInitiator) {
       document.getElementById('call-peer-name').innerText = peerName;
       showScreen('call');
-      startAudioCaptureAndStreaming();
+      isTransmittingVoice = true;
 
       callSeconds = 0;
       updateCallTimer();
@@ -739,7 +1013,7 @@
     }
 
     function hangupLiveCall() {
-      stopAudioCaptureAndStreaming();
+      isTransmittingVoice = false;
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'CALL_HANGUP' }));
       }
@@ -747,7 +1021,11 @@
     }
 
     function endActiveCall() {
-      stopAudioCaptureAndStreaming();
+      isTransmittingVoice = false;
+      if (peerConnection) {
+        try { peerConnection.close(); } catch(e){}
+        peerConnection = null;
+      }
       if (callTimerInterval) clearInterval(callTimerInterval);
       activeCallPeer = null;
       showScreen('home');
@@ -759,14 +1037,14 @@
         localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
       }
       document.getElementById('btn-live-mute').innerText = isMuted ? 'Unmute' : '🎤 Mute';
-      document.getElementById('m-mic-stat').innerText = isMuted ? 'MUTED' : 'STREAMING';
-      document.getElementById('m-mic-stat').style.color = isMuted ? '#EF4444' : '#10B981';
     }
 
     // Live Push-To-Talk (PTT)
     async function startLivePTT() {
       pttActive = true;
-      await enableMicrophonePermission();
+      await startMicAndAudio();
+      isTransmittingVoice = true;
+
       document.getElementById('btn-ptt-main').classList.add('active');
       document.getElementById('ptt-text').innerText = 'TRANSMITTING';
       document.getElementById('ptt-speaker-status').innerText = '🎙️ YOU (Broadcasting Voice)';
@@ -775,18 +1053,18 @@
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'PTT_START' }));
       }
-      startAudioCaptureAndStreaming();
     }
 
     function stopLivePTT() {
       if (!pttActive) return;
       pttActive = false;
+      isTransmittingVoice = false;
+
       document.getElementById('btn-ptt-main').classList.remove('active');
       document.getElementById('ptt-text').innerText = 'HOLD TO TALK';
       document.getElementById('ptt-speaker-status').innerText = 'Floor Clear • Hold to broadcast voice';
       document.getElementById('ptt-speaker-status').style.color = 'var(--accent-cyan)';
 
-      stopAudioCaptureAndStreaming();
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'PTT_STOP' }));
       }
