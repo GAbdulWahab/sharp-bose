@@ -712,46 +712,10 @@
       dspLowPass.connect(dspCompressor);
       dspCompressor.connect(dspMasterGain);
       dspMasterGain.connect(audioCtx.destination);
-
-      // Initialize continuous smooth playback queue node
-      initContinuousPlayback();
     }
 
-    // Continuous Smooth Playback Engine (Zero Glitches, Zero Jitter Gaps)
-    function initContinuousPlayback() {
-      if (playbackProcessor || !audioCtx) return;
-      
-      playbackProcessor = audioCtx.createScriptProcessor(2048, 0, 1);
-      playbackProcessor.onaudioprocess = (e) => {
-        const output = e.outputBuffer.getChannelData(0);
-        let outIdx = 0;
-        
-        while (outIdx < output.length && audioQueue.length > 0) {
-          const chunk = audioQueue[0];
-          const needed = output.length - outIdx;
-          if (chunk.length <= needed) {
-            output.set(chunk, outIdx);
-            outIdx += chunk.length;
-            audioQueue.shift();
-          } else {
-            output.set(chunk.subarray(0, needed), outIdx);
-            audioQueue[0] = chunk.subarray(needed);
-            outIdx += needed;
-          }
-        }
-        
-        // Fill remaining with silence
-        while (outIdx < output.length) {
-          output[outIdx++] = 0;
-        }
-      };
-
-      if (dspHighPass) {
-        playbackProcessor.connect(dspHighPass);
-      } else {
-        playbackProcessor.connect(audioCtx.destination);
-      }
-    }
+    // High-Precision Scheduled Audio Playback Engine
+    let nextPlayTime = 0;
 
     // Audio Context Initialization & Unlock
     async function ensureAudioContextActive() {
@@ -934,7 +898,7 @@
       }
     }
 
-    // Playback Inbound Audio Frame into Continuous Ring Buffer
+    // Playback Inbound Audio Frame with Studio DSP & Precision Time Scheduling
     async function playInboundPCMFrame(arrayBuffer) {
       await ensureAudioContextActive();
 
@@ -949,7 +913,7 @@
         if (rxBadge) rxBadge.style.display = 'none';
       }, 500);
 
-      let senderSampleRate = audioCtx.sampleRate || 48000;
+      let senderSampleRate = 48000;
       let pcm16;
 
       const dataView = new DataView(arrayBuffer);
@@ -958,6 +922,9 @@
         pcm16 = new Int16Array(arrayBuffer, 4);
       } else {
         pcm16 = new Int16Array(arrayBuffer);
+        if (pcm16.length <= 640) {
+          senderSampleRate = 16000;
+        }
       }
 
       if (pcm16.length === 0) return;
@@ -965,7 +932,7 @@
       const rawFloat32 = new Float32Array(pcm16.length);
       let sum = 0;
       for (let i = 0; i < pcm16.length; i++) {
-        rawFloat32[i] = pcm16[i] / (pcm16[i] < 0 ? 32768 : 32767);
+        rawFloat32[i] = pcm16[i] / (pcm16[i] < 0 ? 32768.0 : 32767.0);
         sum += Math.abs(rawFloat32[i]);
       }
       updateWaveformVisualizer(sum / pcm16.length);
@@ -974,17 +941,34 @@
       const targetRate = audioCtx.sampleRate || 48000;
       const resampled = resampleFloat32(rawFloat32, senderSampleRate, targetRate);
 
-      // Push into smooth continuous playback queue
-      audioQueue.push(resampled);
-
-      // Cap queue lag to 180ms maximum to keep real-time latency tight
-      const maxBufferedSamples = Math.floor(targetRate * 0.18);
-      let totalBuffered = 0;
-      for (let i = 0; i < audioQueue.length; i++) totalBuffered += audioQueue[i].length;
-      while (totalBuffered > maxBufferedSamples && audioQueue.length > 1) {
-        const dropped = audioQueue.shift();
-        totalBuffered -= dropped.length;
+      // Smooth chunk boundary edges (16 samples) to prevent clicking
+      if (resampled.length > 32) {
+        for (let i = 0; i < 16; i++) {
+          const w = i / 16;
+          resampled[i] *= w;
+          resampled[resampled.length - 1 - i] *= w;
+        }
       }
+
+      // Create AudioBuffer & Source Node
+      const audioBuffer = audioCtx.createBuffer(1, resampled.length, targetRate);
+      audioBuffer.copyToChannel(resampled, 0);
+
+      const source = audioCtx.createBufferSource();
+      source.buffer = audioBuffer;
+
+      if (dspHighPass) {
+        source.connect(dspHighPass);
+      } else {
+        source.connect(audioCtx.destination);
+      }
+
+      const now = audioCtx.currentTime;
+      if (nextPlayTime < now) {
+        nextPlayTime = now + 0.02; // Small 20ms lead-in jitter buffer
+      }
+      source.start(nextPlayTime);
+      nextPlayTime += audioBuffer.duration;
     }
 
     // Initialize WebRTC PeerConnection
@@ -1158,9 +1142,10 @@
       }
     }
 
-    function startActiveCallScreen(peerName, isInitiator) {
+    async function startActiveCallScreen(peerName, isInitiator) {
       document.getElementById('call-peer-name').innerText = peerName;
       showScreen('call');
+      await startMicAndAudio();
       isTransmittingVoice = true;
 
       callSeconds = 0;

@@ -66,7 +66,13 @@ class AndroidAudioEngine(private val context: Context) {
             while (isRecording.get()) {
                 val readBytes = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
                 if (readBytes > 0) {
-                    onAudioFrameCaptured?.invoke(audioBuffer.copyOf(readBytes))
+                    val packet = ByteArray(4 + readBytes)
+                    packet[0] = 0xAA.toByte()
+                    packet[1] = 0x55.toByte()
+                    packet[2] = ((sampleRate shr 8) and 0xFF).toByte()
+                    packet[3] = (sampleRate and 0xFF).toByte()
+                    System.arraycopy(audioBuffer, 0, packet, 4, readBytes)
+                    onAudioFrameCaptured?.invoke(packet)
                 }
             }
         }.apply { start() }
@@ -99,7 +105,42 @@ class AndroidAudioEngine(private val context: Context) {
         if (audioTrack == null) {
             startPlaybackOnly()
         }
-        audioTrack?.write(frame, 0, frame.size)
+        if (frame.size >= 4 && (frame[0].toInt() and 0xFF) == 0xAA && (frame[1].toInt() and 0xFF) == 0x55) {
+            val senderRate = ((frame[2].toInt() and 0xFF) shl 8) or (frame[3].toInt() and 0xFF)
+            val pcmBytes = frame.copyOfRange(4, frame.size)
+            if (senderRate != sampleRate && senderRate > 0) {
+                val resampled = resamplePcm16(pcmBytes, senderRate, sampleRate)
+                audioTrack?.write(resampled, 0, resampled.size)
+            } else {
+                audioTrack?.write(pcmBytes, 0, pcmBytes.size)
+            }
+        } else {
+            audioTrack?.write(frame, 0, frame.size)
+        }
+    }
+
+    private fun resamplePcm16(input: ByteArray, fromRate: Int, toRate: Int): ByteArray {
+        val inputSamples = ShortArray(input.size / 2)
+        for (i in inputSamples.indices) {
+            val low = input[i * 2].toInt() and 0xFF
+            val high = input[i * 2 + 1].toInt()
+            inputSamples[i] = ((high shl 8) or low).toShort()
+        }
+        val ratio = fromRate.toDouble() / toRate.toDouble()
+        val outputLen = (inputSamples.size / ratio).toInt()
+        val outputBytes = ByteArray(outputLen * 2)
+        for (i in 0 until outputLen) {
+            val srcPos = i * ratio
+            val i0 = srcPos.toInt()
+            val i1 = minOf(i0 + 1, inputSamples.size - 1)
+            val frac = srcPos - i0
+            val s0 = inputSamples[i0].toFloat()
+            val s1 = inputSamples[i1].toFloat()
+            val interpolated = (s0 * (1.0f - frac) + s1 * frac).toInt().coerceIn(-32768, 32767).toShort()
+            outputBytes[i * 2] = (interpolated.toInt() and 0xFF).toByte()
+            outputBytes[i * 2 + 1] = ((interpolated.toInt() shr 8) and 0xFF).toByte()
+        }
+        return outputBytes
     }
 
     fun stopVoice() {
