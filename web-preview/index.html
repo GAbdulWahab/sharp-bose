@@ -910,9 +910,41 @@
       // Disabled loud beeps to maintain clean audio stream
     }
 
-    // Microphone Activation & Raw PCM Stream Setup
+    function stopMicAndAudio() {
+      isTransmittingVoice = false;
+      if (localStream) {
+        try {
+          localStream.getTracks().forEach(t => t.stop());
+        } catch(e) {}
+        localStream = null;
+      }
+      if (micSource) {
+        try { micSource.disconnect(); } catch(e) {}
+        micSource = null;
+      }
+      if (scriptProcessor) {
+        try {
+          scriptProcessor.onaudioprocess = null;
+          scriptProcessor.disconnect();
+        } catch(e) {}
+        scriptProcessor = null;
+      }
+      const label = document.getElementById('mic-status-label');
+      if (label) {
+        label.innerText = 'Idle ○';
+        label.style.color = 'var(--text-sub)';
+      }
+      const sub = document.getElementById('mic-sub-label');
+      if (sub) {
+        sub.innerText = 'Tap to activate voice';
+      }
+    }
+
+    // Microphone Activation & Studio DSP Setup
     async function startMicAndAudio() {
       await ensureAudioContextActive();
+      stopMicAndAudio();
+
       try {
         localStream = await navigator.mediaDevices.getUserMedia({
           audio: {
@@ -924,19 +956,21 @@
         });
 
         micSource = audioCtx.createMediaStreamSource(localStream);
-        scriptProcessor = audioCtx.createScriptProcessor(2048, 1, 1);
+        scriptProcessor = audioCtx.createScriptProcessor(1024, 1, 1);
 
         scriptProcessor.onaudioprocess = (e) => {
           if (!isTransmittingVoice) return;
           const inputData = e.inputBuffer.getChannelData(0);
 
           let sum = 0;
-          for (let i = 0; i < inputData.length; i++) sum += Math.abs(inputData[i]);
+          for (let i = 0; i < inputData.length; i++) {
+            sum += Math.abs(inputData[i]);
+          }
           const avg = sum / inputData.length;
           updateWaveformVisualizer(avg);
 
-          // Squelch / Noise Gate to eliminate feedback loop beeps/whine
-          if (avg < 0.008) return;
+          // Squelch Noise Gate: Completely cuts out ambient background static & room noise
+          if (avg < 0.015) return;
 
           const sampleRate = audioCtx.sampleRate || 48000;
           const packetBuffer = new ArrayBuffer(4 + inputData.length * 2);
@@ -1538,7 +1572,6 @@
     }
 
     function hangupLiveCall() {
-      isTransmittingVoice = false;
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'CALL_HANGUP' }));
       }
@@ -1547,12 +1580,18 @@
 
     function endActiveCall() {
       isTransmittingVoice = false;
+      stopMicAndAudio();
       if (peerConnection) {
         try { peerConnection.close(); } catch(e){}
         peerConnection = null;
       }
-      if (callTimerInterval) clearInterval(callTimerInterval);
+      if (callTimerInterval) {
+        clearInterval(callTimerInterval);
+        callTimerInterval = null;
+      }
       activeCallPeer = null;
+      const incModal = document.getElementById('incoming-call-modal');
+      if (incModal) incModal.classList.remove('active');
       showScreen('home');
     }
 
@@ -1585,6 +1624,7 @@
       if (!pttActive) return;
       pttActive = false;
       isTransmittingVoice = false;
+      stopMicAndAudio();
 
       document.getElementById('btn-ptt-main').classList.remove('active');
       document.getElementById('ptt-text').innerText = 'HOLD TO TALK';

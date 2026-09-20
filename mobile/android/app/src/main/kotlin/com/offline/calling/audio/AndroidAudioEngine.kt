@@ -8,6 +8,7 @@ import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.AutomaticGainControl
 import android.media.audiofx.NoiseSuppressor
 import android.os.Process
 import android.util.Log
@@ -17,9 +18,8 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Android Studio-Grade Low-Latency Real-Time Audio Engine.
- * Features native Little-Endian ByteBuffer processing, asynchronous ring-buffered jitter playback,
- * hardware AEC/NS, and clean dynamic gain scaling.
+ * Android Studio-Grade Ultra-Low Latency HD Audio Engine.
+ * Features Hardware AEC, NS, AGC, adaptive squelch gate, and instant disconnect cleanup.
  */
 class AndroidAudioEngine(private val context: Context) {
     val sampleRate = 16000
@@ -31,143 +31,172 @@ class AndroidAudioEngine(private val context: Context) {
     private var audioTrack: AudioTrack? = null
     private var echoCanceler: AcousticEchoCanceler? = null
     private var noiseSuppressor: NoiseSuppressor? = null
+    private var gainControl: AutomaticGainControl? = null
 
     private val isRecording = AtomicBoolean(false)
     private val isPlaying = AtomicBoolean(false)
     private var recordingThread: Thread? = null
     private var playbackThread: Thread? = null
 
-    private val playbackQueue = LinkedBlockingQueue<ByteArray>(40)
+    // Low-latency jitter queue (max 3 packets = 60ms) for instantaneous, smooth playback
+    private val playbackQueue = LinkedBlockingQueue<ByteArray>(10)
 
     var onAudioFrameCaptured: ((ByteArray) -> Unit)? = null
 
     fun startVoice() {
         if (isRecording.get()) return
 
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+
         startPlaybackOnly()
 
         val inBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfigIn, audioFormat)
-        val actualInBufSize = maxOf(inBufferSize * 2, 4096)
-        
-        audioRecord = AudioRecord(
-            MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-            sampleRate,
-            channelConfigIn,
-            audioFormat,
-            actualInBufSize
-        )
+        val actualInBufSize = maxOf(inBufferSize * 2, 2048)
 
-        val audioSessionId = audioRecord?.audioSessionId ?: 0
-        if (AcousticEchoCanceler.isAvailable()) {
-            echoCanceler = AcousticEchoCanceler.create(audioSessionId)?.apply {
-                enabled = true
-            }
-        }
+        try {
+            audioRecord = AudioRecord(
+                MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                sampleRate,
+                channelConfigIn,
+                audioFormat,
+                actualInBufSize
+            )
 
-        if (NoiseSuppressor.isAvailable()) {
-            noiseSuppressor = NoiseSuppressor.create(audioSessionId)?.apply {
-                enabled = true
-            }
-        }
-
-        if (android.media.audiofx.AutomaticGainControl.isAvailable()) {
-            try {
-                android.media.audiofx.AutomaticGainControl.create(audioSessionId)?.apply {
-                    enabled = true
-                }
-            } catch (e: Exception) {
-                Log.d("AudioEngine", "AGC setup: ${e.message}")
-            }
-        }
-
-        audioRecord?.startRecording()
-        isRecording.set(true)
-
-        recordingThread = Thread {
-            Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
-            val audioBuffer = ByteArray(640) // 20ms @ 16kHz mono (320 samples)
-            while (isRecording.get()) {
-                val readBytes = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
-                if (readBytes > 0) {
-                    val sBuf = ByteBuffer.wrap(audioBuffer, 0, readBytes)
-                        .order(ByteOrder.LITTLE_ENDIAN)
-                        .asShortBuffer()
-                    var sum = 0L
-                    val numSamples = sBuf.remaining()
-                    for (i in 0 until numSamples) {
-                        sum += Math.abs(sBuf.get(i).toLong())
+            val audioSessionId = audioRecord?.audioSessionId ?: 0
+            if (AcousticEchoCanceler.isAvailable()) {
+                try {
+                    echoCanceler = AcousticEchoCanceler.create(audioSessionId)?.apply {
+                        enabled = true
                     }
-                    val avg = sum / maxOf(1, numSamples)
-
-                    // Squelch gate to avoid feedback whine
-                    if (avg < 80) {
-                        continue
-                    }
-
-                    val packet = ByteArray(4 + readBytes)
-                    packet[0] = 0xAA.toByte()
-                    packet[1] = 0x55.toByte()
-                    packet[2] = ((sampleRate shr 8) and 0xFF).toByte()
-                    packet[3] = (sampleRate and 0xFF).toByte()
-                    System.arraycopy(audioBuffer, 0, packet, 4, readBytes)
-                    onAudioFrameCaptured?.invoke(packet)
+                } catch (e: Exception) {
+                    Log.w("AudioEngine", "AEC unavailable: ${e.message}")
                 }
             }
-        }.apply {
-            name = "AudioRecordThread"
-            start()
+
+            if (NoiseSuppressor.isAvailable()) {
+                try {
+                    noiseSuppressor = NoiseSuppressor.create(audioSessionId)?.apply {
+                        enabled = true
+                    }
+                } catch (e: Exception) {
+                    Log.w("AudioEngine", "NS unavailable: ${e.message}")
+                }
+            }
+
+            if (AutomaticGainControl.isAvailable()) {
+                try {
+                    gainControl = AutomaticGainControl.create(audioSessionId)?.apply {
+                        enabled = true
+                    }
+                } catch (e: Exception) {
+                    Log.w("AudioEngine", "AGC unavailable: ${e.message}")
+                }
+            }
+
+            audioRecord?.startRecording()
+            isRecording.set(true)
+
+            recordingThread = Thread {
+                Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
+                val audioBuffer = ByteArray(640) // 20ms @ 16kHz mono (320 samples)
+                var prevSample = 0f
+
+                while (isRecording.get()) {
+                    val readBytes = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
+                    if (readBytes > 0 && isRecording.get()) {
+                        val sBuf = ByteBuffer.wrap(audioBuffer, 0, readBytes)
+                            .order(ByteOrder.LITTLE_ENDIAN)
+                            .asShortBuffer()
+                        var sum = 0L
+                        val numSamples = sBuf.remaining()
+
+                        // High-pass filtering (removes DC offset and low rumble) & Energy Calculation
+                        for (i in 0 until numSamples) {
+                            val cur = sBuf.get(i).toFloat()
+                            val filtered = cur - prevSample * 0.85f
+                            prevSample = cur
+                            sum += Math.abs(filtered.toLong())
+                        }
+                        val avg = sum / maxOf(1, numSamples)
+
+                        // Squelch Noise Gate: Mutes ambient room hiss completely when not speaking
+                        if (avg < 200) {
+                            continue
+                        }
+
+                        val packet = ByteArray(4 + readBytes)
+                        packet[0] = 0xAA.toByte()
+                        packet[1] = 0x55.toByte()
+                        packet[2] = ((sampleRate shr 8) and 0xFF).toByte()
+                        packet[3] = (sampleRate and 0xFF).toByte()
+                        System.arraycopy(audioBuffer, 0, packet, 4, readBytes)
+                        onAudioFrameCaptured?.invoke(packet)
+                    }
+                }
+            }.apply {
+                name = "AudioRecordThread"
+                start()
+            }
+        } catch (e: Exception) {
+            Log.e("AudioEngine", "Error starting recording: ${e.message}")
         }
     }
 
     fun startPlaybackOnly() {
-        if (audioTrack != null) return
+        if (isPlaying.get() && audioTrack != null) return
+
         val outBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfigOut, audioFormat)
-        val actualOutBufSize = maxOf(outBufferSize * 2, 4096)
+        val actualOutBufSize = maxOf(outBufferSize * 2, 2048)
 
-        audioTrack = AudioTrack.Builder()
-            .setAudioAttributes(
-                AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                    .build()
-            )
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(audioFormat)
-                    .setSampleRate(sampleRate)
-                    .setChannelMask(channelConfigOut)
-                    .build()
-            )
-            .setBufferSizeInBytes(actualOutBufSize)
-            .setTransferMode(AudioTrack.MODE_STREAM)
-            .build()
+        try {
+            audioTrack = AudioTrack.Builder()
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .build()
+                )
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setEncoding(audioFormat)
+                        .setSampleRate(sampleRate)
+                        .setChannelMask(channelConfigOut)
+                        .build()
+                )
+                .setBufferSizeInBytes(actualOutBufSize)
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .build()
 
-        audioTrack?.play()
-        isPlaying.set(true)
+            audioTrack?.play()
+            isPlaying.set(true)
 
-        playbackThread = Thread {
-            Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
-            while (isPlaying.get()) {
-                try {
-                    val chunk = playbackQueue.poll(20, java.util.concurrent.TimeUnit.MILLISECONDS)
-                    if (chunk != null && chunk.isNotEmpty()) {
-                        audioTrack?.write(chunk, 0, chunk.size)
+            playbackThread = Thread {
+                Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
+                while (isPlaying.get()) {
+                    try {
+                        val chunk = playbackQueue.poll(20, java.util.concurrent.TimeUnit.MILLISECONDS)
+                        if (chunk != null && chunk.isNotEmpty() && isPlaying.get()) {
+                            audioTrack?.write(chunk, 0, chunk.size)
+                        }
+                    } catch (e: InterruptedException) {
+                        break
+                    } catch (e: Exception) {
+                        Log.e("AudioEngine", "Playback error: ${e.message}")
                     }
-                } catch (e: InterruptedException) {
-                    break
-                } catch (e: Exception) {
-                    Log.e("AudioEngine", "Playback error: ${e.message}")
                 }
+            }.apply {
+                name = "AudioTrackPlaybackThread"
+                start()
             }
-        }.apply {
-            name = "AudioTrackPlaybackThread"
-            start()
+        } catch (e: Exception) {
+            Log.e("AudioEngine", "Error starting playback: ${e.message}")
         }
     }
 
     fun playAudioFrame(frame: ByteArray) {
-        if (audioTrack == null) {
-            startPlaybackOnly()
+        if (!isPlaying.get() || audioTrack == null) {
+            return
         }
 
         var pcmBytes: ByteArray
@@ -189,26 +218,26 @@ class AndroidAudioEngine(private val context: Context) {
             pcmBytes
         }
 
-        val boosted = applyCleanGainAndLimiter(processedPcm, 1.2f)
+        val clean = applySoftLimiter(processedPcm)
 
-        // Prevent playback buffer bloat
-        while (playbackQueue.size > 8) {
+        // Drop stale packets to prevent latency accumulation (maintain <40ms delay)
+        while (playbackQueue.size > 3) {
             playbackQueue.poll()
         }
 
-        playbackQueue.offer(boosted)
+        playbackQueue.offer(clean)
     }
 
-    private fun applyCleanGainAndLimiter(input: ByteArray, gain: Float): ByteArray {
+    private fun applySoftLimiter(input: ByteArray): ByteArray {
         val inBuf = ByteBuffer.wrap(input).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
         val numSamples = inBuf.remaining()
         val output = ByteArray(input.size)
         val outBuf = ByteBuffer.wrap(output).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
-        
+
         for (i in 0 until numSamples) {
             val sample = inBuf.get(i).toFloat()
-            val amplified = (sample * gain).coerceIn(-32767f, 32767f).toInt().toShort()
-            outBuf.put(i, amplified)
+            val limited = sample.coerceIn(-32000f, 32000f).toInt().toShort()
+            outBuf.put(i, limited)
         }
         return output
     }
@@ -217,7 +246,7 @@ class AndroidAudioEngine(private val context: Context) {
         val inBuf = ByteBuffer.wrap(input).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
         val inLen = inBuf.remaining()
         if (inLen == 0) return input
-        
+
         val ratio = fromRate.toDouble() / toRate.toDouble()
         val outLen = (inLen / ratio).toInt()
         val outputBytes = ByteArray(outLen * 2)
@@ -238,30 +267,43 @@ class AndroidAudioEngine(private val context: Context) {
 
     fun stopVoice() {
         isRecording.set(false)
-        recordingThread?.join(300)
+        recordingThread?.interrupt()
         recordingThread = null
 
         isPlaying.set(false)
         playbackThread?.interrupt()
-        playbackThread?.join(300)
         playbackThread = null
         playbackQueue.clear()
 
-        echoCanceler?.release()
-        noiseSuppressor?.release()
+        try { echoCanceler?.release() } catch (e: Exception) {}
+        try { noiseSuppressor?.release() } catch (e: Exception) {}
+        try { gainControl?.release() } catch (e: Exception) {}
+        echoCanceler = null
+        noiseSuppressor = null
+        gainControl = null
 
-        try { audioRecord?.stop() } catch(e: Exception){}
-        try { audioRecord?.release() } catch(e: Exception){}
+        try {
+            audioRecord?.stop()
+            audioRecord?.release()
+        } catch (e: Exception) {}
         audioRecord = null
 
-        try { audioTrack?.stop() } catch(e: Exception){}
-        try { audioTrack?.release() } catch(e: Exception){}
+        try {
+            audioTrack?.stop()
+            audioTrack?.release()
+        } catch (e: Exception) {}
         audioTrack = null
+
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            audioManager.mode = AudioManager.MODE_NORMAL
+        } catch (e: Exception) {}
     }
 
     fun setSpeakerphoneOn(enabled: Boolean) {
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-        audioManager.isSpeakerphoneOn = enabled
+        try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            audioManager.isSpeakerphoneOn = enabled
+        } catch (e: Exception) {}
     }
 }

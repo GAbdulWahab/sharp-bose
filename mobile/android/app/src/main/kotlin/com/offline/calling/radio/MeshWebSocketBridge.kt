@@ -142,11 +142,14 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
         Thread {
             val candidates = mutableListOf<String>()
 
-            // 1. Priority targets: Bluetooth active IP, Wi-Fi IP, USB
+            // 1. Priority targets: USB Reverse (127.0.0.1), USB Tethering (192.168.42.x), Bluetooth, Wi-Fi
             candidates.add(currentHost)
+            candidates.add("127.0.0.1")      // USB Reverse (adb reverse)
+            candidates.add("192.168.42.129") // USB Tethering (RNDIS Host)
+            candidates.add("192.168.42.1")   // USB Tethering Gateway
+            candidates.add("10.0.2.2")       // Emulator Host
             candidates.add("10.246.248.170") // Bluetooth Laptop IP
             candidates.add("10.73.88.166")   // Wi-Fi Laptop IP
-            candidates.add("127.0.0.1")      // USB Reverse
 
             // 2. Discover peer IPs from ARP table (detects connected Bluetooth/Hotspot clients)
             try {

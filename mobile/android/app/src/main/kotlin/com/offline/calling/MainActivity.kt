@@ -324,7 +324,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
 
         bridge.onAudioFrameReceived = { frame ->
-            audioEngine.playAudioFrame(frame)
+            if (isCalling || isPttTransmitting) {
+                audioEngine.playAudioFrame(frame)
+            }
         }
 
         bridge.onIncomingCall = { callerName, callerId ->
@@ -343,7 +345,11 @@ class MainActivity : AppCompatActivity(), LocationListener {
         bridge.onCallEnded = {
             runOnUiThread {
                 if (isCalling) {
-                    stopVoiceCall()
+                    audioEngine.stopVoice()
+                    isCalling = false
+                    btnCall.text = "Start Voice Call"
+                    btnCall.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_emerald))
+                    Toast.makeText(this, "Call Ended", Toast.LENGTH_SHORT).show()
                 }
                 logEvent("[Live Call] Remote peer ended the call.")
             }
