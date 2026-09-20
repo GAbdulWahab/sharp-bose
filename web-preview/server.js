@@ -118,6 +118,18 @@ function handleWsConnection(ws, req) {
           }
         }
         broadcastPeerList();
+      } else if (data.type === 'MESH_PACKET') {
+        // Multi-hop packet relaying across mesh
+        data.hopCount = (data.hopCount || 0) + 1;
+        if (!data.relayPath) data.relayPath = [];
+        data.relayPath.push(clientInfo.id);
+
+        const outMsg = JSON.stringify(data);
+        for (const client of allWebSockets) {
+          if (client !== ws && client.readyState === 1) {
+            client.send(outMsg);
+          }
+        }
       } else if (data.type === 'CALL_INVITE' || data.type === 'CALL_ACCEPT' || data.type === 'CALL_DECLINE' || data.type === 'CALL_HANGUP' || data.type === 'PTT_START' || data.type === 'PTT_STOP' || data.type === 'CHAT_MSG' || data.type === 'SOS_ALERT' || data.type === 'SIGNAL_OFFER' || data.type === 'SIGNAL_ANSWER' || data.type === 'SIGNAL_CANDIDATE') {
         if (data.type === 'CALL_ACCEPT') clientInfo.status = 'In Call';
         if (data.type === 'CALL_HANGUP' || data.type === 'CALL_DECLINE') clientInfo.status = 'Online';

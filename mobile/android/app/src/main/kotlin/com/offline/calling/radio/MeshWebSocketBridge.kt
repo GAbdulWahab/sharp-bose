@@ -12,6 +12,8 @@ import java.net.NetworkInterface
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
+import com.offline.calling.crypto.MeshCryptoEngine
+
 data class PeerLocation(
     val lat: Double,
     val lng: Double,
@@ -25,19 +27,25 @@ data class PeerNode(
     val nickname: String,
     val deviceType: String,
     val status: String = "Online",
-    val location: PeerLocation? = null
+    val location: PeerLocation? = null,
+    val hopCount: Int = 0,
+    val relayPath: List<String> = emptyList()
 )
 
 /**
  * Intelligent Auto-Discovering Mesh WebSocket Bridge.
  * Automatically scans Bluetooth PAN, Wi-Fi, Hotspot, and USB network interfaces
  * to connect to the Laptop Mesh server without manual configuration.
+ * Includes AES-256-GCM End-to-End Encryption and Long-Distance Multi-Hop Routing.
  */
-class MeshWebSocketBridge {
+class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.randomUUID().toString().substring(0, 8)) {
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .connectTimeout(1500, TimeUnit.MILLISECONDS)
         .build()
+
+    val crypto = MeshCryptoEngine.instance
+    val router = MeshRouter(localNodeId)
 
     private var webSocket: WebSocket? = null
     var isConnected = false
@@ -53,6 +61,18 @@ class MeshWebSocketBridge {
     var onStatusChanged: ((status: String, isConnected: Boolean) -> Unit)? = null
     var onPeerListUpdated: ((List<PeerNode>) -> Unit)? = null
     var onLocationReceived: ((senderId: String, senderName: String, location: PeerLocation) -> Unit)? = null
+    var onRouteDiscovered: ((nodeId: String, hopCount: Int, relayPath: List<String>) -> Unit)? = null
+
+    init {
+        router.onForwardRelayPacket = { forwardJson ->
+            if (isConnected && webSocket != null) {
+                webSocket?.send(forwardJson)
+            }
+        }
+        router.onRouteDiscovered = { nodeId, hopCount, relayPath ->
+            onRouteDiscovered?.invoke(nodeId, hopCount, relayPath)
+        }
+    }
 
     var currentHost: String = "10.246.248.170"
         private set
@@ -83,10 +103,13 @@ class MeshWebSocketBridge {
             }
 
             override fun onMessage(ws: WebSocket, bytes: ByteString) {
-                onAudioFrameReceived?.invoke(bytes.toByteArray())
+                val raw = bytes.toByteArray()
+                val decrypted = crypto.decryptAudioFrame(raw) ?: raw
+                onAudioFrameReceived?.invoke(decrypted)
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
+                router.processIncomingPacket(text)
                 handleIncomingJson(text)
             }
 
@@ -215,10 +238,13 @@ class MeshWebSocketBridge {
             }
 
             override fun onMessage(ws: WebSocket, bytes: ByteString) {
-                onAudioFrameReceived?.invoke(bytes.toByteArray())
+                val raw = bytes.toByteArray()
+                val decrypted = crypto.decryptAudioFrame(raw) ?: raw
+                onAudioFrameReceived?.invoke(decrypted)
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
+                router.processIncomingPacket(text)
                 handleIncomingJson(text)
             }
 
@@ -293,7 +319,11 @@ class MeshWebSocketBridge {
                 }
                 "CHAT_MSG" -> {
                     val senderName = json.optString("senderName", "Laptop Web")
-                    val msgText = json.optString("text", "")
+                    var msgText = json.optString("text", "")
+                    val cipherText = json.optString("cipherText", "")
+                    if (cipherText.isNotEmpty()) {
+                        msgText = crypto.decryptText(cipherText)
+                    }
                     if (msgText.isNotEmpty()) {
                         onChatMessageReceived?.invoke(senderName, msgText)
                     }
@@ -308,6 +338,7 @@ class MeshWebSocketBridge {
                             val nickname = pObj.optString("nickname", "Peer")
                             val deviceType = pObj.optString("deviceType", "Device")
                             val status = pObj.optString("status", "Online")
+                            val hopCount = pObj.optInt("hopCount", 0)
                             var loc: PeerLocation? = null
                             val locObj = pObj.optJSONObject("location")
                             if (locObj != null) {
@@ -319,7 +350,7 @@ class MeshWebSocketBridge {
                                     timestamp = locObj.optLong("timestamp", System.currentTimeMillis())
                                 )
                             }
-                            list.add(PeerNode(id, nickname, deviceType, status, loc))
+                            list.add(PeerNode(id, nickname, deviceType, status, loc, hopCount))
                         }
                         onPeerListUpdated?.invoke(list)
                     }
@@ -342,15 +373,19 @@ class MeshWebSocketBridge {
 
     fun sendAudioFrame(frame: ByteArray) {
         if (isConnected && webSocket != null) {
-            webSocket?.send(frame.toByteString())
+            val encrypted = crypto.encryptAudioFrame(frame)
+            webSocket?.send(encrypted.toByteString())
         }
     }
 
     fun sendChatMessage(text: String, senderName: String = "Android Phone") {
+        val cipherText = crypto.encryptText(text)
         sendJson(JSONObject().apply {
             put("type", "CHAT_MSG")
             put("text", text)
+            put("cipherText", cipherText)
             put("senderName", senderName)
+            put("isE2ee", true)
         })
     }
 

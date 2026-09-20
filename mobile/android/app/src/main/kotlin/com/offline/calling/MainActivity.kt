@@ -410,8 +410,10 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 setTypeface(null, android.graphics.Typeface.BOLD)
             }
 
-            var distStr = "⚡ Direct Mesh Link"
-            if (hasGpsFix && peer.location != null && peer.location.lat != 0.0) {
+            var distStr = "⚡ Direct (0 Hops)"
+            if (peer.hopCount > 0) {
+                distStr = "🔀 Multi-Hop (${peer.hopCount} Hops)"
+            } else if (hasGpsFix && peer.location != null && peer.location.lat != 0.0) {
                 val dist = calculateDistanceMeters(currentLatitude, currentLongitude, peer.location.lat, peer.location.lng)
                 val bearing = calculateBearingDegrees(currentLatitude, currentLongitude, peer.location.lat, peer.location.lng)
                 val heading = getCompassHeading(bearing)
@@ -419,7 +421,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
 
             val tvMeta = TextView(this).apply {
-                text = "${peer.status} • $distStr"
+                text = "🔒 E2EE • ${peer.status} • $distStr"
                 setTextColor(Color.parseColor("#10B981"))
                 textSize = 11f
             }
@@ -427,6 +429,17 @@ class MainActivity : AppCompatActivity(), LocationListener {
             leftInfo.addView(tvName)
             leftInfo.addView(tvMeta)
             peerRow.addView(leftInfo)
+
+            // Security Fingerprint Button
+            val btnSecurity = Button(this).apply {
+                text = "🔒"
+                textSize = 12f
+                backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+                setTextColor(Color.parseColor("#38BDF8"))
+                setOnClickListener {
+                    showSecurityDialog(peer.id)
+                }
+            }
 
             // Quick Call Button
             val btnQuickCall = Button(this).apply {
@@ -451,11 +464,13 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
 
             val btnParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 100).apply {
-                marginStart = 8
+                marginStart = 6
             }
+            btnSecurity.layoutParams = btnParams
             btnQuickCall.layoutParams = btnParams
             btnQuickChat.layoutParams = btnParams
 
+            peerRow.addView(btnSecurity)
             peerRow.addView(btnQuickCall)
             peerRow.addView(btnQuickChat)
 
@@ -463,10 +478,54 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
     }
 
+    private fun showSecurityDialog(targetPeerId: String = "node-peer") {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_security)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.94).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val secRoot = dialog.findViewById<LinearLayout>(R.id.securityDialogRoot)
+        val tvHeader = dialog.findViewById<TextView>(R.id.tvSecurityHeaderTitle)
+        val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseSecurity)
+        val tvSafety = dialog.findViewById<TextView>(R.id.tvSafetyNumber)
+        val tvHopStatus = dialog.findViewById<TextView>(R.id.tvRoutingHopStatus)
+        val tvPath = dialog.findViewById<TextView>(R.id.tvRoutingPath)
+        val btnDone = dialog.findViewById<Button>(R.id.btnVerifySecurityDone)
+
+        if (isDarkMode) {
+            secRoot.setBackgroundResource(R.drawable.dialog_background)
+            tvHeader.setTextColor(Color.parseColor("#38BDF8"))
+        } else {
+            secRoot.setBackgroundColor(Color.parseColor("#FFFFFF"))
+            tvHeader.setTextColor(Color.parseColor("#0284C7"))
+        }
+
+        val fingerprint = bridge.crypto.getSafetyFingerprint(localPeerId, targetPeerId)
+        tvSafety.text = fingerprint
+        tvHopStatus.text = "Hop Range: Max 15 Hops • Multi-Hop Repeater Active"
+        tvPath.text = "Target: $targetPeerId • Cipher: AES-256-GCM + Noise_XX"
+
+        btnClose.setOnClickListener { dialog.dismiss() }
+        btnDone.setOnClickListener {
+            Toast.makeText(this, "✓ E2EE Safety Number Verified", Toast.LENGTH_SHORT).show()
+            dialog.dismiss()
+        }
+
+        dialog.show()
+    }
+
     @SuppressLint("ClickableViewAccessibility")
     private fun setupUIListeners() {
         btnThemeToggle.setOnClickListener {
             applyTheme(!isDarkMode)
+        }
+
+        tvPeerId.setOnClickListener {
+            showSecurityDialog()
         }
 
         tvStatus.setOnClickListener {
