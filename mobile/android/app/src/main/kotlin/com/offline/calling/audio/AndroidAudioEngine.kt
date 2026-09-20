@@ -11,13 +11,15 @@ import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.NoiseSuppressor
 import android.os.Process
 import android.util.Log
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Android Studio-Grade Low-Latency Real-Time Audio Engine.
- * Features asynchronous ring-buffered jitter playback, hardware AEC/NS,
- * high-precision linear resampling, and clean dynamic gain scaling.
+ * Features native Little-Endian ByteBuffer processing, asynchronous ring-buffered jitter playback,
+ * hardware AEC/NS, and clean dynamic gain scaling.
  */
 class AndroidAudioEngine(private val context: Context) {
     val sampleRate = 16000
@@ -77,18 +79,18 @@ class AndroidAudioEngine(private val context: Context) {
             while (isRecording.get()) {
                 val readBytes = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
                 if (readBytes > 0) {
+                    val sBuf = ByteBuffer.wrap(audioBuffer, 0, readBytes)
+                        .order(ByteOrder.LITTLE_ENDIAN)
+                        .asShortBuffer()
                     var sum = 0L
-                    val numSamples = readBytes / 2
+                    val numSamples = sBuf.remaining()
                     for (i in 0 until numSamples) {
-                        val low = audioBuffer[i * 2].toInt() and 0xFF
-                        val high = audioBuffer[i * 2 + 1].toInt()
-                        val sample = ((high shl 8) or low).toShort()
-                        sum += Math.abs(sample.toLong())
+                        sum += Math.abs(sBuf.get(i).toLong())
                     }
                     val avg = sum / maxOf(1, numSamples)
 
-                    // Squelch gate: Ignore background noise to prevent acoustic feedback beeps
-                    if (avg < 150) {
+                    // Squelch gate to avoid feedback whine
+                    if (avg < 80) {
                         continue
                     }
 
@@ -177,10 +179,9 @@ class AndroidAudioEngine(private val context: Context) {
             pcmBytes
         }
 
-        // Apply clean boost with soft ceiling to ensure loud clarity
-        val boosted = applyCleanGainAndLimiter(processedPcm, 1.4f)
+        val boosted = applyCleanGainAndLimiter(processedPcm, 1.2f)
 
-        // Drop oldest packets if queue starts lagging beyond 120ms
+        // Prevent playback buffer bloat
         while (playbackQueue.size > 8) {
             playbackQueue.poll()
         }
@@ -189,39 +190,38 @@ class AndroidAudioEngine(private val context: Context) {
     }
 
     private fun applyCleanGainAndLimiter(input: ByteArray, gain: Float): ByteArray {
-        val numSamples = input.size / 2
+        val inBuf = ByteBuffer.wrap(input).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        val numSamples = inBuf.remaining()
         val output = ByteArray(input.size)
+        val outBuf = ByteBuffer.wrap(output).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        
         for (i in 0 until numSamples) {
-            val low = input[i * 2].toInt() and 0xFF
-            val high = input[i * 2 + 1].toInt()
-            val sample = ((high shl 8) or low).toShort().toFloat()
-            val amplified = (sample * gain).coerceIn(-32767f, 32767f).toInt()
-            output[i * 2] = (amplified and 0xFF).toByte()
-            output[i * 2 + 1] = ((amplified shr 8) and 0xFF).toByte()
+            val sample = inBuf.get(i).toFloat()
+            val amplified = (sample * gain).coerceIn(-32767f, 32767f).toInt().toShort()
+            outBuf.put(i, amplified)
         }
         return output
     }
 
     private fun resamplePcm16(input: ByteArray, fromRate: Int, toRate: Int): ByteArray {
-        val inputSamples = ShortArray(input.size / 2)
-        for (i in inputSamples.indices) {
-            val low = input[i * 2].toInt() and 0xFF
-            val high = input[i * 2 + 1].toInt()
-            inputSamples[i] = ((high shl 8) or low).toShort()
-        }
+        val inBuf = ByteBuffer.wrap(input).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        val inLen = inBuf.remaining()
+        if (inLen == 0) return input
+        
         val ratio = fromRate.toDouble() / toRate.toDouble()
-        val outputLen = (inputSamples.size / ratio).toInt()
-        val outputBytes = ByteArray(outputLen * 2)
-        for (i in 0 until outputLen) {
+        val outLen = (inLen / ratio).toInt()
+        val outputBytes = ByteArray(outLen * 2)
+        val outBuf = ByteBuffer.wrap(outputBytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+
+        for (i in 0 until outLen) {
             val srcPos = i * ratio
-            val i0 = srcPos.toInt()
-            val i1 = minOf(i0 + 1, inputSamples.size - 1)
+            val i0 = srcPos.toInt().coerceIn(0, inLen - 1)
+            val i1 = minOf(i0 + 1, inLen - 1)
             val frac = srcPos - i0
-            val s0 = inputSamples[i0].toFloat()
-            val s1 = inputSamples[i1].toFloat()
+            val s0 = inBuf.get(i0).toFloat()
+            val s1 = inBuf.get(i1).toFloat()
             val interpolated = (s0 * (1.0f - frac) + s1 * frac).toInt().coerceIn(-32768, 32767).toShort()
-            outputBytes[i * 2] = (interpolated.toInt() and 0xFF).toByte()
-            outputBytes[i * 2 + 1] = ((interpolated.toInt() shr 8) and 0xFF).toByte()
+            outBuf.put(i, interpolated)
         }
         return outputBytes
     }

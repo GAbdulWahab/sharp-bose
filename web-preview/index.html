@@ -898,19 +898,20 @@
       }, 500);
 
       let senderSampleRate = 48000;
-      let pcm16;
+      let rawPcmBuffer;
 
       const dataView = new DataView(arrayBuffer);
       if (arrayBuffer.byteLength >= 4 && dataView.getUint8(0) === 0xAA && dataView.getUint8(1) === 0x55) {
         senderSampleRate = dataView.getUint16(2, false);
-        pcm16 = new Int16Array(arrayBuffer, 4);
+        rawPcmBuffer = arrayBuffer.slice(4);
       } else {
-        pcm16 = new Int16Array(arrayBuffer);
-        if (pcm16.length <= 640) {
+        rawPcmBuffer = arrayBuffer;
+        if (arrayBuffer.byteLength <= 640) {
           senderSampleRate = 16000;
         }
       }
 
+      const pcm16 = new Int16Array(rawPcmBuffer);
       if (pcm16.length === 0) return;
 
       const rawFloat32 = new Float32Array(pcm16.length);
@@ -924,15 +925,6 @@
       // Resample to receiver's native audioCtx.sampleRate (e.g. 48000 Hz)
       const targetRate = audioCtx.sampleRate || 48000;
       const resampled = resampleFloat32(rawFloat32, senderSampleRate, targetRate);
-
-      // Smooth chunk boundary edges (16 samples) to prevent clicking
-      if (resampled.length > 32) {
-        for (let i = 0; i < 16; i++) {
-          const w = i / 16;
-          resampled[i] *= w;
-          resampled[resampled.length - 1 - i] *= w;
-        }
-      }
 
       // Create AudioBuffer & Source Node
       const audioBuffer = audioCtx.createBuffer(1, resampled.length, targetRate);
@@ -948,8 +940,9 @@
       }
 
       const now = audioCtx.currentTime;
-      if (nextPlayTime < now) {
-        nextPlayTime = now + 0.035; // 35ms adaptive lead-in jitter buffer for seamless HD voice
+      // Seamless lookahead scheduling: prevents gaps and eliminates square-wave pulsing
+      if (nextPlayTime < now || nextPlayTime > now + 0.12) {
+        nextPlayTime = now + 0.005;
       }
       source.start(nextPlayTime);
       nextPlayTime += audioBuffer.duration;
