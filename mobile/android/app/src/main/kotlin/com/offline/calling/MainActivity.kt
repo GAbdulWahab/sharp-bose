@@ -39,16 +39,22 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
     private lateinit var audioEngine: AndroidAudioEngine
     private val bridge = MeshWebSocketBridge()
+    private lateinit var callHistoryManager: CallHistoryManager
     private var isCalling = false
     private var isSpeakerOn = true
     private var isPttTransmitting = false
     private val localPeerId = "node-" + UUID.randomUUID().toString().substring(0, 8)
+    private var callStartTime: Long = 0L
+    private var activeCallPeerName: String = "Mesh Peer"
+    private var activeCallPeerId: String = ""
+    private var incomingCallDialog: Dialog? = null
 
     // UI Elements
     private lateinit var mainScrollView: ScrollView
     private lateinit var tvAppTitle: TextView
     private lateinit var tvAppSubtitle: TextView
     private lateinit var btnThemeToggle: Button
+    private lateinit var btnCallHistory: Button
     private lateinit var tvStatus: TextView
     private lateinit var tvPeerId: TextView
     private lateinit var tvMeshStats: TextView
@@ -120,6 +126,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         prefs = getSharedPreferences("offline_mesh_prefs", Context.MODE_PRIVATE)
         isDarkMode = prefs.getBoolean("is_dark_mode", true)
 
+        callHistoryManager = CallHistoryManager(this)
         audioEngine = AndroidAudioEngine(this)
         audioEngine.setSpeakerphoneOn(true)
 
@@ -137,6 +144,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         tvAppTitle = findViewById(R.id.tvAppTitle)
         tvAppSubtitle = findViewById(R.id.tvAppSubtitle)
         btnThemeToggle = findViewById(R.id.btnThemeToggle)
+        btnCallHistory = findViewById(R.id.btnCallHistory)
         tvStatus = findViewById(R.id.tvStatus)
         tvPeerId = findViewById(R.id.tvPeerId)
         tvMeshStats = findViewById(R.id.tvMeshStats)
@@ -324,9 +332,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
 
         bridge.onAudioFrameReceived = { frame ->
-            if (isCalling || isPttTransmitting) {
-                audioEngine.playAudioFrame(frame)
-            }
+            audioEngine.playAudioFrame(frame)
         }
 
         bridge.onIncomingCall = { callerName, callerId ->
@@ -337,6 +343,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         bridge.onCallAccepted = { peerName ->
             runOnUiThread {
+                activeCallPeerName = peerName
                 logEvent("[Live Call] 📞 $peerName accepted call! 2-way voice connected.")
                 Toast.makeText(this, "Call Connected with $peerName", Toast.LENGTH_SHORT).show()
             }
@@ -344,7 +351,32 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         bridge.onCallEnded = {
             runOnUiThread {
-                if (isCalling) {
+                if (incomingCallDialog != null && incomingCallDialog?.isShowing == true) {
+                    incomingCallDialog?.dismiss()
+                    incomingCallDialog = null
+                    callHistoryManager.addCallRecord(
+                        CallRecord(
+                            id = UUID.randomUUID().toString(),
+                            peerName = activeCallPeerName,
+                            peerId = activeCallPeerId,
+                            type = "MISSED",
+                            timestamp = System.currentTimeMillis(),
+                            durationSeconds = 0
+                        )
+                    )
+                    Toast.makeText(this, "Missed Call from $activeCallPeerName", Toast.LENGTH_SHORT).show()
+                } else if (isCalling) {
+                    val duration = maxOf(1, ((System.currentTimeMillis() - callStartTime) / 1000).toInt())
+                    callHistoryManager.addCallRecord(
+                        CallRecord(
+                            id = UUID.randomUUID().toString(),
+                            peerName = activeCallPeerName,
+                            peerId = activeCallPeerId,
+                            type = "INCOMING",
+                            timestamp = callStartTime,
+                            durationSeconds = duration
+                        )
+                    )
                     audioEngine.stopVoice()
                     isCalling = false
                     btnCall.text = "Start Voice Call"
@@ -471,7 +503,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
                 setTextColor(Color.WHITE)
                 setOnClickListener {
-                    startVoiceCall()
+                    startVoiceCall(peer.id, peer.nickname)
                 }
             }
 
@@ -545,6 +577,10 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private fun setupUIListeners() {
         btnThemeToggle.setOnClickListener {
             applyTheme(!isDarkMode)
+        }
+
+        btnCallHistory.setOnClickListener {
+            showCallHistoryDialog()
         }
 
         tvPeerId.setOnClickListener {
@@ -977,6 +1013,23 @@ class MainActivity : AppCompatActivity(), LocationListener {
     }
 
     private fun showIncomingCallDialog(callerName: String, callerId: String) {
+        if (isCalling) {
+            bridge.sendCallDecline(callerId)
+            callHistoryManager.addCallRecord(
+                CallRecord(
+                    id = UUID.randomUUID().toString(),
+                    peerName = callerName,
+                    peerId = callerId,
+                    type = "MISSED",
+                    timestamp = System.currentTimeMillis(),
+                    durationSeconds = 0
+                )
+            )
+            return
+        }
+
+        incomingCallDialog?.dismiss()
+
         val dialog = Dialog(this)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dialog.setContentView(R.layout.dialog_incoming_call)
@@ -993,17 +1046,41 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         btnAccept.setOnClickListener {
             dialog.dismiss()
-            startVoiceCall()
-            bridge.sendCallAccept()
-            logEvent("[Live Call] Call accepted with $callerName")
+            incomingCallDialog = null
+            activeCallPeerName = callerName
+            activeCallPeerId = callerId
+            callStartTime = System.currentTimeMillis()
+            isCalling = true
+            try {
+                audioEngine.startVoice()
+                btnCall.text = "End Call"
+                btnCall.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_rose))
+                bridge.sendCallAccept(callerId)
+                logEvent("[Live Call] Call accepted with $callerName ($callerId)")
+                Toast.makeText(this, "Connected with $callerName", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                logEvent("[Error] Audio engine error: ${e.message}")
+            }
         }
 
         btnDecline.setOnClickListener {
             dialog.dismiss()
-            bridge.sendCallDecline()
-            logEvent("[Live Call] Call declined")
+            incomingCallDialog = null
+            bridge.sendCallDecline(callerId)
+            callHistoryManager.addCallRecord(
+                CallRecord(
+                    id = UUID.randomUUID().toString(),
+                    peerName = callerName,
+                    peerId = callerId,
+                    type = "DECLINED",
+                    timestamp = System.currentTimeMillis(),
+                    durationSeconds = 0
+                )
+            )
+            logEvent("[Live Call] Call declined from $callerName")
         }
 
+        incomingCallDialog = dialog
         dialog.show()
     }
 
@@ -1035,23 +1112,39 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
     }
 
-    private fun startVoiceCall() {
+    private fun startVoiceCall(targetPeerId: String = "", targetPeerName: String = "Mesh Peer") {
         try {
             audioEngine.startVoice()
             isCalling = true
+            callStartTime = System.currentTimeMillis()
+            activeCallPeerName = if (targetPeerName.isNotEmpty()) targetPeerName else "Mesh Peer"
+            activeCallPeerId = targetPeerId
             btnCall.text = "End Call"
             btnCall.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_rose))
-            bridge.sendCallInvite()
-            logEvent("[Voice Call] 🔒 2-Way Live Voice Stream Active with Laptop & Mesh")
-            Toast.makeText(this, "Voice Call Started", Toast.LENGTH_SHORT).show()
+            bridge.sendCallInvite(targetPeerId)
+            logEvent("[Voice Call] 🔒 Outgoing Call to $activeCallPeerName ($activeCallPeerId)")
+            Toast.makeText(this, "Calling $activeCallPeerName...", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             logEvent("[Error] Could not start audio engine: ${e.message}")
         }
     }
 
-    private fun stopVoiceCall() {
+    private fun stopVoiceCall(recordHistory: Boolean = true) {
         try {
             audioEngine.stopVoice()
+            if (isCalling && recordHistory) {
+                val duration = maxOf(1, ((System.currentTimeMillis() - callStartTime) / 1000).toInt())
+                callHistoryManager.addCallRecord(
+                    CallRecord(
+                        id = UUID.randomUUID().toString(),
+                        peerName = activeCallPeerName,
+                        peerId = activeCallPeerId,
+                        type = "OUTGOING",
+                        timestamp = callStartTime,
+                        durationSeconds = duration
+                    )
+                )
+            }
             isCalling = false
             btnCall.text = "Start Voice Call"
             btnCall.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_emerald))
@@ -1061,6 +1154,142 @@ class MainActivity : AppCompatActivity(), LocationListener {
         } catch (e: Exception) {
             logEvent("[Error] Could not stop audio engine: ${e.message}")
         }
+    }
+
+    private fun showCallHistoryDialog() {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_call_history)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.94).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val root = dialog.findViewById<LinearLayout>(R.id.callHistoryDialogRoot)
+        val tvHeader = dialog.findViewById<TextView>(R.id.tvHistoryHeaderTitle)
+        val btnClear = dialog.findViewById<Button>(R.id.btnClearHistory)
+        val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseHistory)
+        val container = dialog.findViewById<LinearLayout>(R.id.llCallHistoryContainer)
+
+        if (isDarkMode) {
+            root.setBackgroundResource(R.drawable.dialog_background)
+            tvHeader.setTextColor(Color.parseColor("#38BDF8"))
+        } else {
+            root.setBackgroundColor(Color.parseColor("#FFFFFF"))
+            tvHeader.setTextColor(Color.parseColor("#0284C7"))
+        }
+
+        fun populateList() {
+            container.removeAllViews()
+            val records = callHistoryManager.getCallHistory()
+            if (records.isEmpty()) {
+                val tvEmpty = TextView(this).apply {
+                    text = "No call logs yet.\nMake or receive mesh calls to see history here."
+                    setTextColor(Color.parseColor("#64748B"))
+                    textSize = 13f
+                    gravity = Gravity.CENTER
+                    setPadding(0, 50, 0, 50)
+                }
+                container.addView(tvEmpty)
+                return
+            }
+
+            val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
+            for (record in records) {
+                val row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    val bg = if (isDarkMode) Color.parseColor("#0F172A") else Color.parseColor("#F1F5F9")
+                    setBackgroundColor(bg)
+                    setPadding(16, 12, 16, 12)
+                    val lp = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { setMargins(0, 0, 0, 8) }
+                    layoutParams = lp
+                }
+
+                val (icon, typeColor, typeLabel) = when (record.type) {
+                    "INCOMING" -> Triple("↙", "#10B981", "Incoming")
+                    "OUTGOING" -> Triple("↗", "#38BDF8", "Outgoing")
+                    "MISSED" -> Triple("✕", "#EF4444", "Missed")
+                    "DECLINED" -> Triple("🚫", "#F59E0B", "Declined")
+                    else -> Triple("📞", "#94A3B8", record.type)
+                }
+
+                // Left Type Icon
+                val tvIcon = TextView(this).apply {
+                    text = icon
+                    textSize = 18f
+                    setTextColor(Color.parseColor(typeColor))
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                    setPadding(0, 0, 14, 0)
+                }
+
+                // Center Info
+                val centerLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+
+                val tvName = TextView(this).apply {
+                    text = record.peerName
+                    textSize = 14f
+                    setTextColor(if (isDarkMode) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A"))
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                }
+
+                val durationStr = if (record.durationSeconds > 0) {
+                    val m = record.durationSeconds / 60
+                    val s = record.durationSeconds % 60
+                    String.format(Locale.US, "%02d:%02d", m, s)
+                } else {
+                    typeLabel
+                }
+
+                val tvMeta = TextView(this).apply {
+                    val dateStr = dateFormat.format(Date(record.timestamp))
+                    text = "$typeLabel • $durationStr • $dateStr"
+                    textSize = 11f
+                    setTextColor(Color.parseColor("#94A3B8"))
+                }
+
+                centerLayout.addView(tvName)
+                centerLayout.addView(tvMeta)
+
+                // Right Callback button
+                val btnCallAgain = Button(this).apply {
+                    text = "📞 Call"
+                    textSize = 11f
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
+                    setTextColor(Color.WHITE)
+                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 90)
+                    setOnClickListener {
+                        dialog.dismiss()
+                        startVoiceCall(record.peerId, record.peerName)
+                    }
+                }
+
+                row.addView(tvIcon)
+                row.addView(centerLayout)
+                row.addView(btnCallAgain)
+                container.addView(row)
+            }
+        }
+
+        btnClear.setOnClickListener {
+            callHistoryManager.clearHistory()
+            populateList()
+            Toast.makeText(this, "Call history cleared", Toast.LENGTH_SHORT).show()
+        }
+
+        btnClose.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        populateList()
+        dialog.show()
     }
 
     private fun broadcastEmergencySOS() {

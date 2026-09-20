@@ -78,6 +78,23 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
 
         // Start local P2P Mesh Server & UDP Discovery Beacon
         try {
+            embeddedServer.onLocalAudioFrameReceived = { frame ->
+                val decrypted = crypto.decryptAudioFrame(frame) ?: frame
+                onAudioFrameReceived?.invoke(decrypted)
+            }
+            embeddedServer.onLocalMessageReceived = { text ->
+                router.processIncomingPacket(text)
+                handleIncomingJson(text)
+            }
+            embeddedServer.onPeerListUpdated = { peers ->
+                onPeerListUpdated?.invoke(peers)
+            }
+            embeddedServer.onPeerCountChanged = { count ->
+                if (count > 0 && !isConnected) {
+                    onStatusChanged?.invoke("● P2P Mesh Active ($count Peer(s) connected)", true)
+                }
+            }
+
             embeddedServer.start()
             udpBeacon.start()
         } catch (e: Exception) {
@@ -396,10 +413,11 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
     }
 
     fun sendAudioFrame(frame: ByteArray) {
+        val encrypted = crypto.encryptAudioFrame(frame)
         if (isConnected && webSocket != null) {
-            val encrypted = crypto.encryptAudioFrame(frame)
             webSocket?.send(encrypted.toByteString())
         }
+        embeddedServer.broadcastLocalAudio(encrypted)
     }
 
     fun sendChatMessage(text: String, senderName: String = "Android Phone") {
@@ -439,23 +457,24 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
         })
     }
 
-    fun sendCallInvite() {
+    fun sendCallInvite(targetId: String = "") {
         sendJson(JSONObject().apply {
             put("type", "CALL_INVITE")
-            put("targetId", "laptop")
+            put("targetId", targetId)
         })
     }
 
-    fun sendCallAccept() {
+    fun sendCallAccept(targetId: String = "") {
         sendJson(JSONObject().apply {
             put("type", "CALL_ACCEPT")
-            put("targetId", "laptop")
+            put("targetId", targetId)
         })
     }
 
-    fun sendCallDecline() {
+    fun sendCallDecline(targetId: String = "") {
         sendJson(JSONObject().apply {
             put("type", "CALL_DECLINE")
+            put("targetId", targetId)
         })
     }
 
@@ -478,9 +497,11 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
     }
 
     private fun sendJson(json: JSONObject) {
+        val text = json.toString()
         if (isConnected && webSocket != null) {
-            webSocket?.send(json.toString())
+            webSocket?.send(text)
         }
+        embeddedServer.broadcastLocalText(text)
     }
 
     fun disconnect() {

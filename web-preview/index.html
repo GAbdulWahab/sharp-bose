@@ -253,6 +253,7 @@
           </div>
         </div>
         <div class="header-actions">
+          <button class="btn-diag" style="background: #0284C7; color: #FFF; font-weight: bold;" onclick="openCallHistoryModal()">📋 LOGS</button>
           <button class="btn-icon" onclick="toggleTheme()" title="Toggle Dark/Light Theme">☀️</button>
           <button class="btn-diag" onclick="showScreen('diagnostics')">⚙️ STATS</button>
         </div>
@@ -654,6 +655,25 @@
     </div>
   </div>
 
+  <!-- Call History Modal -->
+  <div id="call-history-modal-overlay" class="modal-overlay">
+    <div class="modal-box" style="max-height: 80vh; display: flex; flex-direction: column;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <div style="font-size: 16px; font-weight: 800; color: var(--accent-cyan);">📋 Call History &amp; Logs</div>
+        <div style="display: flex; gap: 6px;">
+          <button class="btn-diag" style="background: #334155; color: #94A3B8; padding: 4px 8px; font-size: 10px;" onclick="clearWebCallHistory()">Clear</button>
+          <button class="btn-icon" style="width: 28px; height: 28px;" onclick="closeCallHistoryModal()">✕</button>
+        </div>
+      </div>
+      <div style="font-size: 11px; color: var(--text-sub); margin-bottom: 12px;">
+        Persistent log of mesh calls with duration and timestamps.
+      </div>
+      <div id="call-history-list" style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 8px;">
+        <!-- Dynamically rendered -->
+      </div>
+    </div>
+  </div>
+
   <!-- Live Connection Information Panel -->
   <div class="info-panel">
     <div style="font-size: 15px; font-weight: 800; color: var(--accent-cyan); display: flex; justify-content: space-between;">
@@ -704,6 +724,8 @@
     let myId = '';
     let myNickname = '';
     let activeCallPeer = null;
+    let activeCallStartTime = 0;
+    let activeCallDirection = 'OUTGOING';
     let currentChatPeer = null;
     let ws = null;
     let localStream = null;
@@ -1513,10 +1535,88 @@
       renderRadarScreen();
     }
 
+    // Call History Engine
+    function getCallHistory() {
+      try {
+        return JSON.parse(localStorage.getItem('mesh_call_history') || '[]');
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function addCallRecord(record) {
+      try {
+        const history = getCallHistory();
+        history.unshift(record);
+        if (history.length > 50) history.pop();
+        localStorage.setItem('mesh_call_history', JSON.stringify(history));
+      } catch (e) {}
+    }
+
+    function clearWebCallHistory() {
+      localStorage.removeItem('mesh_call_history');
+      renderCallHistory();
+    }
+
+    function openCallHistoryModal() {
+      renderCallHistory();
+      document.getElementById('call-history-modal-overlay').classList.add('active');
+    }
+
+    function closeCallHistoryModal() {
+      document.getElementById('call-history-modal-overlay').classList.remove('active');
+    }
+
+    function renderCallHistory() {
+      const container = document.getElementById('call-history-list');
+      if (!container) return;
+      const history = getCallHistory();
+      if (history.length === 0) {
+        container.innerHTML = `
+          <div style="text-align: center; color: var(--text-sub); font-size: 12px; padding: 30px 10px;">
+            No call history yet.<br>Place or receive calls to log them here.
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = history.map(item => {
+        const isIncoming = item.type === 'INCOMING';
+        const isOutgoing = item.type === 'OUTGOING';
+        const isMissed = item.type === 'MISSED';
+        const isDeclined = item.type === 'DECLINED';
+
+        let icon = '📞';
+        let color = '#94A3B8';
+        if (isIncoming) { icon = '↙'; color = '#10B981'; }
+        if (isOutgoing) { icon = '↗'; color = '#38BDF8'; }
+        if (isMissed) { icon = '✕'; color = '#EF4444'; }
+        if (isDeclined) { icon = '🚫'; color = '#F59E0B'; }
+
+        const dateStr = new Date(item.timestamp).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const durStr = item.durationSeconds > 0 ? `${Math.floor(item.durationSeconds / 60)}m ${item.durationSeconds % 60}s` : item.type;
+
+        return `
+          <div style="display: flex; align-items: center; justify-content: space-between; background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 12px;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 18px; font-weight: bold; color: ${color};">${icon}</span>
+              <div>
+                <div style="font-size: 13px; font-weight: 700; color: var(--text-main);">${item.peerName}</div>
+                <div style="font-size: 10px; color: var(--text-sub);">${item.type} • ${durStr} • ${dateStr}</div>
+              </div>
+            </div>
+            <button class="btn-sm btn-call" onclick="closeCallHistoryModal(); sendLiveCallInvite('${item.peerId || ''}', '${item.peerName}')" style="padding: 4px 8px; font-size: 10px;">📞 Call</button>
+          </div>
+        `;
+      }).join('');
+    }
+
     // Live Voice Call Functions
     async function sendLiveCallInvite(peerId, peerName) {
       await startMicAndAudio();
       activeCallPeer = { id: peerId, name: peerName };
+      activeCallStartTime = Date.now();
+      activeCallDirection = 'OUTGOING';
       ws.send(JSON.stringify({ type: 'CALL_INVITE', targetId: peerId }));
       startActiveCallScreen(peerName, true);
 
@@ -1537,6 +1637,8 @@
       document.getElementById('incoming-call-modal').classList.remove('active');
       await startMicAndAudio();
       if (activeCallPeer) {
+        activeCallStartTime = Date.now();
+        activeCallDirection = 'INCOMING';
         ws.send(JSON.stringify({ type: 'CALL_ACCEPT', targetId: activeCallPeer.id }));
         startActiveCallScreen(activeCallPeer.name, false);
       }
@@ -1545,6 +1647,14 @@
     function declineIncomingCall() {
       document.getElementById('incoming-call-modal').classList.remove('active');
       if (activeCallPeer) {
+        addCallRecord({
+          id: Date.now().toString(),
+          peerName: activeCallPeer.name,
+          peerId: activeCallPeer.id,
+          type: 'DECLINED',
+          timestamp: Date.now(),
+          durationSeconds: 0
+        });
         ws.send(JSON.stringify({ type: 'CALL_DECLINE', targetId: activeCallPeer.id }));
         activeCallPeer = null;
       }
@@ -1579,6 +1689,18 @@
     }
 
     function endActiveCall() {
+      if (activeCallPeer && activeCallStartTime) {
+        const dur = Math.max(1, Math.round((Date.now() - activeCallStartTime) / 1000));
+        addCallRecord({
+          id: Date.now().toString(),
+          peerName: activeCallPeer.name,
+          peerId: activeCallPeer.id,
+          type: activeCallDirection,
+          timestamp: activeCallStartTime,
+          durationSeconds: dur
+        });
+      }
+      activeCallStartTime = 0;
       isTransmittingVoice = false;
       stopMicAndAudio();
       if (peerConnection) {

@@ -43,6 +43,9 @@ class AndroidMeshServer(
     )
 
     var onPeerCountChanged: ((Int) -> Unit)? = null
+    var onLocalAudioFrameReceived: ((ByteArray) -> Unit)? = null
+    var onLocalMessageReceived: ((String) -> Unit)? = null
+    var onPeerListUpdated: ((List<PeerNode>) -> Unit)? = null
 
     fun start() {
         if (isRunning.get()) return
@@ -196,8 +199,17 @@ class AndroidMeshServer(
                 when (opcode) {
                     8 -> break
                     9 -> sendWsPong(session, payload)
-                    1 -> handleTextMessage(session, String(payload, Charsets.UTF_8))
-                    2 -> broadcastBinaryAudio(session, payload)
+                    1 -> {
+                        val text = String(payload, Charsets.UTF_8)
+                        val enriched = handleTextMessage(session, text)
+                        // Deliver to local app
+                        onLocalMessageReceived?.invoke(enriched ?: text)
+                    }
+                    2 -> {
+                        broadcastBinaryAudio(session, payload)
+                        // Deliver to local app
+                        onLocalAudioFrameReceived?.invoke(payload)
+                    }
                 }
             } catch (e: Exception) {
                 break
@@ -210,7 +222,7 @@ class AndroidMeshServer(
         try { session.socket.close() } catch (e: Exception) {}
     }
 
-    private fun handleTextMessage(sender: ClientSession, text: String) {
+    private fun handleTextMessage(sender: ClientSession, text: String): String? {
         try {
             val data = JSONObject(text)
             val type = data.optString("type")
@@ -221,7 +233,7 @@ class AndroidMeshServer(
                     put("timestamp", System.currentTimeMillis())
                 }
                 sendWsText(sender, pong.toString())
-                return
+                return null
             }
 
             if (type == "SET_NICKNAME") {
@@ -229,13 +241,13 @@ class AndroidMeshServer(
                 sender.info.deviceType = data.optString("deviceType", sender.info.deviceType)
                 if (data.has("room")) sender.info.room = data.optString("room")
                 broadcastPeerList()
-                return
+                return null
             }
 
             if (type == "JOIN_ROOM") {
                 sender.info.room = data.optString("room", "INDIA-MAIN")
                 broadcastPeerList()
-                return
+                return null
             }
 
             if (type == "LOCATION_UPDATE") {
@@ -246,6 +258,11 @@ class AndroidMeshServer(
                 sender.info.location = PeerLocation(lat, lng, alt, acc)
                 broadcastPeerList()
             }
+
+            if (type == "CALL_ACCEPT") sender.info.status = "In Call"
+            if (type == "CALL_HANGUP" || type == "CALL_DECLINE") sender.info.status = "Online"
+            if (type == "PTT_START") sender.info.status = "Transmitting (PTT)"
+            if (type == "PTT_STOP") sender.info.status = "Online"
 
             data.put("senderId", sender.info.id)
             data.put("senderName", sender.info.nickname)
@@ -261,8 +278,10 @@ class AndroidMeshServer(
             if (type.startsWith("CALL_") || type.startsWith("PTT_")) {
                 broadcastPeerList()
             }
+            return outText
         } catch (e: Exception) {
             Log.e("AndroidMeshServer", "Error parsing incoming text: ${e.message}")
+            return null
         }
     }
 
@@ -274,10 +293,31 @@ class AndroidMeshServer(
         }
     }
 
+    /**
+     * Broadcasts audio captured on local phone's microphone to all connected peers
+     */
+    fun broadcastLocalAudio(frame: ByteArray) {
+        for (client in connectedClients) {
+            sendWsBinary(client, frame)
+        }
+    }
+
+    /**
+     * Broadcasts control JSON/text generated on local phone to all connected peers
+     */
+    fun broadcastLocalText(text: String) {
+        for (client in connectedClients) {
+            sendWsText(client, text)
+        }
+    }
+
     fun broadcastPeerList() {
         val peersArray = JSONArray()
+        val peerNodesList = mutableListOf<PeerNode>()
 
-        // Include local phone in peer list
+        // Include local host phone in list
+        val localNode = PeerNode(localNodeId, "$localNodeName (Host)", "Android", "Online")
+        peerNodesList.add(localNode)
         peersArray.put(JSONObject().apply {
             put("id", localNodeId)
             put("nickname", "$localNodeName (Host)")
@@ -287,6 +327,15 @@ class AndroidMeshServer(
         })
 
         for (client in connectedClients) {
+            val pNode = PeerNode(
+                id = client.info.id,
+                nickname = client.info.nickname,
+                deviceType = client.info.deviceType,
+                status = client.info.status,
+                location = client.info.location
+            )
+            peerNodesList.add(pNode)
+
             peersArray.put(JSONObject().apply {
                 put("id", client.info.id)
                 put("nickname", client.info.nickname)
@@ -312,6 +361,9 @@ class AndroidMeshServer(
         for (client in connectedClients) {
             sendWsText(client, peerListMsg)
         }
+
+        // Also update local UI peer list!
+        onPeerListUpdated?.invoke(peerNodesList)
     }
 
     private fun sendWsText(client: ClientSession, text: String) {
@@ -368,6 +420,8 @@ class AndroidMeshServer(
             lenBytes
         }
     }
+
+    fun hasClients(): Boolean = connectedClients.isNotEmpty()
 
     fun stop() {
         isRunning.set(false)

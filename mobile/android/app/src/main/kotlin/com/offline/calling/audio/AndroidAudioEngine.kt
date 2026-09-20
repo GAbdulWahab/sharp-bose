@@ -120,8 +120,8 @@ class AndroidAudioEngine(private val context: Context) {
                         }
                         val avg = sum / maxOf(1, numSamples)
 
-                        // Squelch Noise Gate: Mutes ambient room hiss completely when not speaking
-                        if (avg < 200) {
+                        // Squelch Noise Gate: Safe threshold to allow soft whispers and normal voice
+                        if (avg < 50) {
                             continue
                         }
 
@@ -196,7 +196,7 @@ class AndroidAudioEngine(private val context: Context) {
 
     fun playAudioFrame(frame: ByteArray) {
         if (!isPlaying.get() || audioTrack == null) {
-            return
+            startPlaybackOnly()
         }
 
         var pcmBytes: ByteArray
@@ -221,7 +221,7 @@ class AndroidAudioEngine(private val context: Context) {
         val clean = applySoftLimiter(processedPcm)
 
         // Drop stale packets to prevent latency accumulation (maintain <40ms delay)
-        while (playbackQueue.size > 3) {
+        while (playbackQueue.size > 4) {
             playbackQueue.poll()
         }
 
@@ -236,7 +236,7 @@ class AndroidAudioEngine(private val context: Context) {
 
         for (i in 0 until numSamples) {
             val sample = inBuf.get(i).toFloat()
-            val limited = sample.coerceIn(-32000f, 32000f).toInt().toShort()
+            val limited = (sample * 1.05f).coerceIn(-32767f, 32767f).toInt().toShort()
             outBuf.put(i, limited)
         }
         return output
