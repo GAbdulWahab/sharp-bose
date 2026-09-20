@@ -123,17 +123,28 @@ if (wssHttps) {
   wssHttps.on('connection', handleWsConnection);
 }
 
+const os = require('os');
+
 httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
+  const interfaces = os.networkInterfaces();
+  const ips = [];
+  for (const name in interfaces) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        ips.push({ name, ip: iface.address });
+      }
+    }
+  }
+
   console.log(`\n=============================================================`);
   console.log(`📡 [OFFLINE MESH LIVE AUDIO SERVER RUNNING]`);
   console.log(`💻 Laptop Browser URL:  http://localhost:${HTTP_PORT}`);
-  console.log(`📱 Android Phone HTTP:  http://10.73.88.166:${HTTP_PORT}`);
-  if (httpsServer) {
-    httpsServer.listen(HTTPS_PORT, '0.0.0.0', () => {
-      console.log(`🔒 Android Phone HTTPS: https://10.73.88.166:${HTTPS_PORT} (Enables Mobile Mic)`);
-      console.log(`=============================================================\n`);
-    });
-  } else {
-    console.log(`=============================================================\n`);
-  }
+  ips.forEach(entry => {
+    console.log(`📱 ${entry.name} URL:  https://${entry.ip}:${HTTPS_PORT} (or http://${entry.ip}:${HTTP_PORT})`);
+  });
+  console.log(`=============================================================\n`);
 });
+
+if (httpsServer) {
+  httpsServer.listen(HTTPS_PORT, '0.0.0.0');
+}

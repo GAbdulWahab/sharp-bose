@@ -5,16 +5,27 @@ import okhttp3.*
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
 import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.FileReader
+import java.net.Inet4Address
+import java.net.NetworkInterface
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
+/**
+ * Intelligent Auto-Discovering Mesh WebSocket Bridge.
+ * Automatically scans Bluetooth PAN, Wi-Fi, Hotspot, and USB network interfaces
+ * to connect to the Laptop Mesh server without manual configuration.
+ */
 class MeshWebSocketBridge {
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
-        .connectTimeout(3, TimeUnit.SECONDS)
+        .connectTimeout(1500, TimeUnit.MILLISECONDS)
         .build()
 
     private var webSocket: WebSocket? = null
-    private var isConnected = false
+    var isConnected = false
+        private set
 
     var onAudioFrameReceived: ((ByteArray) -> Unit)? = null
     var onIncomingCall: ((callerName: String, callerId: String) -> Unit)? = null
@@ -25,26 +36,31 @@ class MeshWebSocketBridge {
     var onChatMessageReceived: ((senderName: String, text: String) -> Unit)? = null
     var onStatusChanged: ((status: String, isConnected: Boolean) -> Unit)? = null
 
-    var currentHost: String = "10.73.88.166"
+    var currentHost: String = "10.246.248.170"
         private set
+
+    private val isConnecting = AtomicBoolean(false)
+    private var reconnectThread: Thread? = null
 
     fun connect(host: String? = null) {
         if (host != null && host.isNotEmpty()) {
             currentHost = host
-            connectToUrl("ws://$host:3000")
+            connectDirect(host)
             return
         }
-        // Try Wi-Fi IP first, then localhost (USB adb reverse), then Hotspot defaults
-        connectToUrl("ws://$currentHost:3000")
+
+        autoDiscoverAndConnect()
     }
 
-    private fun connectToUrl(url: String) {
+    private fun connectDirect(host: String) {
         webSocket?.close(1000, "Reconnecting")
+        val url = "ws://$host:3000"
         val request = Request.Builder().url(url).build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
                 isConnected = true
-                Log.d("MeshBridge", "Connected to Live Mesh Web Bridge at $url")
+                currentHost = host
+                Log.d("MeshBridge", "Connected directly to Laptop Mesh at $url")
                 onStatusChanged?.invoke("● Connected to Laptop Mesh Bridge ($currentHost)", true)
             }
 
@@ -53,64 +69,221 @@ class MeshWebSocketBridge {
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
-                try {
-                    val json = JSONObject(text)
-                    val type = json.optString("type")
-                    when (type) {
-                        "CALL_INVITE" -> {
-                            val senderName = json.optString("senderName", "Laptop Web Node")
-                            val senderId = json.optString("senderId", "node-web")
-                            onIncomingCall?.invoke(senderName, senderId)
-                        }
-                        "CALL_ACCEPT" -> {
-                            val senderName = json.optString("senderName", "Laptop Web Node")
-                            onCallAccepted?.invoke(senderName)
-                        }
-                        "CALL_DECLINE", "CALL_HANGUP" -> {
-                            onCallEnded?.invoke()
-                        }
-                        "PTT_START" -> {
-                            val senderName = json.optString("senderName", "Laptop User")
-                            onPttStarted?.invoke(senderName)
-                        }
-                        "PTT_STOP" -> {
-                            onPttStopped?.invoke()
-                        }
-                        "CHAT_MSG" -> {
-                            val senderName = json.optString("senderName", "Laptop Web")
-                            val text = json.optString("text", "")
-                            if (text.isNotEmpty()) {
-                                onChatMessageReceived?.invoke(senderName, text)
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e("MeshBridge", "Error parsing message: ${e.message}")
-                }
+                handleIncomingJson(text)
             }
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 isConnected = false
-                Log.w("MeshBridge", "WebSocket failure on $url: ${t.message}")
-                if (url.contains("10.73.88.166")) {
-                    currentHost = "192.168.44.1" // Bluetooth PAN IP
-                    connectToUrl("ws://192.168.44.1:3000")
-                } else if (url.contains("192.168.44.1")) {
-                    currentHost = "192.168.43.1" // Wi-Fi Hotspot IP
-                    connectToUrl("ws://192.168.43.1:3000")
-                } else if (url.contains("192.168.43.1")) {
-                    currentHost = "127.0.0.1" // USB Loopback
-                    connectToUrl("ws://127.0.0.1:3000")
-                } else {
-                    onStatusChanged?.invoke("○ Standby (Tap here to set Laptop IP)", false)
-                }
+                Log.w("MeshBridge", "Direct connection failure on $url: ${t.message}")
+                onStatusChanged?.invoke("○ Standby (Auto-scanning...)", false)
+                scheduleAutoReconnect()
             }
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 isConnected = false
                 onStatusChanged?.invoke("○ Disconnected", false)
+                scheduleAutoReconnect()
             }
         })
+    }
+
+    /**
+     * Automatically scans all network interfaces (Bluetooth PAN, Wi-Fi, Hotspot, USB)
+     * and connects to the active Laptop Mesh server instantly.
+     */
+    fun autoDiscoverAndConnect() {
+        if (isConnected || isConnecting.get()) return
+        isConnecting.set(true)
+        onStatusChanged?.invoke("○ Auto-Detecting Bluetooth & Mesh IP...", false)
+
+        Thread {
+            val candidates = mutableListOf<String>()
+
+            // 1. Priority targets: Bluetooth active IP, Wi-Fi IP, USB
+            candidates.add(currentHost)
+            candidates.add("10.246.248.170") // Bluetooth Laptop IP
+            candidates.add("10.73.88.166")   // Wi-Fi Laptop IP
+            candidates.add("127.0.0.1")      // USB Reverse
+
+            // 2. Discover peer IPs from ARP table (detects connected Bluetooth/Hotspot clients)
+            try {
+                val br = BufferedReader(FileReader("/proc/net/arp"))
+                var line: String?
+                while (br.readLine().also { line = it } != null) {
+                    val tokens = line!!.split("\\s+".toRegex())
+                    if (tokens.size >= 4 && tokens[0] != "IP") {
+                        val ip = tokens[0]
+                        if (ip != "0.0.0.0" && !candidates.contains(ip)) {
+                            candidates.add(ip)
+                        }
+                    }
+                }
+                br.close()
+            } catch (e: Exception) {
+                Log.d("MeshBridge", "ARP note: ${e.message}")
+            }
+
+            // 3. Inspect all local network interfaces (bt-pan, wlan0, rndis0, ap0, etc.)
+            try {
+                val interfaces = NetworkInterface.getNetworkInterfaces()
+                while (interfaces.hasMoreElements()) {
+                    val iface = interfaces.nextElement()
+                    if (!iface.isUp || iface.isLoopback) continue
+                    val addresses = iface.inetAddresses
+                    while (addresses.hasMoreElements()) {
+                        val addr = addresses.nextElement()
+                        if (addr is Inet4Address && !addr.isLoopbackAddress) {
+                            val hostAddress = addr.hostAddress ?: continue
+                            val lastDot = hostAddress.lastIndexOf('.')
+                            if (lastDot > 0) {
+                                val subnetPrefix = hostAddress.substring(0, lastDot + 1)
+                                val probeOffsets = listOf(170, 1, 2, 10, 100, 113, 166, 200)
+                                for (offset in probeOffsets) {
+                                    val candidateIp = "$subnetPrefix$offset"
+                                    if (!candidates.contains(candidateIp)) {
+                                        candidates.add(candidateIp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MeshBridge", "Interface scan error: ${e.message}")
+            }
+
+            candidates.add("192.168.44.1")
+            candidates.add("192.168.43.1")
+            candidates.add("192.168.137.1")
+
+            Log.d("MeshBridge", "Scanning candidates for auto-connect: $candidates")
+
+            var connected = false
+            for (cand in candidates.distinct()) {
+                if (isConnected) {
+                    connected = true
+                    break
+                }
+                val url = "ws://$cand:3000"
+                if (tryConnectSync(url, cand)) {
+                    connected = true
+                    break
+                }
+            }
+
+            isConnecting.set(false)
+
+            if (!connected && !isConnected) {
+                onStatusChanged?.invoke("○ Standby (Tap to set IP)", false)
+                scheduleAutoReconnect()
+            }
+        }.start()
+    }
+
+    private fun tryConnectSync(url: String, host: String): Boolean {
+        val success = AtomicBoolean(false)
+        val latch = java.util.concurrent.CountDownLatch(1)
+
+        val request = Request.Builder().url(url).build()
+        val ws = client.newWebSocket(request, object : WebSocketListener() {
+            override fun onOpen(ws: WebSocket, response: Response) {
+                isConnected = true
+                webSocket = ws
+                currentHost = host
+                success.set(true)
+                Log.d("MeshBridge", "Auto-connected to Laptop Mesh at $url")
+                onStatusChanged?.invoke("● Connected to Laptop Mesh Bridge ($currentHost)", true)
+                latch.countDown()
+            }
+
+            override fun onMessage(ws: WebSocket, bytes: ByteString) {
+                onAudioFrameReceived?.invoke(bytes.toByteArray())
+            }
+
+            override fun onMessage(ws: WebSocket, text: String) {
+                handleIncomingJson(text)
+            }
+
+            override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
+                if (webSocket == ws) {
+                    isConnected = false
+                    webSocket = null
+                    onStatusChanged?.invoke("○ Disconnected (Reconnecting...)", false)
+                    scheduleAutoReconnect()
+                }
+                latch.countDown()
+            }
+
+            override fun onClosed(ws: WebSocket, code: Int, reason: String) {
+                if (webSocket == ws) {
+                    isConnected = false
+                    webSocket = null
+                    onStatusChanged?.invoke("○ Disconnected", false)
+                    scheduleAutoReconnect()
+                }
+            }
+        })
+
+        try {
+            latch.await(1000, TimeUnit.MILLISECONDS)
+        } catch (e: InterruptedException) {
+            ws.cancel()
+        }
+
+        if (!success.get()) {
+            ws.cancel()
+        }
+        return success.get()
+    }
+
+    private fun scheduleAutoReconnect() {
+        if (isConnected || isConnecting.get()) return
+        reconnectThread?.interrupt()
+        reconnectThread = Thread {
+            try {
+                Thread.sleep(3000)
+                if (!isConnected) {
+                    autoDiscoverAndConnect()
+                }
+            } catch (e: InterruptedException) {}
+        }.apply { start() }
+    }
+
+    private fun handleIncomingJson(text: String) {
+        try {
+            val json = JSONObject(text)
+            val type = json.optString("type")
+            when (type) {
+                "CALL_INVITE" -> {
+                    val senderName = json.optString("senderName", "Laptop Web Node")
+                    val senderId = json.optString("senderId", "node-web")
+                    onIncomingCall?.invoke(senderName, senderId)
+                }
+                "CALL_ACCEPT" -> {
+                    val senderName = json.optString("senderName", "Laptop Web Node")
+                    onCallAccepted?.invoke(senderName)
+                }
+                "CALL_DECLINE", "CALL_HANGUP" -> {
+                    onCallEnded?.invoke()
+                }
+                "PTT_START" -> {
+                    val senderName = json.optString("senderName", "Laptop User")
+                    onPttStarted?.invoke(senderName)
+                }
+                "PTT_STOP" -> {
+                    onPttStopped?.invoke()
+                }
+                "CHAT_MSG" -> {
+                    val senderName = json.optString("senderName", "Laptop Web")
+                    val msgText = json.optString("text", "")
+                    if (msgText.isNotEmpty()) {
+                        onChatMessageReceived?.invoke(senderName, msgText)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("MeshBridge", "Error parsing message: ${e.message}")
+        }
     }
 
     fun sendAudioFrame(frame: ByteArray) {
@@ -172,6 +345,7 @@ class MeshWebSocketBridge {
     }
 
     fun disconnect() {
+        reconnectThread?.interrupt()
         webSocket?.close(1000, "App closing")
         webSocket = null
         isConnected = false
