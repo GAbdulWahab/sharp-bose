@@ -740,7 +740,6 @@
 
     async function forceUnlockAudio() {
       await ensureAudioContextActive();
-      testSpeakerBeep();
     }
 
     // Global listener to unlock audio on first interaction
@@ -748,7 +747,7 @@
       window.addEventListener(evt, () => ensureAudioContextActive(), { passive: true, once: false });
     });
 
-    // Test tone generator
+    // Test tone generator (manual only)
     async function testSpeakerBeep() {
       await ensureAudioContextActive();
       try {
@@ -758,12 +757,12 @@
         osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); // C5
         osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.12); // E5
         osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.24); // G5
-        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+        gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
         osc.connect(gain);
         gain.connect(dspHighPass || audioCtx.destination);
         osc.start();
-        osc.stop(audioCtx.currentTime + 0.5);
+        osc.stop(audioCtx.currentTime + 0.4);
       } catch (e) {
         console.error(e);
       }
@@ -798,27 +797,9 @@
       }
     }
 
-    // Play Chirp on PTT Click
+    // Play Soft Haptic Tick (Silent / Non-intrusive)
     function playChirp(isStart) {
-      if (!audioCtx) return;
-      try {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.type = 'sine';
-        if (isStart) {
-          osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-          osc.frequency.setValueAtTime(1200, audioCtx.currentTime + 0.05);
-        } else {
-          osc.frequency.setValueAtTime(1000, audioCtx.currentTime);
-          osc.frequency.setValueAtTime(600, audioCtx.currentTime + 0.05);
-        }
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.08);
-      } catch(e){}
+      // Disabled loud beeps to maintain clean audio stream
     }
 
     // Microphone Activation & Raw PCM Stream Setup
@@ -845,6 +826,9 @@
           for (let i = 0; i < inputData.length; i++) sum += Math.abs(inputData[i]);
           const avg = sum / inputData.length;
           updateWaveformVisualizer(avg);
+
+          // Squelch / Noise Gate to eliminate feedback loop beeps/whine
+          if (avg < 0.008) return;
 
           const sampleRate = audioCtx.sampleRate || 48000;
           const packetBuffer = new ArrayBuffer(4 + inputData.length * 2);

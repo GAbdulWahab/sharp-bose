@@ -77,6 +77,21 @@ class AndroidAudioEngine(private val context: Context) {
             while (isRecording.get()) {
                 val readBytes = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
                 if (readBytes > 0) {
+                    var sum = 0L
+                    val numSamples = readBytes / 2
+                    for (i in 0 until numSamples) {
+                        val low = audioBuffer[i * 2].toInt() and 0xFF
+                        val high = audioBuffer[i * 2 + 1].toInt()
+                        val sample = ((high shl 8) or low).toShort()
+                        sum += Math.abs(sample.toLong())
+                    }
+                    val avg = sum / maxOf(1, numSamples)
+
+                    // Squelch gate: Ignore background noise to prevent acoustic feedback beeps
+                    if (avg < 150) {
+                        continue
+                    }
+
                     val packet = ByteArray(4 + readBytes)
                     packet[0] = 0xAA.toByte()
                     packet[1] = 0x55.toByte()
