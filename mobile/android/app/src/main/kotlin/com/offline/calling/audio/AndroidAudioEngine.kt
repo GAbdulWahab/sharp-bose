@@ -9,11 +9,15 @@ import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.NoiseSuppressor
+import android.os.Process
+import android.util.Log
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Android Low-Latency Real-Time Audio Engine.
- * Supports full-duplex AEC/NS recording and AudioTrack PCM playback.
+ * Android Studio-Grade Low-Latency Real-Time Audio Engine.
+ * Features asynchronous ring-buffered jitter playback, hardware AEC/NS,
+ * high-precision linear resampling, and clean dynamic gain scaling.
  */
 class AndroidAudioEngine(private val context: Context) {
     val sampleRate = 16000
@@ -27,7 +31,11 @@ class AndroidAudioEngine(private val context: Context) {
     private var noiseSuppressor: NoiseSuppressor? = null
 
     private val isRecording = AtomicBoolean(false)
+    private val isPlaying = AtomicBoolean(false)
     private var recordingThread: Thread? = null
+    private var playbackThread: Thread? = null
+
+    private val playbackQueue = LinkedBlockingQueue<ByteArray>(40)
 
     var onAudioFrameCaptured: ((ByteArray) -> Unit)? = null
 
@@ -37,12 +45,14 @@ class AndroidAudioEngine(private val context: Context) {
         startPlaybackOnly()
 
         val inBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfigIn, audioFormat)
+        val actualInBufSize = maxOf(inBufferSize * 2, 4096)
+        
         audioRecord = AudioRecord(
             MediaRecorder.AudioSource.VOICE_COMMUNICATION,
             sampleRate,
             channelConfigIn,
             audioFormat,
-            inBufferSize * 2
+            actualInBufSize
         )
 
         val audioSessionId = audioRecord?.audioSessionId ?: 0
@@ -62,7 +72,8 @@ class AndroidAudioEngine(private val context: Context) {
         isRecording.set(true)
 
         recordingThread = Thread {
-            val audioBuffer = ByteArray(640) // 20ms @ 16kHz
+            Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
+            val audioBuffer = ByteArray(640) // 20ms @ 16kHz mono (320 samples)
             while (isRecording.get()) {
                 val readBytes = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
                 if (readBytes > 0) {
@@ -75,12 +86,17 @@ class AndroidAudioEngine(private val context: Context) {
                     onAudioFrameCaptured?.invoke(packet)
                 }
             }
-        }.apply { start() }
+        }.apply {
+            name = "AudioRecordThread"
+            start()
+        }
     }
 
     fun startPlaybackOnly() {
         if (audioTrack != null) return
         val outBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfigOut, audioFormat)
+        val actualOutBufSize = maxOf(outBufferSize * 2, 4096)
+
         audioTrack = AudioTrack.Builder()
             .setAudioAttributes(
                 AudioAttributes.Builder()
@@ -95,28 +111,80 @@ class AndroidAudioEngine(private val context: Context) {
                     .setChannelMask(channelConfigOut)
                     .build()
             )
-            .setBufferSizeInBytes(outBufferSize * 2)
+            .setBufferSizeInBytes(actualOutBufSize)
             .setTransferMode(AudioTrack.MODE_STREAM)
             .build()
+
         audioTrack?.play()
+        isPlaying.set(true)
+
+        playbackThread = Thread {
+            Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
+            while (isPlaying.get()) {
+                try {
+                    val chunk = playbackQueue.poll(20, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    if (chunk != null && chunk.isNotEmpty()) {
+                        audioTrack?.write(chunk, 0, chunk.size)
+                    }
+                } catch (e: InterruptedException) {
+                    break
+                } catch (e: Exception) {
+                    Log.e("AudioEngine", "Playback error: ${e.message}")
+                }
+            }
+        }.apply {
+            name = "AudioTrackPlaybackThread"
+            start()
+        }
     }
 
     fun playAudioFrame(frame: ByteArray) {
         if (audioTrack == null) {
             startPlaybackOnly()
         }
+
+        var pcmBytes: ByteArray
+        var senderRate = sampleRate
+
         if (frame.size >= 4 && (frame[0].toInt() and 0xFF) == 0xAA && (frame[1].toInt() and 0xFF) == 0x55) {
-            val senderRate = ((frame[2].toInt() and 0xFF) shl 8) or (frame[3].toInt() and 0xFF)
-            val pcmBytes = frame.copyOfRange(4, frame.size)
-            if (senderRate != sampleRate && senderRate > 0) {
-                val resampled = resamplePcm16(pcmBytes, senderRate, sampleRate)
-                audioTrack?.write(resampled, 0, resampled.size)
-            } else {
-                audioTrack?.write(pcmBytes, 0, pcmBytes.size)
-            }
+            senderRate = ((frame[2].toInt() and 0xFF) shl 8) or (frame[3].toInt() and 0xFF)
+            pcmBytes = frame.copyOfRange(4, frame.size)
         } else {
-            audioTrack?.write(frame, 0, frame.size)
+            pcmBytes = frame
         }
+
+        if (pcmBytes.isEmpty()) return
+
+        // Resample if sender rate differs (e.g. 48000 Hz from laptop down to 16000 Hz)
+        val processedPcm = if (senderRate != sampleRate && senderRate > 0) {
+            resamplePcm16(pcmBytes, senderRate, sampleRate)
+        } else {
+            pcmBytes
+        }
+
+        // Apply clean boost with soft ceiling to ensure loud clarity
+        val boosted = applyCleanGainAndLimiter(processedPcm, 1.4f)
+
+        // Drop oldest packets if queue starts lagging beyond 120ms
+        while (playbackQueue.size > 8) {
+            playbackQueue.poll()
+        }
+
+        playbackQueue.offer(boosted)
+    }
+
+    private fun applyCleanGainAndLimiter(input: ByteArray, gain: Float): ByteArray {
+        val numSamples = input.size / 2
+        val output = ByteArray(input.size)
+        for (i in 0 until numSamples) {
+            val low = input[i * 2].toInt() and 0xFF
+            val high = input[i * 2 + 1].toInt()
+            val sample = ((high shl 8) or low).toShort().toFloat()
+            val amplified = (sample * gain).coerceIn(-32767f, 32767f).toInt()
+            output[i * 2] = (amplified and 0xFF).toByte()
+            output[i * 2 + 1] = ((amplified shr 8) and 0xFF).toByte()
+        }
+        return output
     }
 
     private fun resamplePcm16(input: ByteArray, fromRate: Int, toRate: Int): ByteArray {
@@ -145,18 +213,24 @@ class AndroidAudioEngine(private val context: Context) {
 
     fun stopVoice() {
         isRecording.set(false)
-        recordingThread?.join(500)
+        recordingThread?.join(300)
         recordingThread = null
+
+        isPlaying.set(false)
+        playbackThread?.interrupt()
+        playbackThread?.join(300)
+        playbackThread = null
+        playbackQueue.clear()
 
         echoCanceler?.release()
         noiseSuppressor?.release()
 
-        audioRecord?.stop()
-        audioRecord?.release()
+        try { audioRecord?.stop() } catch(e: Exception){}
+        try { audioRecord?.release() } catch(e: Exception){}
         audioRecord = null
 
-        audioTrack?.stop()
-        audioTrack?.release()
+        try { audioTrack?.stop() } catch(e: Exception){}
+        try { audioTrack?.release() } catch(e: Exception){}
         audioTrack = null
     }
 

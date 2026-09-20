@@ -965,7 +965,7 @@
 
       const now = audioCtx.currentTime;
       if (nextPlayTime < now) {
-        nextPlayTime = now + 0.02; // Small 20ms lead-in jitter buffer
+        nextPlayTime = now + 0.035; // 35ms adaptive lead-in jitter buffer for seamless HD voice
       }
       source.start(nextPlayTime);
       nextPlayTime += audioBuffer.duration;

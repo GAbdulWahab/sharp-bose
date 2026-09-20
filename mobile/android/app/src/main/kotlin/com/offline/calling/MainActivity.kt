@@ -3,18 +3,21 @@ package com.offline.calling
 import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Dialog
+import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
+import android.view.Gravity
 import android.view.MotionEvent
+import android.view.View
 import android.view.Window
-import android.widget.Button
-import android.widget.TextView
-import android.widget.Toast
+import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.cardview.widget.CardView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.offline.calling.audio.AndroidAudioEngine
@@ -34,39 +37,109 @@ class MainActivity : AppCompatActivity() {
     private var isPttTransmitting = false
     private val localPeerId = "node-" + UUID.randomUUID().toString().substring(0, 8)
 
+    // UI Elements
+    private lateinit var mainScrollView: ScrollView
+    private lateinit var tvAppTitle: TextView
+    private lateinit var tvAppSubtitle: TextView
+    private lateinit var btnThemeToggle: Button
     private lateinit var tvStatus: TextView
     private lateinit var tvPeerId: TextView
+    private lateinit var tvMeshStats: TextView
     private lateinit var tvLogs: TextView
+    private lateinit var tvLogsHeader: TextView
     private lateinit var tvPttChannel: TextView
     private lateinit var btnCall: Button
     private lateinit var btnReceiveCall: Button
     private lateinit var btnSpeaker: Button
     private lateinit var btnSos: Button
     private lateinit var btnPtt: Button
+    private lateinit var btnOpenChat: Button
+
+    // Cards for theme updates
+    private lateinit var cardStatus: CardView
+    private lateinit var cardChat: CardView
+    private lateinit var cardReceiveCall: CardView
+    private lateinit var cardPtt: CardView
+    private lateinit var cardCall: CardView
+    private lateinit var cardSos: CardView
+
+    // Chat
+    private var isDarkMode = true
+    private lateinit var prefs: SharedPreferences
+    private val chatMessageList = mutableListOf<Pair<String, String>>() // (sender, text)
+    private var activeChatMessagesContainer: LinearLayout? = null
+    private var activeChatScrollView: ScrollView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        prefs = getSharedPreferences("offline_mesh_prefs", Context.MODE_PRIVATE)
+        isDarkMode = prefs.getBoolean("is_dark_mode", true)
+
         audioEngine = AndroidAudioEngine(this)
         audioEngine.setSpeakerphoneOn(true)
 
+        bindViews()
+        applyTheme(isDarkMode)
+        checkAndRequestPermissions()
+        startMeshService()
+        setupUIListeners()
+        setupMeshBridge()
+    }
+
+    private fun bindViews() {
+        mainScrollView = findViewById(R.id.mainScrollView)
+        tvAppTitle = findViewById(R.id.tvAppTitle)
+        tvAppSubtitle = findViewById(R.id.tvAppSubtitle)
+        btnThemeToggle = findViewById(R.id.btnThemeToggle)
         tvStatus = findViewById(R.id.tvStatus)
         tvPeerId = findViewById(R.id.tvPeerId)
+        tvMeshStats = findViewById(R.id.tvMeshStats)
         tvLogs = findViewById(R.id.tvLogs)
+        tvLogsHeader = findViewById(R.id.tvLogsHeader)
         tvPttChannel = findViewById(R.id.tvPttChannel)
         btnCall = findViewById(R.id.btnCall)
         btnReceiveCall = findViewById(R.id.btnReceiveCall)
         btnSpeaker = findViewById(R.id.btnSpeaker)
         btnSos = findViewById(R.id.btnSos)
         btnPtt = findViewById(R.id.btnPtt)
+        btnOpenChat = findViewById(R.id.btnOpenChat)
+
+        cardStatus = findViewById(R.id.cardStatus)
+        cardChat = findViewById(R.id.cardChat)
+        cardReceiveCall = findViewById(R.id.cardReceiveCall)
+        cardPtt = findViewById(R.id.cardPtt)
+        cardCall = findViewById(R.id.cardCall)
+        cardSos = findViewById(R.id.cardSos)
 
         tvPeerId.text = "Local Peer ID: $localPeerId • Noise_XX E2EE"
+    }
 
-        checkAndRequestPermissions()
-        startMeshService()
-        setupUIListeners()
-        setupMeshBridge()
+    private fun applyTheme(dark: Boolean) {
+        isDarkMode = dark
+        prefs.edit().putBoolean("is_dark_mode", dark).apply()
+
+        val bgMain = if (dark) Color.parseColor("#0B0F19") else Color.parseColor("#F1F5F9")
+        val bgCard = if (dark) Color.parseColor("#1E293B") else Color.parseColor("#FFFFFF")
+        val textPrimary = if (dark) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A")
+        val textSecondary = if (dark) Color.parseColor("#94A3B8") else Color.parseColor("#64748B")
+        val logBg = if (dark) Color.parseColor("#020617") else Color.parseColor("#E2E8F0")
+
+        mainScrollView.setBackgroundColor(bgMain)
+        tvAppTitle.setTextColor(textPrimary)
+        tvAppSubtitle.setTextColor(textSecondary)
+        tvLogsHeader.setTextColor(textPrimary)
+        tvLogs.setBackgroundColor(logBg)
+
+        btnThemeToggle.text = if (dark) "🌙 Dark" else "☀️ Light"
+        btnThemeToggle.backgroundTintList = android.content.res.ColorStateList.valueOf(bgCard)
+        btnThemeToggle.setTextColor(if (dark) Color.parseColor("#38BDF8") else Color.parseColor("#0284C7"))
+
+        val cards = listOf(cardStatus, cardChat, cardReceiveCall, cardPtt, cardCall, cardSos)
+        for (card in cards) {
+            card.setCardBackgroundColor(bgCard)
+        }
     }
 
     private fun setupMeshBridge() {
@@ -83,7 +156,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         bridge.onAudioFrameReceived = { frame ->
-            // Play inbound live audio frame from Web app/Laptop immediately on speaker
+            // Route inbound audio to asynchronous high-priority ring buffer
             audioEngine.playAudioFrame(frame)
         }
 
@@ -123,13 +196,35 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        bridge.onChatMessageReceived = { senderName, text ->
+            runOnUiThread {
+                chatMessageList.add(Pair(senderName, text))
+                logEvent("[Chat] 💬 $senderName: $text")
+
+                // If chat dialog is open, append bubble dynamically
+                if (activeChatMessagesContainer != null) {
+                    appendChatBubble(activeChatMessagesContainer!!, activeChatScrollView, senderName, text, false)
+                } else {
+                    Toast.makeText(this, "💬 $senderName: $text", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
         bridge.connect()
     }
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupUIListeners() {
+        btnThemeToggle.setOnClickListener {
+            applyTheme(!isDarkMode)
+        }
+
         tvStatus.setOnClickListener {
             showIpSettingsDialog()
+        }
+
+        btnOpenChat.setOnClickListener {
+            showChatDialog()
         }
 
         btnCall.setOnClickListener {
@@ -170,8 +265,122 @@ class MainActivity : AppCompatActivity() {
         }
 
         audioEngine.onAudioFrameCaptured = { frame ->
-            // Stream captured voice frames directly to Web App / Laptop
             bridge.sendAudioFrame(frame)
+        }
+    }
+
+    private fun showChatDialog() {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_chat)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.92).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val chatRoot = dialog.findViewById<LinearLayout>(R.id.chatDialogRoot)
+        val tvHeader = dialog.findViewById<TextView>(R.id.tvChatHeaderTitle)
+        val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseChat)
+        val msgContainer = dialog.findViewById<LinearLayout>(R.id.chatMessagesContainer)
+        val scrollView = dialog.findViewById<ScrollView>(R.id.chatScrollView)
+        val etInput = dialog.findViewById<EditText>(R.id.etChatMessage)
+        val btnSend = dialog.findViewById<Button>(R.id.btnSendChatMessage)
+
+        activeChatMessagesContainer = msgContainer
+        activeChatScrollView = scrollView
+
+        // Apply theme to dialog
+        if (isDarkMode) {
+            chatRoot.setBackgroundResource(R.drawable.dialog_background)
+            tvHeader.setTextColor(Color.parseColor("#F8FAFC"))
+            etInput.setBackgroundColor(Color.parseColor("#1E293B"))
+            etInput.setTextColor(Color.parseColor("#F8FAFC"))
+        } else {
+            chatRoot.setBackgroundColor(Color.parseColor("#FFFFFF"))
+            tvHeader.setTextColor(Color.parseColor("#0F172A"))
+            etInput.setBackgroundColor(Color.parseColor("#F1F5F9"))
+            etInput.setTextColor(Color.parseColor("#0F172A"))
+        }
+
+        // Populate existing history
+        for ((sender, text) in chatMessageList) {
+            val isMe = sender == "You" || sender == "Android Phone"
+            appendChatBubble(msgContainer, scrollView, sender, text, isMe)
+        }
+
+        btnSend.setOnClickListener {
+            val text = etInput.text.toString().trim()
+            if (text.isNotEmpty()) {
+                bridge.sendChatMessage(text, "Android Phone")
+                chatMessageList.add(Pair("You", text))
+                appendChatBubble(msgContainer, scrollView, "You", text, true)
+                logEvent("[Chat Sent] $text")
+                etInput.setText("")
+            }
+        }
+
+        btnClose.setOnClickListener {
+            dialog.dismiss()
+        }
+
+        dialog.setOnDismissListener {
+            activeChatMessagesContainer = null
+            activeChatScrollView = null
+        }
+
+        dialog.show()
+    }
+
+    private fun appendChatBubble(
+        container: LinearLayout,
+        scrollView: ScrollView?,
+        sender: String,
+        text: String,
+        isMe: Boolean
+    ) {
+        val bubbleLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val params = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = if (isMe) Gravity.END else Gravity.START
+                setMargins(4, 6, 4, 6)
+            }
+            layoutParams = params
+            setPadding(28, 18, 28, 18)
+
+            if (isMe) {
+                background = ContextCompat.getDrawable(this@MainActivity, R.drawable.ic_launcher_background)?.apply {
+                    setTint(Color.parseColor("#0284C7"))
+                }
+            } else {
+                background = ContextCompat.getDrawable(this@MainActivity, R.drawable.ic_launcher_background)?.apply {
+                    setTint(if (isDarkMode) Color.parseColor("#1E293B") else Color.parseColor("#E2E8F0"))
+                }
+            }
+        }
+
+        val tvSender = TextView(this).apply {
+            this.text = sender
+            textSize = 10f
+            setTextColor(if (isMe) Color.parseColor("#BAE6FD") else Color.parseColor("#38BDF8"))
+            setTypeface(null, android.graphics.Typeface.BOLD)
+        }
+
+        val tvText = TextView(this).apply {
+            this.text = text
+            textSize = 13f
+            setTextColor(if (isMe) Color.WHITE else if (isDarkMode) Color.WHITE else Color.BLACK)
+        }
+
+        bubbleLayout.addView(tvSender)
+        bubbleLayout.addView(tvText)
+        container.addView(bubbleLayout)
+
+        scrollView?.post {
+            scrollView.fullScroll(View.FOCUS_DOWN)
         }
     }
 
@@ -179,21 +388,21 @@ class MainActivity : AppCompatActivity() {
         val builder = androidx.appcompat.app.AlertDialog.Builder(this)
         builder.setTitle("Connect to Laptop Mesh")
 
-        val layout = android.widget.LinearLayout(this).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             setPadding(48, 24, 48, 24)
         }
 
         val tvHint = TextView(this).apply {
             text = "Enter Laptop IP (e.g. 10.73.88.166 or Hotspot IP):"
-            setTextColor(Color.LTGRAY)
+            setTextColor(if (isDarkMode) Color.LTGRAY else Color.DKGRAY)
             textSize = 13f
         }
         layout.addView(tvHint)
 
-        val input = android.widget.EditText(this).apply {
+        val input = EditText(this).apply {
             setText(bridge.currentHost)
-            setTextColor(Color.WHITE)
+            setTextColor(if (isDarkMode) Color.WHITE else Color.BLACK)
             textSize = 16f
         }
         layout.addView(input)
@@ -221,9 +430,6 @@ class MainActivity : AppCompatActivity() {
         builder.show()
     }
 
-    /**
-     * Displays a full-featured incoming call popup modal with Accept/Decline actions
-     */
     private fun showIncomingCallDialog(callerName: String, callerId: String) {
         val dialog = Dialog(this)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)

@@ -1,39 +1,70 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/mainScrollView"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/background_dark"
     android:fillViewport="true">
 
     <LinearLayout
+        android:id="@+id/mainContentContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:padding="20dp">
 
-        <!-- Header -->
-        <TextView
-            android:layout_width="wrap_content"
+        <!-- Header with Theme Toggle -->
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Offline Mesh Calling"
-            android:textColor="@color/text_primary"
-            android:textSize="26sp"
-            android:textStyle="bold" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:text="P2P Voice, Walkie-Talkie &amp; Mesh Comm • No Internet"
-            android:textColor="@color/text_secondary"
-            android:textSize="14sp" />
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvAppTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Offline Mesh Calling"
+                    android:textColor="@color/text_primary"
+                    android:textSize="24sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvAppSubtitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="P2P Voice, Chat &amp; Mesh Comm • No Internet"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnThemeToggle"
+                android:layout_width="wrap_content"
+                android:layout_height="42dp"
+                android:backgroundTint="@color/card_bg"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:text="🌙 Dark"
+                android:textColor="@color/accent_cyan"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <!-- Status Card -->
         <androidx.cardview.widget.CardView
+            android:id="@+id/cardStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
+            android:layout_marginTop="16dp"
             app:cardBackgroundColor="@color/card_bg"
             app:cardCornerRadius="16dp"
             app:cardElevation="4dp">
@@ -73,24 +104,25 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
+                    android:fontFamily="monospace"
                     android:text="Local Peer ID: node-7f39a4... (E2EE Noise_XX)"
                     android:textColor="@color/text_secondary"
-                    android:textSize="12sp"
-                    android:fontFamily="monospace" />
+                    android:textSize="12sp" />
 
                 <TextView
                     android:id="@+id/tvMeshStats"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Active Peers: 3 nearby | Max Hops: 5 | Encrypted"
+                    android:text="Active Peers: Direct Local Link | E2EE Encrypted"
                     android:textColor="@color/accent_cyan"
                     android:textSize="12sp" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Receive Call Option Card -->
+        <!-- Offline Mesh Messaging (Chat) Card -->
         <androidx.cardview.widget.CardView
+            android:id="@+id/cardChat"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -105,6 +137,53 @@
                 android:padding="16dp">
 
                 <TextView
+                    android:id="@+id/tvChatTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="💬 Offline Mesh Messages"
+                    android:textColor="#38BDF8"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvChatSubtitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="Send instant offline text messages to Laptop &amp; nearby mesh peers without Internet or SIM."
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <Button
+                    android:id="@+id/btnOpenChat"
+                    android:layout_width="match_parent"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="12dp"
+                    android:backgroundTint="#0284C7"
+                    android:text="💬 OPEN OFFLINE CHAT (MESSAGES)"
+                    android:textColor="#FFFFFF"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
+        <!-- Receive Call Option Card -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardReceiveCall"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            app:cardBackgroundColor="@color/card_bg"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:id="@+id/tvReceiveCallTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Receive Incoming Call"
@@ -113,10 +192,11 @@
                     android:textStyle="bold" />
 
                 <TextView
+                    android:id="@+id/tvReceiveCallSubtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="Simulates an incoming encrypted mesh call from another phone or laptop with Accept/Decline dialog."
+                    android:text="Displays incoming encrypted mesh call from Laptop with Accept &amp; Decline dialog."
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
 
@@ -134,6 +214,7 @@
 
         <!-- Walkie-Talkie Push-To-Talk Card -->
         <androidx.cardview.widget.CardView
+            android:id="@+id/cardPtt"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -148,6 +229,7 @@
                 android:padding="16dp">
 
                 <TextView
+                    android:id="@+id/tvPttTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Walkie-Talkie (PTT Intercom)"
@@ -178,6 +260,7 @@
 
         <!-- Voice Call Card -->
         <androidx.cardview.widget.CardView
+            android:id="@+id/cardCall"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -192,6 +275,7 @@
                 android:padding="16dp">
 
                 <TextView
+                    android:id="@+id/tvCallTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Real-Time Full-Duplex Call"
@@ -204,7 +288,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
-                    android:text="16kHz PCM • Hardware AEC/NS • Latency ~22ms"
+                    android:text="16kHz PCM • Hardware AEC/NS • HD Clarity"
                     android:textColor="@color/text_secondary"
                     android:textSize="12sp" />
 
@@ -238,6 +322,7 @@
 
         <!-- Emergency SOS Card -->
         <androidx.cardview.widget.CardView
+            android:id="@+id/cardSos"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
@@ -252,6 +337,7 @@
                 android:padding="16dp">
 
                 <TextView
+                    android:id="@+id/tvSosTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Emergency Broadcast"
@@ -260,6 +346,7 @@
                     android:textStyle="bold" />
 
                 <TextView
+                    android:id="@+id/tvSosSubtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
@@ -281,6 +368,7 @@
 
         <!-- Live Network Activity Log -->
         <TextView
+            android:id="@+id/tvLogsHeader"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"

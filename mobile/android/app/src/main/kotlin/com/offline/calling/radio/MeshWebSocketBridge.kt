@@ -22,6 +22,7 @@ class MeshWebSocketBridge {
     var onCallEnded: (() -> Unit)? = null
     var onPttStarted: ((speakerName: String) -> Unit)? = null
     var onPttStopped: (() -> Unit)? = null
+    var onChatMessageReceived: ((senderName: String, text: String) -> Unit)? = null
     var onStatusChanged: ((status: String, isConnected: Boolean) -> Unit)? = null
 
     var currentHost: String = "10.73.88.166"
@@ -75,6 +76,13 @@ class MeshWebSocketBridge {
                         "PTT_STOP" -> {
                             onPttStopped?.invoke()
                         }
+                        "CHAT_MSG" -> {
+                            val senderName = json.optString("senderName", "Laptop Web")
+                            val text = json.optString("text", "")
+                            if (text.isNotEmpty()) {
+                                onChatMessageReceived?.invoke(senderName, text)
+                            }
+                        }
                     }
                 } catch (e: Exception) {
                     Log.e("MeshBridge", "Error parsing message: ${e.message}")
@@ -106,6 +114,14 @@ class MeshWebSocketBridge {
         if (isConnected && webSocket != null) {
             webSocket?.send(frame.toByteString())
         }
+    }
+
+    fun sendChatMessage(text: String, senderName: String = "Android Phone") {
+        sendJson(JSONObject().apply {
+            put("type", "CHAT_MSG")
+            put("text", text)
+            put("senderName", senderName)
+        })
     }
 
     fun sendCallInvite() {
