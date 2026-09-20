@@ -24,18 +24,27 @@ class MeshWebSocketBridge {
     var onPttStopped: (() -> Unit)? = null
     var onStatusChanged: ((status: String, isConnected: Boolean) -> Unit)? = null
 
-    fun connect() {
-        // Try localhost first (for USB adb reverse), fallback to local Wi-Fi IP
-        connectToUrl("ws://127.0.0.1:3000")
+    var currentHost: String = "10.73.88.166"
+        private set
+
+    fun connect(host: String? = null) {
+        if (host != null && host.isNotEmpty()) {
+            currentHost = host
+            connectToUrl("ws://$host:3000")
+            return
+        }
+        // Try Wi-Fi IP first, then localhost (USB adb reverse), then Hotspot defaults
+        connectToUrl("ws://$currentHost:3000")
     }
 
     private fun connectToUrl(url: String) {
+        webSocket?.close(1000, "Reconnecting")
         val request = Request.Builder().url(url).build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
                 isConnected = true
                 Log.d("MeshBridge", "Connected to Live Mesh Web Bridge at $url")
-                onStatusChanged?.invoke("● Connected to Laptop Mesh Bridge", true)
+                onStatusChanged?.invoke("● Connected to Laptop Mesh Bridge ($currentHost)", true)
             }
 
             override fun onMessage(ws: WebSocket, bytes: ByteString) {
@@ -75,11 +84,14 @@ class MeshWebSocketBridge {
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 isConnected = false
                 Log.w("MeshBridge", "WebSocket failure on $url: ${t.message}")
-                if (url.contains("127.0.0.1")) {
-                    // Try Wi-Fi IP fallback
-                    connectToUrl("ws://10.73.88.166:3000")
+                if (url.contains("10.73.88.166")) {
+                    currentHost = "127.0.0.1"
+                    connectToUrl("ws://127.0.0.1:3000")
+                } else if (url.contains("127.0.0.1")) {
+                    currentHost = "192.168.43.1"
+                    connectToUrl("ws://192.168.43.1:3000")
                 } else {
-                    onStatusChanged?.invoke("○ Standby (Reconnecting to Laptop...)", false)
+                    onStatusChanged?.invoke("○ Standby (Tap here to set Laptop IP)", false)
                 }
             }
 

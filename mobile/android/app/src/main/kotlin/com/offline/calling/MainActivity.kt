@@ -128,6 +128,10 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupUIListeners() {
+        tvStatus.setOnClickListener {
+            showIpSettingsDialog()
+        }
+
         btnCall.setOnClickListener {
             if (!isCalling) {
                 startVoiceCall()
@@ -169,6 +173,52 @@ class MainActivity : AppCompatActivity() {
             // Stream captured voice frames directly to Web App / Laptop
             bridge.sendAudioFrame(frame)
         }
+    }
+
+    private fun showIpSettingsDialog() {
+        val builder = androidx.appcompat.app.AlertDialog.Builder(this)
+        builder.setTitle("Connect to Laptop Mesh")
+
+        val layout = android.widget.LinearLayout(this).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(48, 24, 48, 24)
+        }
+
+        val tvHint = TextView(this).apply {
+            text = "Enter Laptop IP (e.g. 10.73.88.166 or Hotspot IP):"
+            setTextColor(Color.LTGRAY)
+            textSize = 13f
+        }
+        layout.addView(tvHint)
+
+        val input = android.widget.EditText(this).apply {
+            setText(bridge.currentHost)
+            setTextColor(Color.WHITE)
+            textSize = 16f
+        }
+        layout.addView(input)
+
+        builder.setView(layout)
+
+        builder.setPositiveButton("Connect") { dialog, _ ->
+            val host = input.text.toString().trim()
+            if (host.isNotEmpty()) {
+                bridge.connect(host)
+                logEvent("[Bridge] Connecting to Laptop at $host...")
+            }
+            dialog.dismiss()
+        }
+
+        builder.setNeutralButton("Auto-Detect") { dialog, _ ->
+            bridge.connect()
+            dialog.dismiss()
+        }
+
+        builder.setNegativeButton("Cancel") { dialog, _ ->
+            dialog.dismiss()
+        }
+
+        builder.show()
     }
 
     /**
