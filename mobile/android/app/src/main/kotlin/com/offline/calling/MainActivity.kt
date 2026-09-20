@@ -834,8 +834,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         dialog.setCancelable(false)
 
-        val tvCallerName = dialog.findViewById<TextView>(R.id.tvCallerName)
-        val tvCallerId = dialog.findViewById<TextView>(R.id.tvCallerId)
+        val tvCallerName = dialog.findViewById<TextView>(R.id.tvIncomingCallerName)
+        val tvCallerId = dialog.findViewById<TextView>(R.id.tvIncomingRoute)
         val btnAccept = dialog.findViewById<Button>(R.id.btnAcceptCall)
         val btnDecline = dialog.findViewById<Button>(R.id.btnDeclineCall)
 
