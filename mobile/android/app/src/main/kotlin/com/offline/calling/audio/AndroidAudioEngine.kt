@@ -1,5 +1,6 @@
 package com.offline.calling.audio
 
+import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
@@ -8,15 +9,14 @@ import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.NoiseSuppressor
-import android.content.Context
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Android Low-Latency Real-Time Audio Engine.
- * Uses VOICE_COMMUNICATION audio attributes for hardware Acoustic Echo Cancellation (AEC) and Noise Suppression.
+ * Supports full-duplex AEC/NS recording and AudioTrack PCM playback.
  */
 class AndroidAudioEngine(private val context: Context) {
-    private val sampleRate = 16000
+    val sampleRate = 16000
     private val channelConfigIn = AudioFormat.CHANNEL_IN_MONO
     private val channelConfigOut = AudioFormat.CHANNEL_OUT_MONO
     private val audioFormat = AudioFormat.ENCODING_PCM_16BIT
@@ -32,17 +32,20 @@ class AndroidAudioEngine(private val context: Context) {
     var onAudioFrameCaptured: ((ByteArray) -> Unit)? = null
 
     fun startVoice() {
-        val bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfigIn, audioFormat)
+        if (isRecording.get()) return
 
+        startPlaybackOnly()
+
+        val inBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfigIn, audioFormat)
         audioRecord = AudioRecord(
             MediaRecorder.AudioSource.VOICE_COMMUNICATION,
             sampleRate,
             channelConfigIn,
             audioFormat,
-            bufferSize * 2
+            inBufferSize * 2
         )
 
-        val audioSessionId = audioRecord!!.audioSessionId
+        val audioSessionId = audioRecord?.audioSessionId ?: 0
         if (AcousticEchoCanceler.isAvailable()) {
             echoCanceler = AcousticEchoCanceler.create(audioSessionId)?.apply {
                 enabled = true
@@ -55,11 +58,11 @@ class AndroidAudioEngine(private val context: Context) {
             }
         }
 
-        audioRecord!!.startRecording()
+        audioRecord?.startRecording()
         isRecording.set(true)
 
         recordingThread = Thread {
-            val audioBuffer = ByteArray(640) // 20ms @ 16kHz 16-bit Mono (320 samples * 2 bytes)
+            val audioBuffer = ByteArray(640) // 20ms @ 16kHz
             while (isRecording.get()) {
                 val readBytes = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
                 if (readBytes > 0) {
@@ -69,9 +72,39 @@ class AndroidAudioEngine(private val context: Context) {
         }.apply { start() }
     }
 
+    fun startPlaybackOnly() {
+        if (audioTrack != null) return
+        val outBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfigOut, audioFormat)
+        audioTrack = AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                    .build()
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setEncoding(audioFormat)
+                    .setSampleRate(sampleRate)
+                    .setChannelMask(channelConfigOut)
+                    .build()
+            )
+            .setBufferSizeInBytes(outBufferSize * 2)
+            .setTransferMode(AudioTrack.MODE_STREAM)
+            .build()
+        audioTrack?.play()
+    }
+
+    fun playAudioFrame(frame: ByteArray) {
+        if (audioTrack == null) {
+            startPlaybackOnly()
+        }
+        audioTrack?.write(frame, 0, frame.size)
+    }
+
     fun stopVoice() {
         isRecording.set(false)
-        recordingThread?.join()
+        recordingThread?.join(500)
         recordingThread = null
 
         echoCanceler?.release()
@@ -80,6 +113,10 @@ class AndroidAudioEngine(private val context: Context) {
         audioRecord?.stop()
         audioRecord?.release()
         audioRecord = null
+
+        audioTrack?.stop()
+        audioTrack?.release()
+        audioTrack = null
     }
 
     fun setSpeakerphoneOn(enabled: Boolean) {
