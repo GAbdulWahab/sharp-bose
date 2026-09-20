@@ -14,6 +14,7 @@ import android.os.Bundle
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.Window
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -156,7 +157,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         bridge.onAudioFrameReceived = { frame ->
-            // Route inbound audio to asynchronous high-priority ring buffer
             audioEngine.playAudioFrame(frame)
         }
 
@@ -201,7 +201,6 @@ class MainActivity : AppCompatActivity() {
                 chatMessageList.add(Pair(senderName, text))
                 logEvent("[Chat] 💬 $senderName: $text")
 
-                // If chat dialog is open, append bubble dynamically
                 if (activeChatMessagesContainer != null) {
                     appendChatBubble(activeChatMessagesContainer!!, activeChatScrollView, senderName, text, false)
                 } else {
@@ -290,7 +289,6 @@ class MainActivity : AppCompatActivity() {
         activeChatMessagesContainer = msgContainer
         activeChatScrollView = scrollView
 
-        // Apply theme to dialog
         if (isDarkMode) {
             chatRoot.setBackgroundResource(R.drawable.dialog_background)
             tvHeader.setTextColor(Color.parseColor("#F8FAFC"))
@@ -303,7 +301,6 @@ class MainActivity : AppCompatActivity() {
             etInput.setTextColor(Color.parseColor("#0F172A"))
         }
 
-        // Populate existing history
         for ((sender, text) in chatMessageList) {
             val isMe = sender == "You" || sender == "Android Phone"
             appendChatBubble(msgContainer, scrollView, sender, text, isMe)
