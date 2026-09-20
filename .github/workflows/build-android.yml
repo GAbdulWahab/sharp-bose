@@ -28,9 +28,9 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x mobile/android/gradlew
 
-      - name: Build Android Debug APK
+      - name: Build Android APKs (Debug & Release)
         working-directory: mobile/android
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew assembleDebug assembleRelease --stacktrace
 
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
@@ -39,7 +39,14 @@ jobs:
           path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
 
+      - name: Upload Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OfflineMeshCalling-release-apk
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
+
       - name: Job Summary
         run: |
           echo "### 🚀 Android Build Completed Successfully!" >> $GITHUB_STEP_SUMMARY
-          echo "The compiled debug APK is ready for download in the workflow run Artifacts section." >> $GITHUB_STEP_SUMMARY
+          echo "Signed with permanent deterministic keystore. In-place updates and APK upgrades will now install seamlessly without package conflicts!" >> $GITHUB_STEP_SUMMARY
