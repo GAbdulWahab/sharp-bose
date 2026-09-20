@@ -47,6 +47,9 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
     val crypto = MeshCryptoEngine.instance
     val router = MeshRouter(localNodeId)
 
+    val embeddedServer = AndroidMeshServer(3000, localNodeId, "Android Phone")
+    val udpBeacon = UdpMeshBeacon(localNodeId, "Android Phone", 3000)
+
     private var webSocket: WebSocket? = null
     var isConnected = false
         private set
@@ -71,6 +74,21 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
         }
         router.onRouteDiscovered = { nodeId, hopCount, relayPath ->
             onRouteDiscovered?.invoke(nodeId, hopCount, relayPath)
+        }
+
+        // Start local P2P Mesh Server & UDP Discovery Beacon
+        try {
+            embeddedServer.start()
+            udpBeacon.start()
+        } catch (e: Exception) {
+            Log.w("MeshBridge", "P2P startup notice: ${e.message}")
+        }
+
+        udpBeacon.onPeerDiscovered = { peerIp, peerId, peerName, port ->
+            if (!isConnected) {
+                Log.d("MeshBridge", "UDP Beacon detected live peer $peerName at $peerIp:$port, connecting...")
+                connectDirect(peerIp)
+            }
         }
     }
 
@@ -470,5 +488,9 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
         webSocket?.close(1000, "App closing")
         webSocket = null
         isConnected = false
+        try {
+            embeddedServer.stop()
+            udpBeacon.stop()
+        } catch (e: Exception) {}
     }
 }

@@ -201,6 +201,33 @@ if (wssHttps) {
 }
 
 const os = require('os');
+const dgram = require('dgram');
+
+try {
+  const udpServer = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+  udpServer.on('message', (msg, rinfo) => {
+    try {
+      const data = JSON.parse(msg.toString());
+      if (data.type === 'MESH_BEACON') {
+        const reply = Buffer.from(JSON.stringify({
+          type: 'MESH_BEACON',
+          id: 'node-laptop-server',
+          name: 'Laptop Mesh Core',
+          port: HTTP_PORT,
+          timestamp: Date.now()
+        }));
+        udpServer.send(reply, 8988, rinfo.address);
+      }
+    } catch (e) {}
+  });
+
+  udpServer.bind(8988, () => {
+    try { udpServer.setBroadcast(true); } catch (e) {}
+    console.log(`📡 UDP Auto-Discovery Beacon active on port 8988`);
+  });
+} catch (e) {
+  console.warn('UDP Discovery note:', e.message);
+}
 
 httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
   const interfaces = os.networkInterfaces();
