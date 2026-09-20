@@ -2,11 +2,15 @@ package com.offline.calling
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Dialog
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import android.view.MotionEvent
+import android.view.Window
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
@@ -33,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvLogs: TextView
     private lateinit var tvPttChannel: TextView
     private lateinit var btnCall: Button
+    private lateinit var btnReceiveCall: Button
     private lateinit var btnSpeaker: Button
     private lateinit var btnSos: Button
     private lateinit var btnPtt: Button
@@ -48,6 +53,7 @@ class MainActivity : AppCompatActivity() {
         tvLogs = findViewById(R.id.tvLogs)
         tvPttChannel = findViewById(R.id.tvPttChannel)
         btnCall = findViewById(R.id.btnCall)
+        btnReceiveCall = findViewById(R.id.btnReceiveCall)
         btnSpeaker = findViewById(R.id.btnSpeaker)
         btnSos = findViewById(R.id.btnSos)
         btnPtt = findViewById(R.id.btnPtt)
@@ -67,6 +73,10 @@ class MainActivity : AppCompatActivity() {
             } else {
                 stopVoiceCall()
             }
+        }
+
+        btnReceiveCall.setOnClickListener {
+            showIncomingCallDialog("Laptop Mesh Node", "0x7F4A21B9")
         }
 
         btnSpeaker.setOnClickListener {
@@ -97,6 +107,42 @@ class MainActivity : AppCompatActivity() {
         audioEngine.onAudioFrameCaptured = { frame ->
             // Audio PCM frame captured for PTT or Voice Call mesh propagation
         }
+    }
+
+    /**
+     * Displays a full-featured incoming call popup modal with Accept/Decline actions
+     */
+    private fun showIncomingCallDialog(callerName: String, callerId: String) {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_incoming_call)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.setCancelable(false)
+
+        val tvCallerName = dialog.findViewById<TextView>(R.id.tvIncomingCallerName)
+        val tvAvatar = dialog.findViewById<TextView>(R.id.tvIncomingAvatar)
+        val btnAccept = dialog.findViewById<Button>(R.id.btnAcceptCall)
+        val btnDecline = dialog.findViewById<Button>(R.id.btnDeclineCall)
+
+        tvCallerName.text = callerName
+        tvAvatar.text = callerName.take(2).uppercase()
+
+        logEvent("[Incoming Call] 🔔 Incoming encrypted call from $callerName ($callerId)...")
+
+        btnAccept.setOnClickListener {
+            dialog.dismiss()
+            logEvent("[Incoming Call] 📞 Call accepted from $callerName. Initializing 16kHz PCM audio stream...")
+            startVoiceCall()
+            Toast.makeText(this, "Connected with $callerName", Toast.LENGTH_SHORT).show()
+        }
+
+        btnDecline.setOnClickListener {
+            dialog.dismiss()
+            logEvent("[Incoming Call] ✕ Call declined from $callerName")
+            Toast.makeText(this, "Call Declined", Toast.LENGTH_SHORT).show()
+        }
+
+        dialog.show()
     }
 
     private fun startPttTransmit() {
