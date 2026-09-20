@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/channelDialogRoot"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/dialog_background"
+    android:orientation="vertical"
+    android:padding="22dp">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/tvChannelHeaderTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="🇮🇳 Select Nationwide Channel"
+            android:textColor="#F59E0B"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/btnCloseChannel"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Close"
+            android:src="@android:drawable/ic_menu_close_clear_cancel" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="Connect across any city in India with zero packet loss and HD crystal clear voice."
+        android:textColor="#94A3B8"
+        android:textSize="12sp" />
+
+    <!-- City Hub Selector Quick Buttons -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:text="POPULAR ALL-INDIA HUBS"
+        android:textColor="#94A3B8"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnHubIndiaMain"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_weight="1"
+            android:backgroundTint="#0F172A"
+            android:text="🇮🇳 All-India"
+            android:textColor="#38BDF8"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/btnHubDelhi"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:backgroundTint="#0F172A"
+            android:text="🏛️ Delhi"
+            android:textColor="#38BDF8"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/btnHubMumbai"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:backgroundTint="#0F172A"
+            android:text="🌊 Mumbai"
+            android:textColor="#38BDF8"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnHubBangalore"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_weight="1"
+            android:backgroundTint="#0F172A"
+            android:text="💻 Bengaluru"
+            android:textColor="#38BDF8"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/btnHubChennai"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:backgroundTint="#0F172A"
+            android:text="🌴 Chennai"
+            android:textColor="#38BDF8"
+            android:textSize="11sp" />
+
+        <Button
+            android:id="@+id/btnHubHyderabad"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:backgroundTint="#0F172A"
+            android:text="🏰 Hyderabad"
+            android:textColor="#38BDF8"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <!-- Custom Channel Name -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:text="CUSTOM PRIVATE CHANNEL / ROOM KEY"
+        android:textColor="#94A3B8"
+        android:textSize="11sp"
+        android:textStyle="bold" />
+
+    <EditText
+        android:id="@+id/etCustomChannel"
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:layout_marginTop="6dp"
+        android:background="#0F172A"
+        android:hint="e.g. TACTICAL-INDIA-1"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:textColor="#F8FAFC"
+        android:textColorHint="#64748B"
+        android:textSize="13sp" />
+
+    <Button
+        android:id="@+id/btnJoinChannel"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginTop="16dp"
+        android:backgroundTint="#F59E0B"
+        android:text="CONNECT TO CHANNEL"
+        android:textColor="#0B0F19"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+</LinearLayout>

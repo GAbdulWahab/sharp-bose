@@ -47,6 +47,7 @@ function broadcastPeerList() {
     deviceType: c.deviceType,
     location: c.location || null,
     status: c.status || 'Online',
+    room: c.room || 'INDIA-MAIN',
     isLocal: false
   }));
 
@@ -60,12 +61,16 @@ function broadcastPeerList() {
 
 function handleWsConnection(ws, req) {
   allWebSockets.add(ws);
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+
   const isMobile = /Android|iPhone|iPad/i.test(req.headers['user-agent'] || '');
   const clientInfo = {
     id: 'node-' + Math.random().toString(36).substring(2, 7),
     nickname: isMobile ? 'Android Phone' : 'Laptop',
     deviceType: isMobile ? 'Android' : 'Laptop',
     status: 'Online',
+    room: 'INDIA-MAIN',
     location: null,
     ws: ws
   };
@@ -74,12 +79,13 @@ function handleWsConnection(ws, req) {
   console.log(`[Mesh Radio] Connected: ${clientInfo.nickname} (${clientInfo.id}) from ${req.socket.remoteAddress}`);
 
   // Send assigned client info to self
-  ws.send(JSON.stringify({ type: 'ASSIGN_ID', id: clientInfo.id, nickname: clientInfo.nickname }));
+  ws.send(JSON.stringify({ type: 'ASSIGN_ID', id: clientInfo.id, nickname: clientInfo.nickname, room: clientInfo.room }));
 
   // Notify everyone of updated peer list
   broadcastPeerList();
 
   ws.on('message', (message, isBinary) => {
+    ws.isAlive = true;
     // If binary, it's a live audio frame chunk
     if (isBinary) {
       // Forward binary audio frame to all other connected peers
@@ -94,9 +100,20 @@ function handleWsConnection(ws, req) {
     try {
       const data = JSON.parse(message.toString());
 
+      if (data.type === 'PING') {
+        if (ws.readyState === 1) {
+          ws.send(JSON.stringify({ type: 'PONG', timestamp: Date.now() }));
+        }
+        return;
+      }
+
       if (data.type === 'SET_NICKNAME') {
         clientInfo.nickname = data.nickname;
         if (data.deviceType) clientInfo.deviceType = data.deviceType;
+        if (data.room) clientInfo.room = data.room;
+        broadcastPeerList();
+      } else if (data.type === 'JOIN_ROOM') {
+        clientInfo.room = data.room || 'INDIA-MAIN';
         broadcastPeerList();
       } else if (data.type === 'LOCATION_UPDATE') {
         clientInfo.location = {
@@ -163,6 +180,20 @@ function handleWsConnection(ws, req) {
     broadcastPeerList();
   });
 }
+
+// Keepalive Heartbeat Interval (Ping every 10 seconds to prevent NAT Carrier timeouts)
+const keepAliveTimer = setInterval(() => {
+  for (const ws of allWebSockets) {
+    if (ws.isAlive === false) {
+      console.log('[Heartbeat] Terminating inactive socket');
+      allWebSockets.delete(ws);
+      clients.delete(ws);
+      return ws.terminate();
+    }
+    ws.isAlive = false;
+    ws.ping();
+  }
+}, 10000);
 
 wssHttp.on('connection', handleWsConnection);
 if (wssHttps) {

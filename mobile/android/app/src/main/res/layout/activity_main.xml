@@ -120,6 +120,86 @@
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
+        <!-- All-India Nationwide HD Network Card -->
+        <androidx.cardview.widget.CardView
+            android:id="@+id/cardNationwide"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            app:cardBackgroundColor="@color/card_bg"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="4dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/tvNationwideTitle"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="🇮🇳 All-India HD Voice Network"
+                        android:textColor="#F59E0B"
+                        android:textSize="18sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tvHdQualityBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="#064E3B"
+                        android:paddingStart="8dp"
+                        android:paddingTop="2dp"
+                        android:paddingEnd="8dp"
+                        android:paddingBottom="2dp"
+                        android:text="HD 100% • 0% Loss"
+                        android:textColor="#34D399"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/tvCurrentRoom"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:fontFamily="monospace"
+                    android:text="Channel: INDIA-MAIN (All-India Relay)"
+                    android:textColor="@color/accent_cyan"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvNationwideMeta"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="Continuous 16kHz PCM • Hardware AEC/NS/AGC • STUN NAT Traversal"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp" />
+
+                <Button
+                    android:id="@+id/btnSwitchRoom"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="12dp"
+                    android:backgroundTint="#F59E0B"
+                    android:text="🇮🇳 SWITCH NATIONWIDE CHANNEL / CITY"
+                    android:textColor="#0B0F19"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
         <!-- Connected People (Live Mesh Roster) Card -->
         <androidx.cardview.widget.CardView
             android:id="@+id/cardPeople"

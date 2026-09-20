@@ -70,6 +70,16 @@ class AndroidAudioEngine(private val context: Context) {
             }
         }
 
+        if (android.media.audiofx.AutomaticGainControl.isAvailable()) {
+            try {
+                android.media.audiofx.AutomaticGainControl.create(audioSessionId)?.apply {
+                    enabled = true
+                }
+            } catch (e: Exception) {
+                Log.d("AudioEngine", "AGC setup: ${e.message}")
+            }
+        }
+
         audioRecord?.startRecording()
         isRecording.set(true)
 

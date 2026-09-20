@@ -78,6 +78,15 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var btnShareLocation: Button
     private lateinit var btnRadarMap: Button
 
+    // All-India Nationwide HD Network UI
+    private lateinit var cardNationwide: CardView
+    private lateinit var tvNationwideTitle: TextView
+    private lateinit var tvHdQualityBadge: TextView
+    private lateinit var tvCurrentRoom: TextView
+    private lateinit var tvNationwideMeta: TextView
+    private lateinit var btnSwitchRoom: Button
+    private var currentRoom: String = "INDIA-MAIN"
+
     // Cards for theme updates
     private lateinit var cardStatus: CardView
     private lateinit var cardChat: CardView
@@ -162,6 +171,13 @@ class MainActivity : AppCompatActivity(), LocationListener {
         cardCall = findViewById(R.id.cardCall)
         cardSos = findViewById(R.id.cardSos)
 
+        cardNationwide = findViewById(R.id.cardNationwide)
+        tvNationwideTitle = findViewById(R.id.tvNationwideTitle)
+        tvHdQualityBadge = findViewById(R.id.tvHdQualityBadge)
+        tvCurrentRoom = findViewById(R.id.tvCurrentRoom)
+        tvNationwideMeta = findViewById(R.id.tvNationwideMeta)
+        btnSwitchRoom = findViewById(R.id.btnSwitchRoom)
+
         tvPeerId.text = "Local Peer ID: $localPeerId • Noise_XX E2EE"
     }
 
@@ -183,12 +199,13 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         tvPeopleSubtitle.setTextColor(textSecondary)
         tvLocationMeta.setTextColor(textSecondary)
+        tvNationwideMeta.setTextColor(textSecondary)
 
         btnThemeToggle.text = if (dark) "🌙 Dark" else "☀️ Light"
         btnThemeToggle.backgroundTintList = android.content.res.ColorStateList.valueOf(bgCard)
         btnThemeToggle.setTextColor(if (dark) Color.parseColor("#38BDF8") else Color.parseColor("#0284C7"))
 
-        val cards = listOf(cardStatus, cardPeople, cardLocation, cardChat, cardReceiveCall, cardPtt, cardCall, cardSos)
+        val cards = listOf(cardStatus, cardNationwide, cardPeople, cardLocation, cardChat, cardReceiveCall, cardPtt, cardCall, cardSos)
         for (card in cards) {
             card.setCardBackgroundColor(bgCard)
         }
@@ -547,6 +564,10 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
         }
 
+        btnSwitchRoom.setOnClickListener {
+            showChannelDialog()
+        }
+
         btnRadarMap.setOnClickListener {
             showRadarDialog()
         }
@@ -591,6 +612,69 @@ class MainActivity : AppCompatActivity(), LocationListener {
         audioEngine.onAudioFrameCaptured = { frame ->
             bridge.sendAudioFrame(frame)
         }
+    }
+
+    private fun showChannelDialog() {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setContentView(R.layout.dialog_channel)
+        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        dialog.window?.setLayout(
+            (resources.displayMetrics.widthPixels * 0.94).toInt(),
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+
+        val channelRoot = dialog.findViewById<LinearLayout>(R.id.channelDialogRoot)
+        val tvHeader = dialog.findViewById<TextView>(R.id.tvChannelHeaderTitle)
+        val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseChannel)
+        val btnHubIndiaMain = dialog.findViewById<Button>(R.id.btnHubIndiaMain)
+        val btnHubDelhi = dialog.findViewById<Button>(R.id.btnHubDelhi)
+        val btnHubMumbai = dialog.findViewById<Button>(R.id.btnHubMumbai)
+        val btnHubBangalore = dialog.findViewById<Button>(R.id.btnHubBangalore)
+        val btnHubChennai = dialog.findViewById<Button>(R.id.btnHubChennai)
+        val btnHubHyderabad = dialog.findViewById<Button>(R.id.btnHubHyderabad)
+        val etCustomChannel = dialog.findViewById<EditText>(R.id.etCustomChannel)
+        val btnJoinChannel = dialog.findViewById<Button>(R.id.btnJoinChannel)
+
+        if (isDarkMode) {
+            channelRoot.setBackgroundResource(R.drawable.dialog_background)
+            tvHeader.setTextColor(Color.parseColor("#F59E0B"))
+            etCustomChannel.setBackgroundColor(Color.parseColor("#0F172A"))
+            etCustomChannel.setTextColor(Color.parseColor("#F8FAFC"))
+        } else {
+            channelRoot.setBackgroundColor(Color.parseColor("#FFFFFF"))
+            tvHeader.setTextColor(Color.parseColor("#D97706"))
+            etCustomChannel.setBackgroundColor(Color.parseColor("#F1F5F9"))
+            etCustomChannel.setTextColor(Color.parseColor("#0F172A"))
+        }
+
+        val selectRoom: (String) -> Unit = { roomName ->
+            currentRoom = roomName.uppercase(Locale.ROOT).trim()
+            tvCurrentRoom.text = "🇮🇳 Channel: $currentRoom"
+            bridge.sendJoinRoom(currentRoom)
+            logEvent("[Nationwide HD] Switched to All-India Hub: $currentRoom")
+            Toast.makeText(this, "Joined Hub: $currentRoom", Toast.LENGTH_SHORT).show()
+            dialog.dismiss()
+        }
+
+        btnHubIndiaMain.setOnClickListener { selectRoom("INDIA-MAIN") }
+        btnHubDelhi.setOnClickListener { selectRoom("DELHI-HUB") }
+        btnHubMumbai.setOnClickListener { selectRoom("MUMBAI-NET") }
+        btnHubBangalore.setOnClickListener { selectRoom("BANGALORE-MESH") }
+        btnHubChennai.setOnClickListener { selectRoom("CHENNAI-RELAY") }
+        btnHubHyderabad.setOnClickListener { selectRoom("HYDERABAD-CORE") }
+
+        btnJoinChannel.setOnClickListener {
+            val custom = etCustomChannel.text.toString().trim()
+            if (custom.isNotEmpty()) {
+                selectRoom(custom)
+            } else {
+                Toast.makeText(this, "Please enter a channel name", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        btnClose.setOnClickListener { dialog.dismiss() }
+        dialog.show()
     }
 
     private fun showRadarDialog() {

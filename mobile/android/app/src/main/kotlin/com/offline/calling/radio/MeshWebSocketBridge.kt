@@ -76,6 +76,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
 
     var currentHost: String = "10.246.248.170"
         private set
+    var currentRoom: String = "INDIA-MAIN"
 
     private val isConnecting = AtomicBoolean(false)
     private var reconnectThread: Thread? = null
@@ -100,6 +101,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                 currentHost = host
                 Log.d("MeshBridge", "Connected directly to Laptop Mesh at $url")
                 onStatusChanged?.invoke("● Connected to Laptop Mesh Bridge ($currentHost)", true)
+                sendJoinRoom(currentRoom)
             }
 
             override fun onMessage(ws: WebSocket, bytes: ByteString) {
@@ -234,6 +236,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                 success.set(true)
                 Log.d("MeshBridge", "Auto-connected to Laptop Mesh at $url")
                 onStatusChanged?.invoke("● Connected to Laptop Mesh Bridge ($currentHost)", true)
+                sendJoinRoom(currentRoom)
                 latch.countDown()
             }
 
@@ -405,6 +408,13 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
             put("type", "SET_NICKNAME")
             put("nickname", nickname)
             put("deviceType", deviceType)
+        })
+    }
+
+    fun sendJoinRoom(room: String) {
+        sendJson(JSONObject().apply {
+            put("type", "JOIN_ROOM")
+            put("room", room)
         })
     }
 

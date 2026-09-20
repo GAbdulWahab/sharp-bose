@@ -295,6 +295,21 @@
         </div>
       </div>
 
+      <!-- All-India Nationwide HD Network Card -->
+      <div class="card" style="border: 1.5px solid #F59E0B; background: rgba(245, 158, 11, 0.08); padding: 12px; margin-bottom: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="font-size: 11px; font-weight: 800; color: #F59E0B; letter-spacing: 0.5px;">🇮🇳 ALL-INDIA NATIONWIDE HD NETWORK</span>
+          <span id="nationwide-quality-badge" style="font-size: 10px; background: #064E3B; color: #34D399; padding: 2px 6px; border-radius: 4px; font-weight: bold;">● 0% Loss • HD DSP</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+          <div>
+            <div id="nationwide-room-title" style="font-size: 14px; font-weight: 800; color: var(--text-main);">Hub: INDIA-MAIN</div>
+            <div id="nationwide-room-meta" style="font-size: 11px; color: var(--text-sub); margin-top: 2px;">3,500km Range • Jio/Airtel/Vi/BSNL Seamless</div>
+          </div>
+          <button class="btn-diag" style="background: #F59E0B; color: #0B0F19; border: none; font-weight: bold; font-size: 11px; padding: 6px 12px; border-radius: 8px; cursor: pointer;" onclick="openChannelModal()">Switch Hub</button>
+        </div>
+      </div>
+
       <!-- E2EE Security & Long-Distance Multi-Hop Banner -->
       <div class="card" style="background: #0F172A; border: 1px solid #1E293B; padding: 10px 14px; margin-bottom: 12px; cursor: pointer;" onclick="openSecurityModal()">
         <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -606,6 +621,35 @@
         <button class="btn-accept" style="width: 100%; height: 48px;" onclick="closeSecurityModal()">
           ✓ Verified &amp; Secure
         </button>
+      </div>
+    </div>
+
+    <!-- ALL-INDIA NATIONWIDE CHANNEL SWITCHER MODAL -->
+    <div id="channel-modal-overlay" class="incoming-modal-overlay" onclick="closeChannelModal()">
+      <div class="incoming-card" onclick="event.stopPropagation()" style="text-align: left;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <div style="font-size: 18px; font-weight: 800; color: #F59E0B;">🇮🇳 All-India Hubs</div>
+          <button class="btn-icon" onclick="closeChannelModal()">✕</button>
+        </div>
+        <div style="font-size: 12px; color: var(--text-sub); margin-bottom: 12px;">
+          Connect across any city in India with 0 interruptions &amp; HD voice.
+        </div>
+
+        <div style="font-size: 10px; font-weight: bold; color: var(--text-muted); margin-bottom: 8px;">POPULAR REGIONAL HUBS</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px;">
+          <button class="btn-diag" style="padding: 10px; text-align: left; background: #0F172A;" onclick="joinNationwideRoom('INDIA-MAIN')">🇮🇳 All-India</button>
+          <button class="btn-diag" style="padding: 10px; text-align: left; background: #0F172A;" onclick="joinNationwideRoom('DELHI-HUB')">🏛️ Delhi Hub</button>
+          <button class="btn-diag" style="padding: 10px; text-align: left; background: #0F172A;" onclick="joinNationwideRoom('MUMBAI-NET')">🌊 Mumbai Net</button>
+          <button class="btn-diag" style="padding: 10px; text-align: left; background: #0F172A;" onclick="joinNationwideRoom('BANGALORE-MESH')">💻 Bengaluru</button>
+          <button class="btn-diag" style="padding: 10px; text-align: left; background: #0F172A;" onclick="joinNationwideRoom('CHENNAI-RELAY')">🌴 Chennai Relay</button>
+          <button class="btn-diag" style="padding: 10px; text-align: left; background: #0F172A;" onclick="joinNationwideRoom('HYDERABAD-CORE')">🏰 Hyderabad</button>
+        </div>
+
+        <div style="font-size: 10px; font-weight: bold; color: var(--text-muted); margin-bottom: 6px;">CUSTOM PRIVATE ROOM KEY</div>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="custom-room-input" placeholder="e.g. TACTICAL-INDIA-1" style="flex: 1; background: #0F172A; border: 1px solid var(--card-border); border-radius: 10px; padding: 10px 12px; color: var(--text-main); font-size: 12px; outline: none;" />
+          <button class="btn-diag" style="background: #F59E0B; color: #0B0F19; font-weight: bold; padding: 10px 14px; border-radius: 10px;" onclick="joinCustomNationwideRoom()">Join</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1039,15 +1083,53 @@
       };
     }
 
+    let currentRoom = 'INDIA-MAIN';
+    let pingInterval = null;
+
+    function openChannelModal() {
+      document.getElementById('channel-modal-overlay').classList.add('active');
+    }
+
+    function closeChannelModal() {
+      document.getElementById('channel-modal-overlay').classList.remove('active');
+    }
+
+    function joinNationwideRoom(roomName) {
+      currentRoom = roomName.toUpperCase().trim();
+      document.getElementById('nationwide-room-title').innerText = `Hub: ${currentRoom}`;
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'JOIN_ROOM', room: currentRoom }));
+      }
+      closeChannelModal();
+    }
+
+    function joinCustomNationwideRoom() {
+      const val = document.getElementById('custom-room-input').value.trim();
+      if (val) {
+        joinNationwideRoom(val);
+      }
+    }
+
     // Connect WebSocket
     function initWebSocket() {
+      if (pingInterval) clearInterval(pingInterval);
       const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
       ws = new WebSocket(`${protocol}//${location.host}`);
       ws.binaryType = 'arraybuffer';
 
       ws.onopen = () => {
-        document.getElementById('ws-indicator').innerText = '● LIVE';
+        document.getElementById('ws-indicator').innerText = '● LIVE (0% Loss)';
         document.getElementById('ws-indicator').style.color = '#10B981';
+        
+        // Auto join current nationwide room
+        ws.send(JSON.stringify({ type: 'JOIN_ROOM', room: currentRoom }));
+
+        // Start Keepalive Heartbeat to prevent Carrier NAT disconnects (Jio, Airtel, Vi, BSNL)
+        pingInterval = setInterval(() => {
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'PING' }));
+          }
+        }, 5000);
       };
 
       ws.onmessage = async (event) => {
@@ -1058,12 +1140,19 @@
 
         try {
           const data = JSON.parse(event.data);
+          if (data.type === 'PONG') {
+            return; // Heartbeat acknowledged
+          }
           if (data.type === 'ASSIGN_ID') {
             myId = data.id;
             myNickname = data.nickname;
             document.getElementById('self-device-title').innerText = `You: ${myNickname}`;
             document.getElementById('self-device-id').innerText = `Node ID: ${myId} • Noise_XX`;
             document.getElementById('diag-node-id').innerText = `Node ID: ${myId}`;
+            if (data.room) {
+              currentRoom = data.room;
+              document.getElementById('nationwide-room-title').innerText = `Hub: ${currentRoom}`;
+            }
           } else if (data.type === 'PEER_LIST') {
             renderPeers(data.peers);
           } else if (data.type === 'CALL_INVITE') {
@@ -1104,9 +1193,10 @@
       };
 
       ws.onclose = () => {
-        document.getElementById('ws-indicator').innerText = '○ Reconnecting...';
-        document.getElementById('ws-indicator').style.color = '#EF4444';
-        setTimeout(initWebSocket, 2000);
+        if (pingInterval) clearInterval(pingInterval);
+        document.getElementById('ws-indicator').innerText = '○ Reconnecting (Auto)...';
+        document.getElementById('ws-indicator').style.color = '#F59E0B';
+        setTimeout(initWebSocket, 1000);
       };
     }
 
@@ -1234,7 +1324,11 @@
 
     function formatDistance(meters) {
       if (meters < 1000) return `${meters}m`;
-      return `${(meters / 1000).toFixed(1)}km`;
+      const km = meters / 1000;
+      if (km >= 100) {
+        return `${Math.round(km).toLocaleString('en-US')}km`;
+      }
+      return `${km.toFixed(1)}km`;
     }
 
     function renderRadarScreen() {
