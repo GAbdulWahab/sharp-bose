@@ -12,6 +12,22 @@ import java.net.NetworkInterface
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
+data class PeerLocation(
+    val lat: Double,
+    val lng: Double,
+    val alt: Double = 0.0,
+    val accuracy: Float = 0f,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+data class PeerNode(
+    val id: String,
+    val nickname: String,
+    val deviceType: String,
+    val status: String = "Online",
+    val location: PeerLocation? = null
+)
+
 /**
  * Intelligent Auto-Discovering Mesh WebSocket Bridge.
  * Automatically scans Bluetooth PAN, Wi-Fi, Hotspot, and USB network interfaces
@@ -35,6 +51,8 @@ class MeshWebSocketBridge {
     var onPttStopped: (() -> Unit)? = null
     var onChatMessageReceived: ((senderName: String, text: String) -> Unit)? = null
     var onStatusChanged: ((status: String, isConnected: Boolean) -> Unit)? = null
+    var onPeerListUpdated: ((List<PeerNode>) -> Unit)? = null
+    var onLocationReceived: ((senderId: String, senderName: String, location: PeerLocation) -> Unit)? = null
 
     var currentHost: String = "10.246.248.170"
         private set
@@ -280,6 +298,42 @@ class MeshWebSocketBridge {
                         onChatMessageReceived?.invoke(senderName, msgText)
                     }
                 }
+                "PEER_LIST" -> {
+                    val peersArray = json.optJSONArray("peers")
+                    if (peersArray != null) {
+                        val list = mutableListOf<PeerNode>()
+                        for (i in 0 until peersArray.length()) {
+                            val pObj = peersArray.getJSONObject(i)
+                            val id = pObj.optString("id")
+                            val nickname = pObj.optString("nickname", "Peer")
+                            val deviceType = pObj.optString("deviceType", "Device")
+                            val status = pObj.optString("status", "Online")
+                            var loc: PeerLocation? = null
+                            val locObj = pObj.optJSONObject("location")
+                            if (locObj != null) {
+                                loc = PeerLocation(
+                                    lat = locObj.optDouble("lat", 0.0),
+                                    lng = locObj.optDouble("lng", 0.0),
+                                    alt = locObj.optDouble("alt", 0.0),
+                                    accuracy = locObj.optDouble("accuracy", 0.0).toFloat(),
+                                    timestamp = locObj.optLong("timestamp", System.currentTimeMillis())
+                                )
+                            }
+                            list.add(PeerNode(id, nickname, deviceType, status, loc))
+                        }
+                        onPeerListUpdated?.invoke(list)
+                    }
+                }
+                "LOCATION_UPDATE" -> {
+                    val senderId = json.optString("senderId", "peer")
+                    val senderName = json.optString("senderName", "Peer Node")
+                    val lat = json.optDouble("latitude", 0.0)
+                    val lng = json.optDouble("longitude", 0.0)
+                    val alt = json.optDouble("altitude", 0.0)
+                    val accuracy = json.optDouble("accuracy", 0.0).toFloat()
+                    val loc = PeerLocation(lat, lng, alt, accuracy, System.currentTimeMillis())
+                    onLocationReceived?.invoke(senderId, senderName, loc)
+                }
             }
         } catch (e: Exception) {
             Log.e("MeshBridge", "Error parsing message: ${e.message}")
@@ -297,6 +351,25 @@ class MeshWebSocketBridge {
             put("type", "CHAT_MSG")
             put("text", text)
             put("senderName", senderName)
+        })
+    }
+
+    fun sendLocationUpdate(lat: Double, lng: Double, alt: Double = 0.0, accuracy: Float = 0f) {
+        sendJson(JSONObject().apply {
+            put("type", "LOCATION_UPDATE")
+            put("latitude", lat)
+            put("longitude", lng)
+            put("altitude", alt)
+            put("accuracy", accuracy.toDouble())
+            put("timestamp", System.currentTimeMillis())
+        })
+    }
+
+    fun sendSetNickname(nickname: String, deviceType: String = "Android") {
+        sendJson(JSONObject().apply {
+            put("type", "SET_NICKNAME")
+            put("nickname", nickname)
+            put("deviceType", deviceType)
         })
     }
 

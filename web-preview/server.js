@@ -45,6 +45,8 @@ function broadcastPeerList() {
     id: c.id,
     nickname: c.nickname,
     deviceType: c.deviceType,
+    location: c.location || null,
+    status: c.status || 'Online',
     isLocal: false
   }));
 
@@ -63,6 +65,8 @@ function handleWsConnection(ws, req) {
     id: 'node-' + Math.random().toString(36).substring(2, 7),
     nickname: isMobile ? 'Android Phone' : 'Laptop',
     deviceType: isMobile ? 'Android' : 'Laptop',
+    status: 'Online',
+    location: null,
     ws: ws
   };
 
@@ -92,17 +96,47 @@ function handleWsConnection(ws, req) {
 
       if (data.type === 'SET_NICKNAME') {
         clientInfo.nickname = data.nickname;
+        if (data.deviceType) clientInfo.deviceType = data.deviceType;
         broadcastPeerList();
-      } else if (data.type === 'CALL_INVITE' || data.type === 'CALL_ACCEPT' || data.type === 'CALL_DECLINE' || data.type === 'CALL_HANGUP' || data.type === 'PTT_START' || data.type === 'PTT_STOP' || data.type === 'CHAT_MSG' || data.type === 'SIGNAL_OFFER' || data.type === 'SIGNAL_ANSWER' || data.type === 'SIGNAL_CANDIDATE') {
+      } else if (data.type === 'LOCATION_UPDATE') {
+        clientInfo.location = {
+          lat: data.latitude,
+          lng: data.longitude,
+          alt: data.altitude || 0,
+          accuracy: data.accuracy || 0,
+          speed: data.speed || 0,
+          heading: data.heading || 0,
+          timestamp: Date.now()
+        };
+        data.senderId = clientInfo.id;
+        data.senderName = clientInfo.nickname;
+        data.deviceType = clientInfo.deviceType;
+        const outMsg = JSON.stringify(data);
+        for (const client of allWebSockets) {
+          if (client !== ws && client.readyState === 1) {
+            client.send(outMsg);
+          }
+        }
+        broadcastPeerList();
+      } else if (data.type === 'CALL_INVITE' || data.type === 'CALL_ACCEPT' || data.type === 'CALL_DECLINE' || data.type === 'CALL_HANGUP' || data.type === 'PTT_START' || data.type === 'PTT_STOP' || data.type === 'CHAT_MSG' || data.type === 'SOS_ALERT' || data.type === 'SIGNAL_OFFER' || data.type === 'SIGNAL_ANSWER' || data.type === 'SIGNAL_CANDIDATE') {
+        if (data.type === 'CALL_ACCEPT') clientInfo.status = 'In Call';
+        if (data.type === 'CALL_HANGUP' || data.type === 'CALL_DECLINE') clientInfo.status = 'Online';
+        if (data.type === 'PTT_START') clientInfo.status = 'Transmitting (PTT)';
+        if (data.type === 'PTT_STOP') clientInfo.status = 'Online';
+
         // Forward signaling/control event to other peers
         data.senderId = clientInfo.id;
         data.senderName = clientInfo.nickname;
+        data.deviceType = clientInfo.deviceType;
         const outMsg = JSON.stringify(data);
 
         for (const client of allWebSockets) {
           if (client !== ws && client.readyState === 1) {
             client.send(outMsg);
           }
+        }
+        if (data.type.startsWith('CALL_') || data.type.startsWith('PTT_')) {
+          broadcastPeerList();
         }
       }
     } catch (e) {
