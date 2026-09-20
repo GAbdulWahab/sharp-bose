@@ -93,11 +93,14 @@ class MeshWebSocketBridge {
                 isConnected = false
                 Log.w("MeshBridge", "WebSocket failure on $url: ${t.message}")
                 if (url.contains("10.73.88.166")) {
-                    currentHost = "127.0.0.1"
-                    connectToUrl("ws://127.0.0.1:3000")
-                } else if (url.contains("127.0.0.1")) {
-                    currentHost = "192.168.43.1"
+                    currentHost = "192.168.44.1" // Bluetooth PAN IP
+                    connectToUrl("ws://192.168.44.1:3000")
+                } else if (url.contains("192.168.44.1")) {
+                    currentHost = "192.168.43.1" // Wi-Fi Hotspot IP
                     connectToUrl("ws://192.168.43.1:3000")
+                } else if (url.contains("192.168.43.1")) {
+                    currentHost = "127.0.0.1" // USB Loopback
+                    connectToUrl("ws://127.0.0.1:3000")
                 } else {
                     onStatusChanged?.invoke("○ Standby (Tap here to set Laptop IP)", false)
                 }
