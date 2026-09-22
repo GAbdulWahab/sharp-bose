@@ -515,6 +515,8 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
         sendJson(JSONObject().apply {
             put("type", "CALL_INVITE")
             put("targetId", targetId)
+            put("senderId", localNodeId)
+            put("senderName", "Android Phone (${Build.MODEL})")
         })
     }
 
@@ -522,6 +524,8 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
         sendJson(JSONObject().apply {
             put("type", "CALL_ACCEPT")
             put("targetId", targetId)
+            put("senderId", localNodeId)
+            put("senderName", "Android Phone (${Build.MODEL})")
         })
     }
 
@@ -529,24 +533,32 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
         sendJson(JSONObject().apply {
             put("type", "CALL_DECLINE")
             put("targetId", targetId)
+            put("senderId", localNodeId)
+            put("senderName", "Android Phone (${Build.MODEL})")
         })
     }
 
     fun sendCallHangup() {
         sendJson(JSONObject().apply {
             put("type", "CALL_HANGUP")
+            put("senderId", localNodeId)
+            put("senderName", "Android Phone (${Build.MODEL})")
         })
     }
 
     fun sendPttStart() {
         sendJson(JSONObject().apply {
             put("type", "PTT_START")
+            put("senderId", localNodeId)
+            put("senderName", "Android Phone (${Build.MODEL})")
         })
     }
 
     fun sendPttStop() {
         sendJson(JSONObject().apply {
             put("type", "PTT_STOP")
+            put("senderId", localNodeId)
+            put("senderName", "Android Phone (${Build.MODEL})")
         })
     }
 

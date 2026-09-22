@@ -15,12 +15,14 @@ import org.json.JSONObject
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Android Native 100% Offline Bluetooth Mesh Transport (RFCOMM / SPP & BLE).
- * Operates purely peer-to-peer over Bluetooth without requiring any Wi-Fi, Router, or IP address configuration.
+ * High-Performance Native Offline Bluetooth Mesh Transport (RFCOMM / SPP).
+ * Works 100% peer-to-peer over Bluetooth without Wi-Fi, Router, or manual IP entry.
  */
 class BluetoothMeshTransport(
     private val context: Context,
@@ -28,8 +30,9 @@ class BluetoothMeshTransport(
     private val localNickname: String
 ) {
     companion object {
-        // Dedicated Standard Offline Mesh Service UUID for Phone-to-Phone direct calling
-        val MESH_UUID: UUID = UUID.fromString("fa87c0d0-afac-11de-8a39-0800200c9a66")
+        // Standard Bluetooth Serial Port Profile (SPP) UUID - works across 100% of Android devices
+        val SPP_UUID: UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB")
+        val MESH_CUSTOM_UUID: UUID = UUID.fromString("fa87c0d0-afac-11de-8a39-0800200c9a66")
         private const val TAG = "BluetoothMeshTransport"
     }
 
@@ -37,7 +40,10 @@ class BluetoothMeshTransport(
     private val isRunning = AtomicBoolean(false)
     private var serverSocket: BluetoothServerSocket? = null
     private var acceptThread: Thread? = null
+    private var autoScanThread: Thread? = null
+
     private val connectedPeers = CopyOnWriteArrayList<BluetoothPeerSession>()
+    private val connectingAddresses = ConcurrentHashMap.newKeySet<String>()
 
     var onAudioFrameReceived: ((ByteArray) -> Unit)? = null
     var onControlMessageReceived: ((String) -> Unit)? = null
@@ -52,7 +58,10 @@ class BluetoothMeshTransport(
         var peerNodeId: String = "",
         var peerNickname: String = device.name ?: "Bluetooth Phone",
         val isRunning: AtomicBoolean = AtomicBoolean(true)
-    )
+    ) {
+        val sendQueue = LinkedBlockingQueue<ByteArray>(40)
+        var writerThread: Thread? = null
+    }
 
     private val discoveryReceiver = object : BroadcastReceiver() {
         @SuppressLint("MissingPermission")
@@ -67,9 +76,10 @@ class BluetoothMeshTransport(
                 }
 
                 if (device != null) {
-                    val alreadyConnected = connectedPeers.any { it.device.address == device.address }
-                    if (!alreadyConnected) {
-                        Log.d(TAG, "Discovered nearby Bluetooth device: ${device.name ?: "Unknown"} (${device.address})")
+                    val address = device.address
+                    val alreadyConnected = connectedPeers.any { it.device.address == address }
+                    if (!alreadyConnected && !connectingAddresses.contains(address)) {
+                        Log.d(TAG, "Discovered nearby Bluetooth phone: ${device.name ?: "Unknown"} ($address)")
                         connectToDeviceAsync(device)
                     }
                 }
@@ -82,7 +92,7 @@ class BluetoothMeshTransport(
         if (isRunning.get() || bluetoothAdapter == null || !bluetoothAdapter.isEnabled) return
         isRunning.set(true)
 
-        // Register discovery receiver
+        // 1. Register discovery receiver
         try {
             val filter = IntentFilter(BluetoothDevice.ACTION_FOUND)
             context.registerReceiver(discoveryReceiver, filter)
@@ -90,32 +100,23 @@ class BluetoothMeshTransport(
             Log.w(TAG, "Receiver register note: ${e.message}")
         }
 
-        // 1. Start Server Accept Thread (Listens for other phones connecting)
+        // 2. Start RFCOMM Server Accept Loop
         startServerListener()
 
-        // 2. Scan & Connect to Bonded (Paired) devices
-        connectToBondedDevices()
-
-        // 3. Trigger Discovery for nearby phones
-        try {
-            if (bluetoothAdapter.isDiscovering) {
-                bluetoothAdapter.cancelDiscovery()
-            }
-            bluetoothAdapter.startDiscovery()
-        } catch (e: Exception) {
-            Log.w(TAG, "Start discovery note: ${e.message}")
-        }
+        // 3. Start Periodic Auto-Scan and Bonded Device Connector Loop
+        startAutoConnectorLoop()
     }
 
     @SuppressLint("MissingPermission")
     private fun startServerListener() {
         acceptThread = Thread {
             try {
-                serverSocket = bluetoothAdapter?.listenUsingInsecureRfcommWithServiceRecord(
-                    "OfflineMeshVoice",
-                    MESH_UUID
-                )
-                Log.d(TAG, "Bluetooth RFCOMM Server listening for peer phones...")
+                serverSocket = try {
+                    bluetoothAdapter?.listenUsingInsecureRfcommWithServiceRecord("OfflineMeshVoice", SPP_UUID)
+                } catch (e: Exception) {
+                    bluetoothAdapter?.listenUsingRfcommWithServiceRecord("OfflineMeshVoice", SPP_UUID)
+                }
+                Log.d(TAG, "Bluetooth RFCOMM Server listening for peer phones on SPP...")
 
                 while (isRunning.get()) {
                     val socket = serverSocket?.accept() ?: break
@@ -123,7 +124,7 @@ class BluetoothMeshTransport(
                 }
             } catch (e: Exception) {
                 if (isRunning.get()) {
-                    Log.w(TAG, "Server listener note: ${e.message}")
+                    Log.w(TAG, "Server accept loop notice: ${e.message}")
                 }
             }
         }.apply {
@@ -133,32 +134,80 @@ class BluetoothMeshTransport(
     }
 
     @SuppressLint("MissingPermission")
-    private fun connectToBondedDevices() {
-        try {
-            val bonded = bluetoothAdapter?.bondedDevices ?: emptySet()
-            for (device in bonded) {
-                connectToDeviceAsync(device)
+    private fun startAutoConnectorLoop() {
+        autoScanThread = Thread {
+            while (isRunning.get()) {
+                try {
+                    // Connect to bonded/paired devices first
+                    val bonded = bluetoothAdapter?.bondedDevices ?: emptySet()
+                    for (device in bonded) {
+                        val address = device.address
+                        val isConnected = connectedPeers.any { it.device.address == address }
+                        if (!isConnected && !connectingAddresses.contains(address)) {
+                            connectToDeviceAsync(device)
+                        }
+                    }
+
+                    // Trigger nearby discovery if no peers connected
+                    if (connectedPeers.isEmpty() && bluetoothAdapter != null && bluetoothAdapter.isEnabled) {
+                        try {
+                            if (!bluetoothAdapter.isDiscovering) {
+                                bluetoothAdapter.startDiscovery()
+                            }
+                        } catch (e: Exception) {}
+                    }
+
+                    Thread.sleep(4000)
+                } catch (e: InterruptedException) {
+                    break
+                } catch (e: Exception) {
+                    Log.d(TAG, "Auto connector tick note: ${e.message}")
+                }
             }
-        } catch (e: Exception) {
-            Log.w(TAG, "Bonded connect note: ${e.message}")
+        }.apply {
+            name = "BtAutoConnectorThread"
+            start()
         }
     }
 
     @SuppressLint("MissingPermission")
     fun connectToDeviceAsync(device: BluetoothDevice) {
-        if (connectedPeers.any { it.device.address == device.address }) return
+        val address = device.address
+        if (connectedPeers.any { it.device.address == address } || !connectingAddresses.add(address)) return
 
         Thread {
+            var socket: BluetoothSocket? = null
             try {
-                Log.d(TAG, "Attempting Bluetooth connection to ${device.name} (${device.address})...")
-                val socket = device.createInsecureRfcommSocketToServiceRecord(MESH_UUID)
+                // CRITICAL: Always cancel discovery before connecting to prevent RFCOMM timeouts
+                try {
+                    if (bluetoothAdapter?.isDiscovering == true) {
+                        bluetoothAdapter.cancelDiscovery()
+                    }
+                } catch (e: Exception) {}
+
+                Log.d(TAG, "Connecting to Bluetooth peer ${device.name ?: "Device"} ($address)...")
+
+                // Multi-strategy socket connection
+                socket = try {
+                    device.createInsecureRfcommSocketToServiceRecord(SPP_UUID)
+                } catch (e: Exception) {
+                    try {
+                        device.createRfcommSocketToServiceRecord(SPP_UUID)
+                    } catch (e2: Exception) {
+                        val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+                        m.invoke(device, 1) as BluetoothSocket
+                    }
+                }
+
                 socket.connect()
                 handleConnectedSocket(socket, isIncoming = false)
             } catch (e: Exception) {
-                // Not running the app or unreachable
+                try { socket?.close() } catch (ex: Exception) {}
+            } finally {
+                connectingAddresses.remove(address)
             }
         }.apply {
-            name = "BtConnect_${device.address.takeLast(4)}"
+            name = "BtConnect_${address.takeLast(4)}"
             start()
         }
     }
@@ -166,7 +215,8 @@ class BluetoothMeshTransport(
     @SuppressLint("MissingPermission")
     private fun handleConnectedSocket(socket: BluetoothSocket, isIncoming: Boolean) {
         val device = socket.remoteDevice
-        Log.d(TAG, "✅ Bluetooth Link Established with ${device.name ?: "Peer"} (${device.address})")
+        val address = device.address
+        Log.d(TAG, "✅ Bluetooth Link Established with ${device.name ?: "Peer"} ($address)")
 
         val input = socket.inputStream
         val output = socket.outputStream
@@ -180,6 +230,28 @@ class BluetoothMeshTransport(
 
         connectedPeers.add(session)
 
+        // Start dedicated asynchronous writer thread for this peer session
+        session.writerThread = Thread {
+            while (isRunning.get() && session.isRunning.get()) {
+                try {
+                    val packet = session.sendQueue.poll(50, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    if (packet != null && packet.isNotEmpty()) {
+                        synchronized(session.output) {
+                            session.output.write(packet)
+                            session.output.flush()
+                        }
+                    }
+                } catch (e: InterruptedException) {
+                    break
+                } catch (e: Exception) {
+                    break
+                }
+            }
+        }.apply {
+            name = "BtWriter_${address.takeLast(4)}"
+            start()
+        }
+
         // Send handshake packet with local identity
         val handshakeJson = JSONObject().apply {
             put("type", "BT_HANDSHAKE")
@@ -189,15 +261,14 @@ class BluetoothMeshTransport(
         }.toString()
         sendRawPacket(session, 0x01 /* JSON Control */, handshakeJson.toByteArray(Charsets.UTF_8))
 
-        // Notify peer list
         notifyPeerRoster()
 
-        // Read packet stream
+        // Read packet stream loop
         Thread {
             val headerBuffer = ByteArray(5)
             while (isRunning.get() && session.isRunning.get()) {
                 try {
-                    // Read 5-byte header: [0x5A, 0xA5, Opcode, Length_High, Length_Low]
+                    // Read 5-byte framing header: [0x5A, 0xA5, Opcode, Length_High, Length_Low]
                     var headerRead = 0
                     while (headerRead < 5) {
                         val r = input.read(headerBuffer, headerRead, 5 - headerRead)
@@ -206,7 +277,6 @@ class BluetoothMeshTransport(
                     }
 
                     if (headerBuffer[0] != 0x5A.toByte() || headerBuffer[1] != 0xA5.toByte()) {
-                        // Resync
                         continue
                     }
 
@@ -239,11 +309,12 @@ class BluetoothMeshTransport(
             }
 
             session.isRunning.set(false)
+            session.writerThread?.interrupt()
             connectedPeers.remove(session)
             notifyPeerRoster()
             try { session.socket.close() } catch (e: Exception) {}
         }.apply {
-            name = "BtRead_${device.address.takeLast(4)}"
+            name = "BtRead_${address.takeLast(4)}"
             start()
         }
     }
@@ -282,29 +353,30 @@ class BluetoothMeshTransport(
 
     private fun sendRawPacket(session: BluetoothPeerSession, opcode: Int, payload: ByteArray) {
         if (!session.isRunning.get()) return
-        synchronized(session.output) {
-            try {
-                val length = payload.size
-                val packet = ByteArray(5 + length)
-                packet[0] = 0x5A.toByte()
-                packet[1] = 0xA5.toByte()
-                packet[2] = opcode.toByte()
-                packet[3] = ((length shr 8) and 0xFF).toByte()
-                packet[4] = (length and 0xFF).toByte()
-                System.arraycopy(payload, 0, packet, 5, length)
-                session.output.write(packet)
-                session.output.flush()
-            } catch (e: Exception) {}
+        val length = payload.size
+        val packet = ByteArray(5 + length)
+        packet[0] = 0x5A.toByte()
+        packet[1] = 0xA5.toByte()
+        packet[2] = opcode.toByte()
+        packet[3] = ((length shr 8) and 0xFF).toByte()
+        packet[4] = (length and 0xFF).toByte()
+        System.arraycopy(payload, 0, packet, 5, length)
+
+        // Non-blocking queue offer to prevent blocking audio capture thread
+        while (session.sendQueue.size > 30) {
+            session.sendQueue.poll()
         }
+        session.sendQueue.offer(packet)
     }
 
     private fun notifyPeerRoster() {
         val peers = connectedPeers.map {
             PeerNode(
                 id = if (it.peerNodeId.isNotEmpty()) it.peerNodeId else it.device.address,
-                nickname = "${it.peerNickname} (Bluetooth Direct)",
+                nickname = "${it.peerNickname} (Bluetooth)",
                 deviceType = "Android",
-                status = "Online (Bluetooth P2P)"
+                status = "Online (Bluetooth Direct)",
+                transport = "BLUETOOTH"
             )
         }
         onPeerListUpdated?.invoke(peers)
@@ -314,14 +386,18 @@ class BluetoothMeshTransport(
 
     fun stop() {
         isRunning.set(false)
+        autoScanThread?.interrupt()
+        autoScanThread = null
         try { context.unregisterReceiver(discoveryReceiver) } catch (e: Exception) {}
         try { serverSocket?.close() } catch (e: Exception) {}
         serverSocket = null
         for (session in connectedPeers) {
             session.isRunning.set(false)
+            session.writerThread?.interrupt()
             try { session.socket.close() } catch (e: Exception) {}
         }
         connectedPeers.clear()
+        connectingAddresses.clear()
         acceptThread?.interrupt()
         acceptThread = null
     }
