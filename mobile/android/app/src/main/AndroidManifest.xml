@@ -42,7 +42,7 @@
 
         <service
             android:name=".radio.ForegroundMeshService"
-            android:foregroundServiceType="connectedDevice|microphone"
+            android:foregroundServiceType="connectedDevice"
             android:exported="false" />
 
         <activity

@@ -121,6 +121,12 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        try {
+            Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+                android.util.Log.e("MainActivity", "Uncaught exception on ${thread.name}: ${throwable.message}", throwable)
+            }
+        } catch (e: Exception) {}
+
         setContentView(R.layout.activity_main)
 
         prefs = getSharedPreferences("offline_mesh_prefs", Context.MODE_PRIVATE)
@@ -128,7 +134,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         callHistoryManager = CallHistoryManager(this)
         audioEngine = AndroidAudioEngine(this)
-        audioEngine.setSpeakerphoneOn(true)
+        try { audioEngine.setSpeakerphoneOn(true) } catch (e: Exception) {}
 
         bindViews()
         applyTheme(isDarkMode)
@@ -1328,13 +1334,17 @@ class MainActivity : AppCompatActivity(), LocationListener {
     }
 
     private fun startMeshService() {
-        val serviceIntent = Intent(this, ForegroundMeshService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(serviceIntent)
-        } else {
-            startService(serviceIntent)
+        try {
+            val serviceIntent = Intent(this, ForegroundMeshService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+            logEvent("[Service] ForegroundMeshService active")
+        } catch (e: Exception) {
+            Log.w("MainActivity", "Foreground service start note: ${e.message}")
         }
-        logEvent("[Service] ForegroundMeshService active")
     }
 
     private fun logEvent(msg: String) {
@@ -1373,17 +1383,24 @@ class MainActivity : AppCompatActivity(), LocationListener {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == 1001) {
-            bridge.startBluetooth(this)
-            initLocationEngine()
+            try {
+                bridge.startBluetooth(this)
+                initLocationEngine()
+                startMeshService()
+            } catch (e: Exception) {
+                Log.w("MainActivity", "Post-permission startup note: ${e.message}")
+            }
         }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        locationManager?.removeUpdates(this)
-        bridge.disconnect()
-        if (isCalling || isPttTransmitting) {
-            audioEngine.stopVoice()
-        }
+        try {
+            locationManager?.removeUpdates(this)
+            bridge.disconnect()
+            if (isCalling || isPttTransmitting) {
+                audioEngine.stopVoice()
+            }
+        } catch (e: Exception) {}
     }
 }

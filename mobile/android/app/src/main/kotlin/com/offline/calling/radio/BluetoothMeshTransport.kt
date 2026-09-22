@@ -89,13 +89,22 @@ class BluetoothMeshTransport(
 
     @SuppressLint("MissingPermission")
     fun start() {
-        if (isRunning.get() || bluetoothAdapter == null || !bluetoothAdapter.isEnabled) return
+        if (isRunning.get() || bluetoothAdapter == null) return
+        try {
+            if (!bluetoothAdapter.isEnabled) return
+        } catch (e: Exception) {
+            return
+        }
         isRunning.set(true)
 
-        // 1. Register discovery receiver
+        // 1. Register discovery receiver safely
         try {
             val filter = IntentFilter(BluetoothDevice.ACTION_FOUND)
-            context.registerReceiver(discoveryReceiver, filter)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(discoveryReceiver, filter, Context.RECEIVER_EXPORTED)
+            } else {
+                context.registerReceiver(discoveryReceiver, filter)
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Receiver register note: ${e.message}")
         }
@@ -139,7 +148,11 @@ class BluetoothMeshTransport(
             while (isRunning.get()) {
                 try {
                     // Connect to bonded/paired devices first
-                    val bonded = bluetoothAdapter?.bondedDevices ?: emptySet()
+                    val bonded = try {
+                        bluetoothAdapter?.bondedDevices ?: emptySet()
+                    } catch (e: Exception) {
+                        emptySet()
+                    }
                     for (device in bonded) {
                         val address = device.address
                         val isConnected = connectedPeers.any { it.device.address == address }
@@ -149,9 +162,9 @@ class BluetoothMeshTransport(
                     }
 
                     // Trigger nearby discovery if no peers connected
-                    if (connectedPeers.isEmpty() && bluetoothAdapter != null && bluetoothAdapter.isEnabled) {
+                    if (connectedPeers.isEmpty()) {
                         try {
-                            if (!bluetoothAdapter.isDiscovering) {
+                            if (bluetoothAdapter != null && bluetoothAdapter.isEnabled && !bluetoothAdapter.isDiscovering) {
                                 bluetoothAdapter.startDiscovery()
                             }
                         } catch (e: Exception) {}
