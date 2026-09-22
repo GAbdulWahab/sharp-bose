@@ -188,7 +188,7 @@ class BluetoothMeshTransport(
                 Log.d(TAG, "Connecting to Bluetooth peer ${device.name ?: "Device"} ($address)...")
 
                 // Multi-strategy socket connection
-                socket = try {
+                val newSocket: BluetoothSocket = try {
                     device.createInsecureRfcommSocketToServiceRecord(SPP_UUID)
                 } catch (e: Exception) {
                     try {
@@ -199,8 +199,9 @@ class BluetoothMeshTransport(
                     }
                 }
 
-                socket.connect()
-                handleConnectedSocket(socket, isIncoming = false)
+                socket = newSocket
+                newSocket.connect()
+                handleConnectedSocket(newSocket, isIncoming = false)
             } catch (e: Exception) {
                 try { socket?.close() } catch (ex: Exception) {}
             } finally {
