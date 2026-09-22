@@ -1011,12 +1011,13 @@
 
           const pcm16 = new Int16Array(packetBuffer, 4, inputData.length);
           for (let i = 0; i < inputData.length; i++) {
-            let s = Math.max(-1, Math.min(1, inputData[i]));
+            // Apply 3.5x clean voice boost for loud, clear speech
+            let s = Math.max(-1, Math.min(1, inputData[i] * 3.5));
             pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
           }
 
           if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(packetBuffer);
+            ws.send(new Uint8Array(packetBuffer));
           }
         };
 

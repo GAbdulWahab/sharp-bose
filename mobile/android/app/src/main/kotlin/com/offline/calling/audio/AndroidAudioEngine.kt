@@ -138,7 +138,7 @@ class AndroidAudioEngine(private val context: Context) {
             audioTrack = AudioTrack.Builder()
                 .setAudioAttributes(
                     AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                         .build()
                 )
@@ -162,6 +162,9 @@ class AndroidAudioEngine(private val context: Context) {
                     try {
                         val chunk = playbackQueue.poll(20, java.util.concurrent.TimeUnit.MILLISECONDS)
                         if (chunk != null && chunk.isNotEmpty() && isPlaying.get()) {
+                            if (audioTrack?.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                                audioTrack?.play()
+                            }
                             audioTrack?.write(chunk, 0, chunk.size)
                         }
                     } catch (e: InterruptedException) {
@@ -225,7 +228,8 @@ class AndroidAudioEngine(private val context: Context) {
 
         for (i in 0 until numSamples) {
             val sample = inBuf.get(i).toFloat()
-            val limited = (sample * 1.2f).coerceIn(-32767f, 32767f).toInt().toShort()
+            // Boost voice by 2.5x with soft limiter for clear, loud phone speaker playback
+            val limited = (sample * 2.5f).coerceIn(-32767f, 32767f).toInt().toShort()
             outBuf.put(i, limited)
         }
         return output

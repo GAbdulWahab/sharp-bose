@@ -86,9 +86,9 @@ function handleWsConnection(ws, req) {
 
   ws.on('message', (message, isBinary) => {
     ws.isAlive = true;
-    // If binary, it's a live audio frame chunk
-    if (isBinary) {
-      // Forward binary audio frame to all other connected peers
+    // If binary or audio frame buffer, forward to all other connected peers
+    const isAudioFrame = isBinary || (Buffer.isBuffer(message) && message.length >= 4 && message[0] === 0xAA && message[1] === 0x55);
+    if (isAudioFrame) {
       for (const client of allWebSockets) {
         if (client !== ws && client.readyState === 1) {
           client.send(message, { binary: true });
