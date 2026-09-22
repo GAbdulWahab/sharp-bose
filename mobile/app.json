@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "Offline Mesh Calling",
+    "slug": "offline-mesh-calling",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#090D16"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.offlinemesh.calling",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Allows voice communication over offline mesh radio.",
+        "NSLocationWhenInUseUsageDescription": "Enables tactical mesh radar and peer distance calculation."
+      }
+    },
+    "android": {
+      "package": "com.offlinemesh.calling",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#090D16"
+      },
+      "permissions": [
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_SCAN",
+        "BLUETOOTH_ADVERTISE",
+        "BLUETOOTH_CONNECT",
+        "NEARBY_WIFI_DEVICES",
+        "ACCESS_WIFI_STATE",
+        "CHANGE_WIFI_STATE",
+        "INTERNET",
+        "WAKE_LOCK",
+        "VIBRATE"
+      ]
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}

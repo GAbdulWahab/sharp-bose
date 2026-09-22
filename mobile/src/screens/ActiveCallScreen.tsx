@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView } from 'react-native';
 import { AudioQualityMeter } from '../components/AudioQualityMeter';
 import { ActiveCallStats } from '../types/protocol';
+import { NativeBridge } from '../services/NativeBridge';
+import { AppAudio } from '../services/AudioService';
 
 interface ActiveCallScreenProps {
   peerName: string;
@@ -32,6 +34,15 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
   });
 
   useEffect(() => {
+    // Start active call audio session
+    AppAudio.startCallAudio();
+
+    const unsubCallState = NativeBridge.onCallStateChanged((data) => {
+      if (data.state === 'ENDED') {
+        onHangup();
+      }
+    });
+
     const timer = setInterval(() => {
       setStats((prev) => ({
         ...prev,
@@ -41,8 +52,25 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
         jitterMs: Math.max(2, Math.min(10, prev.jitterMs + (Math.random() * 1.2 - 0.6))),
       }));
     }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+
+    return () => {
+      AppAudio.stopCallAudio();
+      unsubCallState();
+      clearInterval(timer);
+    };
+  }, [onHangup]);
+
+  const toggleMute = () => {
+    const next = !isMuted;
+    setIsMuted(next);
+    AppAudio.setMute(next);
+  };
+
+  const toggleSpeaker = () => {
+    const next = !isSpeaker;
+    setIsSpeaker(next);
+    AppAudio.setSpeaker(next);
+  };
 
   const formatDuration = (sec: number) => {
     const m = Math.floor(sec / 60).toString().padStart(2, '0');
@@ -81,7 +109,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
         <View style={styles.controlsGrid}>
           <TouchableOpacity
             style={[styles.btn, isMuted && styles.btnActive]}
-            onPress={() => setIsMuted(!isMuted)}
+            onPress={toggleMute}
             accessibilityLabel={isMuted ? 'Unmute microphone' : 'Mute microphone'}>
             <Text style={styles.btnEmoji}>{isMuted ? '🔇' : '🎤'}</Text>
             <Text style={styles.btnLabel}>{isMuted ? 'Unmute' : 'Mute'}</Text>
@@ -89,7 +117,7 @@ export const ActiveCallScreen: React.FC<ActiveCallScreenProps> = ({
 
           <TouchableOpacity
             style={[styles.btn, isSpeaker && styles.btnActive]}
-            onPress={() => setIsSpeaker(!isSpeaker)}
+            onPress={toggleSpeaker}
             accessibilityLabel={isSpeaker ? 'Switch to earpiece' : 'Switch to speaker'}>
             <Text style={styles.btnEmoji}>{isSpeaker ? '📢' : '🔈'}</Text>
             <Text style={styles.btnLabel}>{isSpeaker ? 'Speaker' : 'Earpiece'}</Text>

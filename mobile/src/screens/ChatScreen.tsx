@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { ChatMessage, PeerNode } from '../types/protocol';
+import { NativeBridge } from '../services/NativeBridge';
 
 interface ChatScreenProps {
   peer: PeerNode;
@@ -15,32 +16,33 @@ export const ChatScreen: React.FC<ChatScreenProps> = ({ peer, onBack, onStartCal
       id: 'm1',
       senderId: peer.id,
       senderName: peer.nickname,
-      recipientId: '0xME',
-      text: 'Hey! Are you in range for voice calling?',
-      timestamp: Date.now() - 60000,
-      status: 'READ',
-      hopCount: 1,
-    },
-    {
-      id: 'm2',
-      senderId: '0xME',
-      senderName: 'Me',
-      recipientId: peer.id,
-      text: 'Yes, Bluetooth L2CAP connection looks solid (-58 dBm).',
+      recipientId: NativeBridge.myId,
+      text: `Connected to ${peer.nickname} via Mesh Radio.`,
       timestamp: Date.now() - 30000,
-      status: 'DELIVERED',
-      hopCount: 1,
+      status: 'READ',
+      hopCount: peer.hopCount,
     },
   ]);
 
+  useEffect(() => {
+    const unsubscribe = NativeBridge.onMessageReceived((msg) => {
+      setMessages((prev) => [...prev, msg]);
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [peer.id]);
+
   const handleSend = () => {
     if (!inputText.trim()) return;
+    const text = inputText.trim();
+    NativeBridge.sendTextMessage(peer.id, text);
     const newMsg: ChatMessage = {
       id: `m_${Date.now()}`,
       senderId: '0xME',
-      senderName: 'Me',
+      senderName: NativeBridge.myNickname,
       recipientId: peer.id,
-      text: inputText.trim(),
+      text: text,
       timestamp: Date.now(),
       status: 'SENT',
       hopCount: peer.hopCount,

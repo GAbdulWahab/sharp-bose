@@ -8,6 +8,7 @@ import {
   Vibration,
   Animated,
 } from 'react-native';
+import { NativeBridge } from '../services/NativeBridge';
 
 interface PTTIntercomScreenProps {
   onBack: () => void;
@@ -39,6 +40,21 @@ export const PTTIntercomScreen: React.FC<PTTIntercomScreenProps> = ({ onBack }) 
   const [pulseAnim] = useState(new Animated.Value(1));
 
   useEffect(() => {
+    // Listen for live PTT events from Laptop or other phones
+    const unsubscribePTT = NativeBridge.onPTTStateChanged((data) => {
+      setIsReceiving(data.active);
+      setActiveSpeaker(data.active ? `${data.senderName} (Broadcasting)` : null);
+      if (data.active) {
+        Vibration.vibrate([0, 40, 60, 40]);
+      }
+    });
+
+    return () => {
+      unsubscribePTT();
+    };
+  }, []);
+
+  useEffect(() => {
     if (isTransmitting) {
       Animated.loop(
         Animated.sequence([
@@ -55,22 +71,14 @@ export const PTTIntercomScreen: React.FC<PTTIntercomScreenProps> = ({ onBack }) 
     Vibration.vibrate(50);
     setIsTransmitting(true);
     setActiveSpeaker('YOU (Broadcasting)');
+    NativeBridge.startPTT();
   };
 
   const handlePressOut = () => {
     Vibration.vibrate(30);
     setIsTransmitting(false);
     setActiveSpeaker(null);
-  };
-
-  const simulateIncomingTransmission = (speakerName: string) => {
-    if (isTransmitting) return;
-    setIsReceiving(true);
-    setActiveSpeaker(speakerName);
-    setTimeout(() => {
-      setIsReceiving(false);
-      setActiveSpeaker(null);
-    }, 4000);
+    NativeBridge.stopPTT();
   };
 
   return (
@@ -102,148 +110,288 @@ export const PTTIntercomScreen: React.FC<PTTIntercomScreenProps> = ({ onBack }) 
               ]}
               onPress={() => setSelectedChannel(ch)}
             >
-              <Text style={[styles.channelBadgeTitle, selectedChannel.id === ch.id && styles.channelBadgeTitleSelected]}>
+              <Text
+                style={[
+                  styles.channelBadgeText,
+                  selectedChannel.id === ch.id && styles.channelBadgeTextSelected,
+                ]}
+              >
                 {ch.name}
               </Text>
-              <Text style={styles.channelBadgeSub}>{ch.activePeers} Nodes Reachable</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
       </View>
 
-      {/* Active Channel Display */}
-      <View style={styles.channelCard}>
-        <View style={styles.channelHeaderRow}>
-          <Text style={styles.channelLabel}>CURRENT INTERCOM CHANNEL</Text>
-          <View style={[styles.statusTag, isTransmitting ? styles.statusTagTx : isReceiving ? styles.statusTagRx : styles.statusTagIdle]}>
-            <Text style={styles.statusTagText}>
-              {isTransmitting ? '● TX TRANSMITTING' : isReceiving ? '▲ RX RECEIVING' : 'STANDBY'}
-            </Text>
-          </View>
+      {/* Frequency / Status Bar */}
+      <View style={styles.statusBox}>
+        <View style={styles.statusRow}>
+          <Text style={styles.statusLabel}>CH FREQUENCY</Text>
+          <Text style={styles.statusValue}>{selectedChannel.frequency}</Text>
         </View>
-
-        <Text style={styles.channelNameText}>{selectedChannel.name}</Text>
-        <Text style={styles.channelFreqText}>{selectedChannel.frequency}</Text>
-
-        {activeSpeaker ? (
-          <View style={styles.speakerBanner}>
-            <Text style={styles.speakerBannerText}>🎙️ Floor: {activeSpeaker}</Text>
-          </View>
-        ) : (
-          <View style={styles.idleBanner}>
-            <Text style={styles.idleBannerText}>Channel clear • Hold PTT to transmit</Text>
-          </View>
-        )}
-      </View>
-
-      {/* Audio Spectrogram Waveform Simulation */}
-      <View style={styles.waveformBox}>
-        <View style={styles.waveBarGroup}>
-          {[40, 80, 20, 95, 60, 30, 85, 100, 45, 75, 90, 35, 70, 50, 90, 60, 30, 80].map((height, idx) => (
-            <View
-              key={idx}
-              style={[
-                styles.waveBar,
-                {
-                  height: isTransmitting || isReceiving ? height * 0.7 + 10 : 8,
-                  backgroundColor: isTransmitting ? '#F43F5E' : isReceiving ? '#06B6D4' : '#334155',
-                },
-              ]}
-            />
-          ))}
+        <View style={styles.statusRow}>
+          <Text style={styles.statusLabel}>ACTIVE PEERS IN REACH</Text>
+          <Text style={[styles.statusValue, { color: '#10B981' }]}>
+            {NativeBridge.activePeers.length + 1} Radios Connected
+          </Text>
+        </View>
+        <View style={styles.statusRow}>
+          <Text style={styles.statusLabel}>RADIO TRAFFIC STATE</Text>
+          <Text
+            style={[
+              styles.statusValue,
+              isTransmitting
+                ? { color: '#EF4444' }
+                : isReceiving
+                ? { color: '#38BDF8' }
+                : { color: '#94A3B8' },
+            ]}
+          >
+            {isTransmitting
+              ? '🔴 TX: YOU ARE LIVE'
+              : isReceiving
+              ? `🔵 RX: ${activeSpeaker || 'INBOUND AUDIO'}`
+              : 'IDLE (CHANNEL CLEAR)'}
+          </Text>
         </View>
       </View>
 
-      {/* Big Push-To-Talk Button */}
-      <View style={styles.pttContainer}>
+      {/* Center Waveform & Speaker Status */}
+      <View style={styles.speakerCenter}>
+        <Text style={styles.speakerTitle}>
+          {isTransmitting
+            ? 'Transmitting HD Audio...'
+            : isReceiving
+            ? `Receiving from ${activeSpeaker}`
+            : 'Hold Button to Broadcast'}
+        </Text>
+        <Text style={styles.speakerSub}>
+          {isTransmitting
+            ? 'All mesh nodes listening on this channel'
+            : isReceiving
+            ? 'Audio decoded via Opus 16kHz Squelch Filter'
+            : 'Press and hold big button below to talk'}
+        </Text>
+      </View>
+
+      {/* Large PTT Push Button */}
+      <View style={styles.pttButtonContainer}>
         <Animated.View
           style={[
-            styles.pttRing,
-            {
-              transform: [{ scale: pulseAnim }],
-              borderColor: isTransmitting ? '#F43F5E' : '#06B6D4',
-            },
+            styles.pulseRing,
+            (isTransmitting || isReceiving) && styles.pulseRingActive,
+            isReceiving && { borderColor: '#38BDF8', backgroundColor: 'rgba(56, 189, 248, 0.15)' },
+            { transform: [{ scale: pulseAnim }] },
           ]}
         />
         <TouchableOpacity
-          activeOpacity={0.85}
+          style={[
+            styles.pttButton,
+            isTransmitting && styles.pttButtonTransmitting,
+            isReceiving && styles.pttButtonReceiving,
+          ]}
+          activeOpacity={0.8}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
-          style={[styles.pttButton, isTransmitting && styles.pttButtonActive, isReceiving && styles.pttButtonReceiving]}
         >
-          <Text style={styles.pttButtonTitle}>{isTransmitting ? 'TRANSMITTING' : 'HOLD TO TALK'}</Text>
-          <Text style={styles.pttButtonSub}>Half-Duplex Mesh Audio</Text>
+          <Text style={styles.pttIcon}>
+            {isTransmitting ? '🎙️' : isReceiving ? '🔊' : '📻'}
+          </Text>
+          <Text style={styles.pttMainText}>
+            {isTransmitting ? 'TALKING' : isReceiving ? 'RECEIVING' : 'PUSH TO TALK'}
+          </Text>
+          <Text style={styles.pttSubText}>
+            {isTransmitting ? 'Release to listen' : 'Hold to broadcast'}
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Simulation Controls */}
-      <View style={styles.simRow}>
-        <TouchableOpacity
-          style={styles.simButton}
-          onPress={() => simulateIncomingTransmission('Node-Bravo (Base Camp)')}
-        >
-          <Text style={styles.simButtonText}>Simulate Inbound Transmission</Text>
-        </TouchableOpacity>
+      {/* Footer Info */}
+      <View style={styles.footer}>
+        <Text style={styles.footerText}>
+          🔒 End-to-End Encrypted Group Broadcast • Half-Duplex RF Protocol
+        </Text>
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#090D16', paddingHorizontal: 16, paddingTop: 48 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
-  backButton: { paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#1E293B', borderRadius: 8 },
-  backButtonText: { color: '#94A3B8', fontSize: 13, fontWeight: '600' },
-  headerTitle: { color: '#F8FAFC', fontSize: 17, fontWeight: 'bold' },
-  squelchButton: { paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#1E293B', borderRadius: 8 },
-  squelchButtonActive: { backgroundColor: '#06B6D4' },
-  squelchText: { color: '#F8FAFC', fontSize: 11, fontWeight: 'bold' },
-  channelScrollContainer: { marginBottom: 16 },
-  channelList: { gap: 10 },
-  channelBadge: { padding: 12, backgroundColor: '#1E293B', borderRadius: 12, minWidth: 140, borderWidth: 1, borderColor: '#334155' },
-  channelBadgeSelected: { borderColor: '#06B6D4', backgroundColor: '#0F283D' },
-  channelBadgeEmergency: { borderColor: '#F43F5E' },
-  channelBadgeTitle: { color: '#E2E8F0', fontSize: 13, fontWeight: 'bold' },
-  channelBadgeTitleSelected: { color: '#06B6D4' },
-  channelBadgeSub: { color: '#64748B', fontSize: 11, marginTop: 4 },
-  channelCard: { backgroundColor: '#131D2E', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#1E293B' },
-  channelHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  channelLabel: { color: '#64748B', fontSize: 10, fontWeight: 'bold', letterSpacing: 1 },
-  statusTag: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  statusTagIdle: { backgroundColor: '#1E293B' },
-  statusTagTx: { backgroundColor: '#7F1D1D' },
-  statusTagRx: { backgroundColor: '#083344' },
-  statusTagText: { color: '#F8FAFC', fontSize: 10, fontWeight: 'bold' },
-  channelNameText: { color: '#F8FAFC', fontSize: 20, fontWeight: 'bold', marginTop: 8 },
-  channelFreqText: { color: '#94A3B8', fontSize: 12, marginTop: 2, fontFamily: 'monospace' },
-  speakerBanner: { marginTop: 12, padding: 10, backgroundColor: '#083344', borderRadius: 8, borderWidth: 1, borderColor: '#06B6D4' },
-  speakerBannerText: { color: '#06B6D4', fontWeight: 'bold', fontSize: 13 },
-  idleBanner: { marginTop: 12, padding: 8, backgroundColor: '#1E293B', borderRadius: 8 },
-  idleBannerText: { color: '#64748B', fontSize: 12, textAlign: 'center' },
-  waveformBox: { height: 70, justifyContent: 'center', alignItems: 'center', marginVertical: 20 },
-  waveBarGroup: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  waveBar: { width: 5, borderRadius: 3 },
-  pttContainer: { alignItems: 'center', justifyContent: 'center', marginTop: 10, marginBottom: 20 },
-  pttRing: { position: 'absolute', width: 220, height: 220, borderRadius: 110, borderWidth: 2 },
-  pttButton: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: '#0F172A',
-    borderWidth: 4,
-    borderColor: '#06B6D4',
-    justifyContent: 'center',
-    alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#06B6D4',
-    shadowOpacity: 0.4,
-    shadowRadius: 16,
+  container: {
+    flex: 1,
+    backgroundColor: '#090D16',
+    padding: 16,
+    justifyContent: 'space-between',
   },
-  pttButtonActive: { backgroundColor: '#E11D48', borderColor: '#FFE4E6' },
-  pttButtonReceiving: { backgroundColor: '#0E7490', borderColor: '#67E8F9' },
-  pttButtonTitle: { color: '#FFFFFF', fontSize: 17, fontWeight: '900', letterSpacing: 1 },
-  pttButtonSub: { color: '#94A3B8', fontSize: 11, marginTop: 4 },
-  simRow: { marginTop: 10, alignItems: 'center' },
-  simButton: { paddingVertical: 10, paddingHorizontal: 16, backgroundColor: '#1E293B', borderRadius: 10 },
-  simButtonText: { color: '#94A3B8', fontSize: 12, fontWeight: '600' },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  backButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: '#1E293B',
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: '#94A3B8',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  headerTitle: {
+    color: '#F8FAFC',
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  squelchButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: '#1E293B',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  squelchButtonActive: {
+    backgroundColor: '#065F46',
+    borderColor: '#10B981',
+  },
+  squelchText: {
+    color: '#34D399',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  channelScrollContainer: {
+    marginBottom: 12,
+  },
+  channelList: {
+    gap: 8,
+  },
+  channelBadge: {
+    backgroundColor: '#1E293B',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  channelBadgeSelected: {
+    backgroundColor: '#0284C7',
+    borderColor: '#38BDF8',
+  },
+  channelBadgeEmergency: {
+    borderColor: '#EF4444',
+  },
+  channelBadgeText: {
+    color: '#94A3B8',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  channelBadgeTextSelected: {
+    color: '#FFFFFF',
+  },
+  statusBox: {
+    backgroundColor: '#1E293B',
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statusLabel: {
+    color: '#64748B',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  statusValue: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  speakerCenter: {
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  speakerTitle: {
+    color: '#F8FAFC',
+    fontSize: 18,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  speakerSub: {
+    color: '#94A3B8',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  pttButtonContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    height: 240,
+  },
+  pulseRing: {
+    position: 'absolute',
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  pulseRingActive: {
+    borderColor: '#EF4444',
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+  },
+  pttButton: {
+    width: 190,
+    height: 190,
+    borderRadius: 95,
+    backgroundColor: '#1E293B',
+    borderWidth: 4,
+    borderColor: '#0284C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  pttButtonTransmitting: {
+    backgroundColor: '#B91C1C',
+    borderColor: '#EF4444',
+  },
+  pttButtonReceiving: {
+    backgroundColor: '#0369A1',
+    borderColor: '#38BDF8',
+  },
+  pttIcon: {
+    fontSize: 40,
+    marginBottom: 6,
+  },
+  pttMainText: {
+    color: '#F8FAFC',
+    fontSize: 15,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  pttSubText: {
+    color: '#94A3B8',
+    fontSize: 10,
+    marginTop: 4,
+  },
+  footer: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  footerText: {
+    color: '#64748B',
+    fontSize: 10,
+    textAlign: 'center',
+  },
 });

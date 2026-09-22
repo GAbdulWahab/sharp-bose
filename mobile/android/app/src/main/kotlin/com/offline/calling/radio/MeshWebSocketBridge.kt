@@ -109,7 +109,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
         }
     }
 
-    var currentHost: String = "10.246.248.170"
+    var currentHost: String = "172.27.180.170"
         private set
     var currentRoom: String = "INDIA-MAIN"
 
@@ -128,12 +128,13 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
 
     private fun connectDirect(host: String) {
         webSocket?.close(1000, "Reconnecting")
-        val url = "ws://$host:3000"
+        val cleanHost = host.replace("ws://", "").replace("http://", "").split(":")[0]
+        val url = "ws://$cleanHost:3000"
         val request = Request.Builder().url(url).build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
                 isConnected = true
-                currentHost = host
+                currentHost = cleanHost
                 Log.d("MeshBridge", "Connected directly to Laptop Mesh at $url")
                 onStatusChanged?.invoke("● Connected to Laptop Mesh Bridge ($currentHost)", true)
                 sendJoinRoom(currentRoom)
@@ -177,14 +178,17 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
         Thread {
             val candidates = mutableListOf<String>()
 
-            // 1. Priority targets: USB Reverse (127.0.0.1), USB Tethering (192.168.42.x), Bluetooth, Wi-Fi
+            // 1. Priority targets: Bluetooth PAN, Wi-Fi, USB Reverse, Emulator
             candidates.add(currentHost)
+            candidates.add("172.27.180.170") // Bluetooth PAN Laptop IP
+            candidates.add("172.27.180.37")  // Bluetooth PAN Gateway
+            candidates.add("172.27.180.1")   // Bluetooth PAN Gateway
+            candidates.add("10.19.238.166")  // Wi-Fi Laptop IP
+            candidates.add("10.19.238.104")  // Wi-Fi Gateway
             candidates.add("127.0.0.1")      // USB Reverse (adb reverse)
+            candidates.add("10.0.2.2")       // Android Emulator Host
             candidates.add("192.168.42.129") // USB Tethering (RNDIS Host)
             candidates.add("192.168.42.1")   // USB Tethering Gateway
-            candidates.add("10.0.2.2")       // Emulator Host
-            candidates.add("10.246.248.170") // Bluetooth Laptop IP
-            candidates.add("10.73.88.166")   // Wi-Fi Laptop IP
 
             // 2. Discover peer IPs from ARP table (detects connected Bluetooth/Hotspot clients)
             try {

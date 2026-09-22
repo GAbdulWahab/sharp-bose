@@ -5,6 +5,15 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# Expo & React Native Cache / Builds
+.expo/
+.expo-shared/
+*.expo/
+mobile/.expo/
+mobile/web-build/
+mobile/dist/
+.expo-internal/
+
 # Android build outputs & caches
 .gradle/
 build/

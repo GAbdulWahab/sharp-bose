@@ -1,29 +1,44 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator } from 'react-native';
+import { NativeBridge } from '../services/NativeBridge';
 
 interface DiagnosticsScreenProps {
   onBack: () => void;
 }
 
 export const DiagnosticsScreen: React.FC<DiagnosticsScreenProps> = ({ onBack }) => {
-  const [radioStats, setRadioStats] = useState({
-    deviceId: '0x4D457F4A21B9',
-    protocolVersion: 'v1.0 (0x4D45)',
-    activeTransport: 'BLE L2CAP CoC (PSM 0x1001)',
-    phyRate: '2 Mbps (LE 2M PHY)',
-    txPower: '+4 dBm',
-    batteryLevel: '86%',
-    noiseProtocol: 'Noise_XX_25519_ChaChaPoly_BLAKE2s',
-    slidingWindowBitmask: '0xFFFFFFFFFFFFFFFF (0 dropped)',
-    audioAEC: 'Hardware Acoustic Echo Canceler ON',
-    audioNS: 'WebRTC Noise Suppression Level 3',
-  });
+  const [currentHost, setCurrentHost] = useState(NativeBridge.getServerHost());
+  const [isConnected, setIsConnected] = useState(NativeBridge.isConnected);
+  const [isScanning, setIsScanning] = useState(false);
+  const [peers, setPeers] = useState(NativeBridge.activePeers);
 
-  const [routingTable, setRoutingTable] = useState([
-    { dest: '0x7F4A21B9', nextHop: 'Direct', hops: 1, rssi: -58, quality: '98%', seq: 1042 },
-    { dest: '0x99C2E8A1', nextHop: 'Direct', hops: 1, rssi: -72, quality: '82%', seq: 894 },
-    { dest: '0x1B44DD20', nextHop: '0x7F4A21B9', hops: 2, rssi: -84, quality: '64%', seq: 412 },
-  ]);
+  useEffect(() => {
+    const unsubConn = NativeBridge.onConnectionStatusChanged((connected) => {
+      setIsConnected(connected);
+    });
+    const unsubHost = NativeBridge.onHostChanged((host) => {
+      setCurrentHost(host);
+    });
+    const unsubPeers = NativeBridge.onPeerListUpdated((p) => {
+      setPeers(p);
+    });
+
+    return () => {
+      unsubConn();
+      unsubHost();
+      unsubPeers();
+    };
+  }, []);
+
+  const handleScan = async () => {
+    setIsScanning(true);
+    await NativeBridge.autoScanMeshServers();
+    setIsScanning(false);
+  };
+
+  const setPreset = (host: string) => {
+    NativeBridge.setServerHost(host);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -41,28 +56,63 @@ export const DiagnosticsScreen: React.FC<DiagnosticsScreenProps> = ({ onBack }) 
           <Text style={styles.cardTitle}>LOCAL DEVICE & RADIO STATE</Text>
           <View style={styles.row}>
             <Text style={styles.label}>Node Identity</Text>
-            <Text style={styles.value}>{radioStats.deviceId}</Text>
+            <Text style={styles.value}>{NativeBridge.myId} ({NativeBridge.myNickname})</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Protocol Version</Text>
-            <Text style={styles.value}>{radioStats.protocolVersion}</Text>
+            <Text style={styles.value}>v1.0 Noise_XX (E2EE)</Text>
           </View>
           <View style={styles.row}>
-            <Text style={styles.label}>Active Radio Transport</Text>
-            <Text style={styles.value}>{radioStats.activeTransport}</Text>
+            <Text style={styles.label}>Active Radio Link</Text>
+            <Text style={[styles.value, { color: isConnected ? '#34D399' : '#F59E0B' }]}>
+              {isConnected ? `● CONNECTED (${currentHost})` : '○ DISCONNECTED / SEARCHING'}
+            </Text>
           </View>
           <View style={styles.row}>
-            <Text style={styles.label}>PHY Layer / TX Power</Text>
-            <Text style={styles.value}>{radioStats.phyRate} / {radioStats.txPower}</Text>
+            <Text style={styles.label}>Transports Supported</Text>
+            <Text style={styles.value}>BLE L2CAP / Bluetooth PAN / Wi-Fi Direct</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Crypto Handshake</Text>
-            <Text style={styles.value}>{radioStats.noiseProtocol}</Text>
+            <Text style={styles.value}>Noise_XX_25519_ChaChaPoly_BLAKE2s</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Replay Filter Window</Text>
-            <Text style={styles.value}>{radioStats.slidingWindowBitmask}</Text>
+            <Text style={styles.value}>0xFFFFFFFFFFFFFFFF (0 dropped)</Text>
           </View>
+        </View>
+
+        {/* Quick Transport Switcher */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>CONNECTIVITY PRESETS & AUTO-SCAN</Text>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity 
+              style={[styles.presetBtn, currentHost.includes('172.27.180') && styles.presetBtnActive]} 
+              onPress={() => setPreset('172.27.180.170:3000')}
+            >
+              <Text style={styles.presetBtnText}>🔵 Bluetooth PAN (172.27.180.170)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.presetBtn, currentHost.includes('10.19.238') && styles.presetBtnActive]} 
+              onPress={() => setPreset('10.19.238.166:3000')}
+            >
+              <Text style={styles.presetBtnText}>📶 Wi-Fi LAN (10.19.238.166)</Text>
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.presetBtn, (currentHost.includes('127.0.0.1') || currentHost.includes('localhost')) && styles.presetBtnActive]} 
+              onPress={() => setPreset('127.0.0.1:3000')}
+            >
+              <Text style={styles.presetBtnText}>💻 USB / Localhost (127.0.0.1)</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity style={styles.scanActionBtn} onPress={handleScan} disabled={isScanning}>
+            {isScanning ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.scanActionText}>🔍 Auto-Discover Active Mesh Server</Text>
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Audio DSP Status */}
@@ -70,30 +120,34 @@ export const DiagnosticsScreen: React.FC<DiagnosticsScreenProps> = ({ onBack }) 
           <Text style={styles.cardTitle}>AUDIO DSP PIPELINE</Text>
           <View style={styles.row}>
             <Text style={styles.label}>Acoustic Echo Canceler</Text>
-            <Text style={styles.valueGreen}>{radioStats.audioAEC}</Text>
+            <Text style={styles.valueGreen}>Hardware Acoustic Echo Canceler ON</Text>
           </View>
           <View style={styles.row}>
             <Text style={styles.label}>Noise Suppression</Text>
-            <Text style={styles.valueGreen}>{radioStats.audioNS}</Text>
+            <Text style={styles.valueGreen}>WebRTC Noise Suppression Level 3</Text>
           </View>
         </View>
 
         {/* Live AODV Routing Table */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>AODV-LITE MESH ROUTING TABLE</Text>
-          {routingTable.map((route, idx) => (
-            <View key={idx} style={styles.routeItem}>
-              <View style={styles.routeTop}>
-                <Text style={styles.destText}>Dest: {route.dest}</Text>
-                <Text style={styles.hopText}>{route.hops} hop(s)</Text>
+          <Text style={styles.cardTitle}>LIVE PEER ROUTING NODES ({peers.length})</Text>
+          {peers.length === 0 ? (
+            <Text style={styles.noPeersText}>No remote mesh nodes detected yet.</Text>
+          ) : (
+            peers.map((peer, idx) => (
+              <View key={idx} style={styles.routeItem}>
+                <View style={styles.routeTop}>
+                  <Text style={styles.destText}>{peer.nickname} ({peer.id})</Text>
+                  <Text style={styles.hopText}>{peer.hopCount} hop(s)</Text>
+                </View>
+                <View style={styles.routeBottom}>
+                  <Text style={styles.subText}>Transport: {peer.transport}</Text>
+                  <Text style={styles.subText}>RSSI: {peer.rssi} dBm</Text>
+                  <Text style={styles.qualityText}>Battery: {peer.batteryPercent}%</Text>
+                </View>
               </View>
-              <View style={styles.routeBottom}>
-                <Text style={styles.subText}>Next: {route.nextHop}</Text>
-                <Text style={styles.subText}>RSSI: {route.rssi} dBm</Text>
-                <Text style={styles.qualityText}>Quality: {route.quality}</Text>
-              </View>
-            </View>
-          ))}
+            ))
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -139,6 +193,44 @@ const styles = StyleSheet.create({
   label: { color: '#64748B', fontSize: 12 },
   value: { color: '#F1F5F9', fontSize: 12, fontWeight: '600', fontFamily: 'monospace' },
   valueGreen: { color: '#34D399', fontSize: 12, fontWeight: '600' },
+  buttonRow: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  presetBtn: {
+    backgroundColor: '#0F172A',
+    padding: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#334155',
+  },
+  presetBtnActive: {
+    borderColor: '#38BDF8',
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+  },
+  presetBtnText: {
+    color: '#F8FAFC',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  scanActionBtn: {
+    backgroundColor: '#0284C7',
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scanActionText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 13,
+  },
+  noPeersText: {
+    color: '#64748B',
+    fontSize: 12,
+    fontStyle: 'italic',
+    paddingVertical: 8,
+  },
   routeItem: {
     backgroundColor: '#0F172A',
     padding: 10,

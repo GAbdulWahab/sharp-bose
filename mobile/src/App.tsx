@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'react-native';
 import { HomeScreen } from './screens/HomeScreen';
 import { ActiveCallScreen } from './screens/ActiveCallScreen';
@@ -13,6 +13,7 @@ import { ConnectedPeersScreen } from './screens/ConnectedPeersScreen';
 import { IncomingCallModal } from './components/IncomingCallModal';
 import { PeerNode } from './types/protocol';
 import { darkTheme, lightTheme } from './types/theme';
+import { NativeBridge } from './services/NativeBridge';
 
 type CurrentScreen =
   | { name: 'HOME' }
@@ -37,9 +38,29 @@ export default function App() {
     setIsDarkMode((prev) => !prev);
   };
 
+  useEffect(() => {
+    // Listen for live incoming calls from Laptop or other Android phones
+    const unsubscribeIncoming = NativeBridge.onIncomingCall((data) => {
+      console.log('[App] Incoming call received from:', data.callerName, data.callerId);
+      setIncomingCaller(data.peer);
+    });
+
+    const unsubscribeCallState = NativeBridge.onCallStateChanged((data) => {
+      if (data.state === 'ENDED') {
+        setIncomingCaller(null);
+        setCurrentScreen((prev) => (prev.name === 'CALL' ? { name: 'HOME' } : prev));
+      }
+    });
+
+    return () => {
+      unsubscribeIncoming();
+      unsubscribeCallState();
+    };
+  }, []);
+
   const simulateIncomingCall = () => {
     setIncomingCaller({
-      id: '0x7F4A21B9',
+      id: 'node-sim',
       nickname: 'Sarah-iPhone',
       rssi: -54,
       batteryPercent: 92,
@@ -54,12 +75,21 @@ export default function App() {
     if (incomingCaller) {
       const caller = incomingCaller;
       setIncomingCaller(null);
+      NativeBridge.acceptIncomingCall('active', caller.id);
       setCurrentScreen({ name: 'CALL', peer: caller });
     }
   };
 
   const handleDeclineIncomingCall = () => {
-    setIncomingCaller(null);
+    if (incomingCaller) {
+      NativeBridge.declineIncomingCall(incomingCaller.id);
+      setIncomingCaller(null);
+    }
+  };
+
+  const handleHangupCall = () => {
+    NativeBridge.endCall();
+    setCurrentScreen({ name: 'HOME' });
   };
 
   return (
@@ -80,7 +110,10 @@ export default function App() {
 
       {currentScreen.name === 'HOME' && (
         <HomeScreen
-          onStartCall={(peer) => setCurrentScreen({ name: 'CALL', peer })}
+          onStartCall={(peer) => {
+            NativeBridge.initiateCall(peer.id, peer.nickname);
+            setCurrentScreen({ name: 'CALL', peer });
+          }}
           onOpenChat={(peer) => setCurrentScreen({ name: 'CHAT', peer })}
           onOpenSOS={() => setCurrentScreen({ name: 'SOS' })}
           onOpenDiagnostics={() => setCurrentScreen({ name: 'DIAGNOSTICS' })}
@@ -99,7 +132,10 @@ export default function App() {
       {currentScreen.name === 'CONNECTED_PEERS' && (
         <ConnectedPeersScreen
           onBack={() => setCurrentScreen({ name: 'HOME' })}
-          onCallPeer={(peer) => setCurrentScreen({ name: 'CALL', peer })}
+          onCallPeer={(peer) => {
+            NativeBridge.initiateCall(peer.id, peer.nickname);
+            setCurrentScreen({ name: 'CALL', peer });
+          }}
           onChatPeer={(peer) => setCurrentScreen({ name: 'CHAT', peer })}
           theme={theme}
         />
@@ -116,21 +152,20 @@ export default function App() {
       {currentScreen.name === 'TACTICAL_MAP' && (
         <TacticalMapScreen
           onBack={() => setCurrentScreen({ name: 'HOME' })}
-          onCallNode={(nodeName, nodeId) =>
-            setCurrentScreen({
-              name: 'CALL',
-              peer: {
-                id: nodeId,
-                nickname: nodeName,
-                rssi: -65,
-                batteryPercent: 85,
-                hopCount: 1,
-                transport: 'BLE_L2CAP',
-                isPaired: true,
-                lastSeenMs: Date.now(),
-              },
-            })
-          }
+          onCallNode={(nodeName, nodeId) => {
+            const peer = {
+              id: nodeId,
+              nickname: nodeName,
+              rssi: -65,
+              batteryPercent: 85,
+              hopCount: 1,
+              transport: 'WIFI_DIRECT' as const,
+              isPaired: true,
+              lastSeenMs: Date.now(),
+            };
+            NativeBridge.initiateCall(nodeId, nodeName);
+            setCurrentScreen({ name: 'CALL', peer });
+          }}
         />
       )}
 
@@ -138,7 +173,7 @@ export default function App() {
         <ActiveCallScreen
           peerName={currentScreen.peer.nickname}
           peerId={currentScreen.peer.id}
-          onHangup={() => setCurrentScreen({ name: 'HOME' })}
+          onHangup={handleHangupCall}
         />
       )}
 
@@ -146,7 +181,10 @@ export default function App() {
         <ChatScreen
           peer={currentScreen.peer}
           onBack={() => setCurrentScreen({ name: 'HOME' })}
-          onStartCall={() => setCurrentScreen({ name: 'CALL', peer: currentScreen.peer })}
+          onStartCall={() => {
+            NativeBridge.initiateCall(currentScreen.peer.id, currentScreen.peer.nickname);
+            setCurrentScreen({ name: 'CALL', peer: currentScreen.peer });
+          }}
         />
       )}
 
@@ -161,21 +199,20 @@ export default function App() {
       {currentScreen.name === 'CONTACTS' && (
         <ContactsScreen
           onBack={() => setCurrentScreen({ name: 'HOME' })}
-          onCallContact={(contact) =>
-            setCurrentScreen({
-              name: 'CALL',
-              peer: {
-                id: contact.id,
-                nickname: contact.name,
-                rssi: -60,
-                batteryPercent: 100,
-                hopCount: 1,
-                transport: 'BLE_L2CAP',
-                isPaired: contact.isVerified,
-                lastSeenMs: Date.now(),
-              },
-            })
-          }
+          onCallContact={(contact) => {
+            const peer: PeerNode = {
+              id: contact.id,
+              nickname: contact.name,
+              rssi: -60,
+              batteryPercent: 100,
+              hopCount: 1,
+              transport: 'WIFI_DIRECT',
+              isPaired: contact.isVerified,
+              lastSeenMs: Date.now(),
+            };
+            NativeBridge.initiateCall(contact.id, contact.name);
+            setCurrentScreen({ name: 'CALL', peer });
+          }}
         />
       )}
     </>

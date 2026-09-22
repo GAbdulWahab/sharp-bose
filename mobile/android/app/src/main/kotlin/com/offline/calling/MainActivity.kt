@@ -954,17 +954,41 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
 
         val title = TextView(this).apply {
-            text = "Mesh Server IP Configuration"
+            text = "Mesh Server IP & Radios"
             textSize = 18f
             setTypeface(null, android.graphics.Typeface.BOLD)
             setTextColor(if (isDarkMode) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A"))
         }
 
         val sub = TextView(this).apply {
-            text = "Auto-connect is active. You can also specify an exact IP."
+            text = "Choose a radio network preset or type laptop/peer IP:"
             textSize = 12f
             setTextColor(if (isDarkMode) Color.parseColor("#94A3B8") else Color.parseColor("#64748B"))
-            setPadding(0, 10, 0, 20)
+            setPadding(0, 8, 0, 14)
+        }
+
+        // Preset 1: Bluetooth PAN
+        val btnBtPan = Button(this).apply {
+            text = "🔵 Bluetooth PAN (172.27.180.170)"
+            textSize = 11f
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0369A1"))
+            setTextColor(Color.WHITE)
+            setOnClickListener {
+                bridge.connect("172.27.180.170")
+                dialog.dismiss()
+            }
+        }
+
+        // Preset 2: Wi-Fi LAN
+        val btnWifi = Button(this).apply {
+            text = "📶 Wi-Fi LAN (10.19.238.166)"
+            textSize = 11f
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#047857"))
+            setTextColor(Color.WHITE)
+            setOnClickListener {
+                bridge.connect("10.19.238.166")
+                dialog.dismiss()
+            }
         }
 
         val input = EditText(this).apply {
@@ -974,7 +998,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val btnRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(0, 30, 0, 0)
+            setPadding(0, 20, 0, 0)
         }
 
         val btnAuto = Button(this).apply {
@@ -1005,6 +1029,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         container.addView(title)
         container.addView(sub)
+        container.addView(btnBtPan)
+        container.addView(btnWifi)
         container.addView(input)
         container.addView(btnRow)
 

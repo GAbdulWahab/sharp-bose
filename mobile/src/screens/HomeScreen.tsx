@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
 import { ConnectionRadar } from '../components/ConnectionRadar';
+import { ConnectionSettingsModal } from '../components/ConnectionSettingsModal';
 import { PeerNode } from '../types/protocol';
 import { ThemeColors } from '../types/theme';
+import { NativeBridge } from '../services/NativeBridge';
 
 interface HomeScreenProps {
   onStartCall: (peer: PeerNode) => void;
@@ -35,51 +37,56 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onToggleTheme,
   theme,
 }) => {
-  const [nearbyPeers, setNearbyPeers] = useState<PeerNode[]>([
-    {
-      id: '0x7F4A21B9',
-      nickname: 'Sarah-iPhone',
-      rssi: -54,
-      batteryPercent: 92,
-      hopCount: 1,
-      transport: 'BLE_L2CAP',
-      isPaired: true,
-      lastSeenMs: Date.now(),
-    },
-    {
-      id: '0x99C2E8A1',
-      nickname: 'David-Pixel',
-      rssi: -66,
-      batteryPercent: 78,
-      hopCount: 1,
-      transport: 'WIFI_DIRECT',
-      isPaired: true,
-      lastSeenMs: Date.now(),
-    },
-    {
-      id: '0x1B44DD20',
-      nickname: 'Tactical-Relay-C',
-      rssi: -82,
-      batteryPercent: 46,
-      hopCount: 2,
-      transport: 'MESH_RELAY',
-      isPaired: true,
-      lastSeenMs: Date.now(),
-    },
-  ]);
+  const [nearbyPeers, setNearbyPeers] = useState<PeerNode[]>([]);
+  const [isMeshConnected, setIsMeshConnected] = useState(NativeBridge.isConnected);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [currentHost, setCurrentHost] = useState(NativeBridge.getServerHost());
+
+  useEffect(() => {
+    const unsubPeers = NativeBridge.onPeerListUpdated((peers) => {
+      setNearbyPeers(peers);
+    });
+
+    const unsubConn = NativeBridge.onConnectionStatusChanged((connected) => {
+      setIsMeshConnected(connected);
+    });
+
+    const unsubHost = NativeBridge.onHostChanged((host) => {
+      setCurrentHost(host);
+    });
+
+    return () => {
+      unsubPeers();
+      unsubConn();
+      unsubHost();
+    };
+  }, []);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Top Header with Theme Switcher */}
+        {/* Connection Settings Modal */}
+        <ConnectionSettingsModal
+          visible={showSettingsModal}
+          onClose={() => setShowSettingsModal(false)}
+          theme={theme}
+        />
+
+        {/* Top Header with Theme Switcher & Connection Settings */}
         <View style={styles.header}>
-          <View>
+          <TouchableOpacity onPress={() => setShowSettingsModal(true)}>
             <Text style={[styles.title, { color: theme.textPrimary }]}>OFFLINE MESH</Text>
-            <Text style={[styles.statusOnline, { color: theme.accentEmerald }]}>
-              ● Radios Active • BLE L2CAP &amp; Wi-Fi Direct
+            <Text style={[styles.statusOnline, { color: isMeshConnected ? theme.accentEmerald : '#F59E0B' }]}>
+              {isMeshConnected ? `● Live (${currentHost})` : '○ Searching Mesh... (Tap to Config)'}
             </Text>
-          </View>
+          </TouchableOpacity>
           <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={[styles.iconButton, { backgroundColor: theme.card, borderColor: theme.accentCyan }]}
+              onPress={() => setShowSettingsModal(true)}
+            >
+              <Text style={styles.iconButtonText}>📶</Text>
+            </TouchableOpacity>
             <TouchableOpacity
               style={[styles.iconButton, { backgroundColor: theme.card, borderColor: theme.cardBorder }]}
               onPress={onToggleTheme}
@@ -102,14 +109,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
         >
           <View style={styles.connectedLeft}>
             <View style={[styles.pulseDot, { backgroundColor: theme.accentEmerald }]} />
-            <div>
+            <View>
               <Text style={[styles.connectedTitle, { color: theme.textPrimary }]}>
                 {nearbyPeers.length + 1} Connected Mesh Users
               </Text>
               <Text style={[styles.connectedSub, { color: theme.textMuted }]}>
-                Tap to inspect active peer signals &amp; hops
+                Tap to inspect active peer signals & hops
               </Text>
-            </div>
+            </View>
           </View>
           <Text style={[styles.connectedArrow, { color: theme.accentCyan }]}>View →</Text>
         </TouchableOpacity>
