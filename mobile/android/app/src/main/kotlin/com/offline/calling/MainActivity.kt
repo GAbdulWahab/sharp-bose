@@ -602,6 +602,10 @@ class MainActivity : AppCompatActivity(), LocationListener {
             showIpSettingsDialog()
         }
 
+        cardStatus.setOnClickListener {
+            showIpSettingsDialog()
+        }
+
         btnOpenChat.setOnClickListener {
             showChatDialog()
         }
@@ -1326,6 +1330,114 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
 
         populateList()
+        dialog.show()
+    }
+
+    private fun showIpSettingsDialog() {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 28, 32, 28)
+            val bg = if (isDarkMode) Color.parseColor("#1E293B") else Color.parseColor("#FFFFFF")
+            setBackgroundColor(bg)
+        }
+
+        val tvTitle = TextView(this).apply {
+            text = "📡 Mesh Radio & Laptop Link"
+            textSize = 17f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(if (isDarkMode) Color.parseColor("#38BDF8") else Color.parseColor("#0284C7"))
+            setPadding(0, 0, 0, 12)
+        }
+        layout.addView(tvTitle)
+
+        val tvCurrent = TextView(this).apply {
+            text = "Target: ${bridge.currentHost}:3000 • Status: ${tvStatus.text}"
+            textSize = 12f
+            setTextColor(if (isDarkMode) Color.parseColor("#94A3B8") else Color.parseColor("#475569"))
+            setPadding(0, 0, 0, 16)
+        }
+        layout.addView(tvCurrent)
+
+        val btnWifi = Button(this).apply {
+            text = "💻 Connect to Laptop Wi-Fi (10.19.238.166)"
+            textSize = 12f
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
+            setTextColor(Color.WHITE)
+            setOnClickListener {
+                bridge.connect("10.19.238.166", this@MainActivity)
+                Toast.makeText(this@MainActivity, "Connecting to Laptop Wi-Fi (10.19.238.166)...", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+        }
+        layout.addView(btnWifi)
+
+        val btnBt = Button(this).apply {
+            text = "📱 Connect to Laptop Bluetooth (172.27.180.170)"
+            textSize = 12f
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
+            setTextColor(Color.WHITE)
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 10, 0, 0)
+            }
+            layoutParams = lp
+            setOnClickListener {
+                bridge.connect("172.27.180.170", this@MainActivity)
+                Toast.makeText(this@MainActivity, "Connecting to Laptop Bluetooth (172.27.180.170)...", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+        }
+        layout.addView(btnBt)
+
+        val btnScan = Button(this).apply {
+            text = "🔄 Auto-Scan All Mesh Interfaces"
+            textSize = 12f
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#475569"))
+            setTextColor(Color.WHITE)
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 10, 0, 0)
+            }
+            layoutParams = lp
+            setOnClickListener {
+                bridge.autoDiscoverAndConnect()
+                Toast.makeText(this@MainActivity, "Auto-scanning all network interfaces...", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+        }
+        layout.addView(btnScan)
+
+        val inputIp = EditText(this).apply {
+            hint = "Or type custom IP (e.g. 10.19.238.166)"
+            setHintTextColor(Color.parseColor("#94A3B8"))
+            setTextColor(if (isDarkMode) Color.WHITE else Color.BLACK)
+            textSize = 13f
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 16, 0, 8)
+            }
+            layoutParams = lp
+        }
+        layout.addView(inputIp)
+
+        val btnCustom = Button(this).apply {
+            text = "Connect Custom IP"
+            textSize = 12f
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#7C3AED"))
+            setTextColor(Color.WHITE)
+            setOnClickListener {
+                val ip = inputIp.text.toString().trim()
+                if (ip.isNotEmpty()) {
+                    bridge.connect(ip, this@MainActivity)
+                    Toast.makeText(this@MainActivity, "Connecting to $ip:3000...", Toast.LENGTH_SHORT).show()
+                    dialog.dismiss()
+                }
+            }
+        }
+        layout.addView(btnCustom)
+
+        dialog.setContentView(layout)
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.92).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
         dialog.show()
     }
 
