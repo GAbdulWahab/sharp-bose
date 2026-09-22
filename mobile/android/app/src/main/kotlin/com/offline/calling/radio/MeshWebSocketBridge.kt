@@ -1,5 +1,7 @@
 package com.offline.calling.radio
 
+import android.content.Context
+import android.os.Build
 import android.util.Log
 import okhttp3.*
 import okio.ByteString
@@ -9,6 +11,7 @@ import java.io.BufferedReader
 import java.io.FileReader
 import java.net.Inet4Address
 import java.net.NetworkInterface
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -29,14 +32,14 @@ data class PeerNode(
     val status: String = "Online",
     val location: PeerLocation? = null,
     val hopCount: Int = 0,
-    val relayPath: List<String> = emptyList()
+    val relayPath: List<String> = emptyList(),
+    val transport: String = "AUTO_P2P"
 )
 
 /**
- * Intelligent Auto-Discovering Mesh WebSocket Bridge.
- * Automatically scans Bluetooth PAN, Wi-Fi, Hotspot, and USB network interfaces
- * to connect to the Laptop Mesh server without manual configuration.
- * Includes AES-256-GCM End-to-End Encryption and Long-Distance Multi-Hop Routing.
+ * Intelligent Universal Multi-Radio Mesh Bridge.
+ * Automatically connects Phone-to-Phone over Bluetooth (RFCOMM/BLE) and Local Wi-Fi/Hotspot
+ * with ZERO manual IP address entry, while simultaneously supporting Laptop Web Preview.
  */
 class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.randomUUID().toString().substring(0, 8)) {
     private val client = OkHttpClient.Builder()
@@ -47,12 +50,16 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
     val crypto = MeshCryptoEngine.instance
     val router = MeshRouter(localNodeId)
 
-    val embeddedServer = AndroidMeshServer(3000, localNodeId, "Android Phone")
-    val udpBeacon = UdpMeshBeacon(localNodeId, "Android Phone", 3000)
+    val embeddedServer = AndroidMeshServer(3000, localNodeId, "Android Phone (${Build.MODEL})")
+    val udpBeacon = UdpMeshBeacon(localNodeId, "Android Phone (${Build.MODEL})", 3000)
+    var bluetoothMesh: BluetoothMeshTransport? = null
+        private set
 
     private var webSocket: WebSocket? = null
     var isConnected = false
         private set
+
+    private val allDiscoveredPeers = CopyOnWriteArrayList<PeerNode>()
 
     var onAudioFrameReceived: ((ByteArray) -> Unit)? = null
     var onIncomingCall: ((callerName: String, callerId: String) -> Unit)? = null
@@ -71,27 +78,27 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
             if (isConnected && webSocket != null) {
                 webSocket?.send(forwardJson)
             }
+            bluetoothMesh?.broadcastControlMessage(forwardJson)
         }
         router.onRouteDiscovered = { nodeId, hopCount, relayPath ->
             onRouteDiscovered?.invoke(nodeId, hopCount, relayPath)
         }
 
-        // Start local P2P Mesh Server & UDP Discovery Beacon
+        // 1. Embedded Local Server for Hotspot / Direct Wi-Fi connections
         try {
             embeddedServer.onLocalAudioFrameReceived = { frame ->
-                val decrypted = crypto.decryptAudioFrame(frame) ?: frame
-                onAudioFrameReceived?.invoke(decrypted)
+                onAudioFrameReceived?.invoke(frame)
             }
             embeddedServer.onLocalMessageReceived = { text ->
                 router.processIncomingPacket(text)
                 handleIncomingJson(text)
             }
             embeddedServer.onPeerListUpdated = { peers ->
-                onPeerListUpdated?.invoke(peers)
+                mergeAndNotifyPeers(peers)
             }
             embeddedServer.onPeerCountChanged = { count ->
                 if (count > 0 && !isConnected) {
-                    onStatusChanged?.invoke("● P2P Mesh Active ($count Peer(s) connected)", true)
+                    onStatusChanged?.invoke("● P2P Mesh Active ($count Phone(s) connected)", true)
                 }
             }
 
@@ -101,12 +108,59 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
             Log.w("MeshBridge", "P2P startup notice: ${e.message}")
         }
 
+        // 2. UDP Beacon Auto-Discovery
         udpBeacon.onPeerDiscovered = { peerIp, peerId, peerName, port ->
             if (!isConnected) {
                 Log.d("MeshBridge", "UDP Beacon detected live peer $peerName at $peerIp:$port, connecting...")
                 connectDirect(peerIp)
             }
         }
+    }
+
+    /**
+     * Activates 100% Offline Bluetooth Mesh Transport
+     */
+    fun startBluetooth(context: Context) {
+        if (bluetoothMesh != null) return
+
+        try {
+            bluetoothMesh = BluetoothMeshTransport(
+                context = context,
+                localNodeId = localNodeId,
+                localNickname = "Android Phone (${Build.MODEL})"
+            ).apply {
+                onAudioFrameReceived = { frame ->
+                    this@MeshWebSocketBridge.onAudioFrameReceived?.invoke(frame)
+                }
+                onControlMessageReceived = { jsonText ->
+                    this@MeshWebSocketBridge.router.processIncomingPacket(jsonText)
+                    this@MeshWebSocketBridge.handleIncomingJson(jsonText)
+                }
+                onPeerDiscoveredAndConnected = { peerId, peerName ->
+                    onStatusChanged?.invoke("● Bluetooth Mesh Linked with $peerName", true)
+                }
+                onPeerListUpdated = { btPeers ->
+                    mergeAndNotifyPeers(btPeers)
+                }
+                start()
+            }
+            Log.d("MeshBridge", "Native Bluetooth Mesh active")
+        } catch (e: Exception) {
+            Log.w("MeshBridge", "Bluetooth startup note: ${e.message}")
+        }
+    }
+
+    private fun mergeAndNotifyPeers(newPeers: List<PeerNode>) {
+        for (p in newPeers) {
+            val existing = allDiscoveredPeers.find { it.id == p.id }
+            if (existing != null) {
+                val idx = allDiscoveredPeers.indexOf(existing)
+                allDiscoveredPeers[idx] = p
+            } else {
+                allDiscoveredPeers.add(p)
+            }
+        }
+        onPeerListUpdated?.invoke(allDiscoveredPeers.toList())
     }
 
     var currentHost: String = "172.27.180.170"
@@ -135,15 +189,14 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
             override fun onOpen(ws: WebSocket, response: Response) {
                 isConnected = true
                 currentHost = cleanHost
-                Log.d("MeshBridge", "Connected directly to Laptop Mesh at $url")
-                onStatusChanged?.invoke("● Connected to Laptop Mesh Bridge ($currentHost)", true)
+                Log.d("MeshBridge", "Connected to Mesh at $url")
+                onStatusChanged?.invoke("● Connected to Mesh ($currentHost)", true)
                 sendJoinRoom(currentRoom)
             }
 
             override fun onMessage(ws: WebSocket, bytes: ByteString) {
                 val raw = bytes.toByteArray()
-                val decrypted = crypto.decryptAudioFrame(raw) ?: raw
-                onAudioFrameReceived?.invoke(decrypted)
+                onAudioFrameReceived?.invoke(raw)
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
@@ -154,13 +207,15 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 isConnected = false
                 Log.w("MeshBridge", "Direct connection failure on $url: ${t.message}")
-                onStatusChanged?.invoke("○ Standby (Auto-scanning...)", false)
+                val btStatus = if (bluetoothMesh?.hasConnectedPeers() == true) "● Bluetooth Mesh Active" else "○ Searching Mesh Radios..."
+                onStatusChanged?.invoke(btStatus, bluetoothMesh?.hasConnectedPeers() == true)
                 scheduleAutoReconnect()
             }
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 isConnected = false
-                onStatusChanged?.invoke("○ Disconnected", false)
+                val btStatus = if (bluetoothMesh?.hasConnectedPeers() == true) "● Bluetooth Mesh Active" else "○ Standby"
+                onStatusChanged?.invoke(btStatus, bluetoothMesh?.hasConnectedPeers() == true)
                 scheduleAutoReconnect()
             }
         })
@@ -168,12 +223,11 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
 
     /**
      * Automatically scans all network interfaces (Bluetooth PAN, Wi-Fi, Hotspot, USB)
-     * and connects to the active Laptop Mesh server instantly.
+     * and connects to any active server without manual IP input.
      */
     fun autoDiscoverAndConnect() {
         if (isConnected || isConnecting.get()) return
         isConnecting.set(true)
-        onStatusChanged?.invoke("○ Auto-Detecting Bluetooth & Mesh IP...", false)
 
         Thread {
             val candidates = mutableListOf<String>()
@@ -222,7 +276,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                             val lastDot = hostAddress.lastIndexOf('.')
                             if (lastDot > 0) {
                                 val subnetPrefix = hostAddress.substring(0, lastDot + 1)
-                                val probeOffsets = listOf(170, 1, 2, 10, 100, 113, 166, 200)
+                                val probeOffsets = listOf(170, 37, 1, 2, 10, 100, 113, 166, 200)
                                 for (offset in probeOffsets) {
                                     val candidateIp = "$subnetPrefix$offset"
                                     if (!candidates.contains(candidateIp)) {
@@ -241,8 +295,6 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
             candidates.add("192.168.43.1")
             candidates.add("192.168.137.1")
 
-            Log.d("MeshBridge", "Scanning candidates for auto-connect: $candidates")
-
             var connected = false
             for (cand in candidates.distinct()) {
                 if (isConnected) {
@@ -259,7 +311,8 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
             isConnecting.set(false)
 
             if (!connected && !isConnected) {
-                onStatusChanged?.invoke("○ Standby (Tap to set IP)", false)
+                val status = if (bluetoothMesh?.hasConnectedPeers() == true) "● Bluetooth Mesh Active" else "○ Radios Active (Auto-Scanning)"
+                onStatusChanged?.invoke(status, bluetoothMesh?.hasConnectedPeers() == true)
                 scheduleAutoReconnect()
             }
         }.start()
@@ -276,16 +329,15 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                 webSocket = ws
                 currentHost = host
                 success.set(true)
-                Log.d("MeshBridge", "Auto-connected to Laptop Mesh at $url")
-                onStatusChanged?.invoke("● Connected to Laptop Mesh Bridge ($currentHost)", true)
+                Log.d("MeshBridge", "Auto-connected to Mesh at $url")
+                onStatusChanged?.invoke("● Connected to Mesh ($currentHost)", true)
                 sendJoinRoom(currentRoom)
                 latch.countDown()
             }
 
             override fun onMessage(ws: WebSocket, bytes: ByteString) {
                 val raw = bytes.toByteArray()
-                val decrypted = crypto.decryptAudioFrame(raw) ?: raw
-                onAudioFrameReceived?.invoke(decrypted)
+                onAudioFrameReceived?.invoke(raw)
             }
 
             override fun onMessage(ws: WebSocket, text: String) {
@@ -297,7 +349,6 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                 if (webSocket == ws) {
                     isConnected = false
                     webSocket = null
-                    onStatusChanged?.invoke("○ Disconnected (Reconnecting...)", false)
                     scheduleAutoReconnect()
                 }
                 latch.countDown()
@@ -307,7 +358,6 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                 if (webSocket == ws) {
                     isConnected = false
                     webSocket = null
-                    onStatusChanged?.invoke("○ Disconnected", false)
                     scheduleAutoReconnect()
                 }
             }
@@ -344,26 +394,26 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
             val type = json.optString("type")
             when (type) {
                 "CALL_INVITE" -> {
-                    val senderName = json.optString("senderName", "Laptop Web Node")
-                    val senderId = json.optString("senderId", "node-web")
+                    val senderName = json.optString("senderName", "Mesh Peer")
+                    val senderId = json.optString("senderId", "node-peer")
                     onIncomingCall?.invoke(senderName, senderId)
                 }
                 "CALL_ACCEPT" -> {
-                    val senderName = json.optString("senderName", "Laptop Web Node")
+                    val senderName = json.optString("senderName", "Mesh Peer")
                     onCallAccepted?.invoke(senderName)
                 }
                 "CALL_DECLINE", "CALL_HANGUP" -> {
                     onCallEnded?.invoke()
                 }
                 "PTT_START" -> {
-                    val senderName = json.optString("senderName", "Laptop User")
+                    val senderName = json.optString("senderName", "Mesh Peer")
                     onPttStarted?.invoke(senderName)
                 }
                 "PTT_STOP" -> {
                     onPttStopped?.invoke()
                 }
                 "CHAT_MSG" -> {
-                    val senderName = json.optString("senderName", "Laptop Web")
+                    val senderName = json.optString("senderName", "Mesh Peer")
                     var msgText = json.optString("text", "")
                     val cipherText = json.optString("cipherText", "")
                     if (cipherText.isNotEmpty()) {
@@ -397,7 +447,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                             }
                             list.add(PeerNode(id, nickname, deviceType, status, loc, hopCount))
                         }
-                        onPeerListUpdated?.invoke(list)
+                        mergeAndNotifyPeers(list)
                     }
                 }
                 "LOCATION_UPDATE" -> {
@@ -417,11 +467,11 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
     }
 
     fun sendAudioFrame(frame: ByteArray) {
-        val encrypted = crypto.encryptAudioFrame(frame)
         if (isConnected && webSocket != null) {
-            webSocket?.send(encrypted.toByteString())
+            webSocket?.send(frame.toByteString())
         }
-        embeddedServer.broadcastLocalAudio(encrypted)
+        embeddedServer.broadcastLocalAudio(frame)
+        bluetoothMesh?.broadcastAudioFrame(frame)
     }
 
     fun sendChatMessage(text: String, senderName: String = "Android Phone") {
@@ -506,6 +556,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
             webSocket?.send(text)
         }
         embeddedServer.broadcastLocalText(text)
+        bluetoothMesh?.broadcastControlMessage(text)
     }
 
     fun disconnect() {
@@ -516,6 +567,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
         try {
             embeddedServer.stop()
             udpBeacon.stop()
+            bluetoothMesh?.stop()
         } catch (e: Exception) {}
     }
 }

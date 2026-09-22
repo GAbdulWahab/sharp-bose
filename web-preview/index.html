@@ -991,9 +991,6 @@
           const avg = sum / inputData.length;
           updateWaveformVisualizer(avg);
 
-          // Squelch Noise Gate: Completely cuts out ambient background static & room noise
-          if (avg < 0.015) return;
-
           const sampleRate = audioCtx.sampleRate || 48000;
           const packetBuffer = new ArrayBuffer(4 + inputData.length * 2);
           const header = new DataView(packetBuffer);

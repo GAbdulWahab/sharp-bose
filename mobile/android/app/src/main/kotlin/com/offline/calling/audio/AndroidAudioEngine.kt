@@ -18,8 +18,8 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Android Studio-Grade Ultra-Low Latency HD Audio Engine.
- * Features Hardware AEC, NS, AGC, adaptive squelch gate, and instant disconnect cleanup.
+ * Android Ultra-Clear Low-Latency HD Voice Engine (16 kHz PCM Mono).
+ * Continuous non-blocking stream with hardware AEC, NS, AGC, smooth jitter buffer, and sample rate negotiation.
  */
 class AndroidAudioEngine(private val context: Context) {
     val sampleRate = 16000
@@ -38,8 +38,8 @@ class AndroidAudioEngine(private val context: Context) {
     private var recordingThread: Thread? = null
     private var playbackThread: Thread? = null
 
-    // Low-latency jitter queue (max 3 packets = 60ms) for instantaneous, smooth playback
-    private val playbackQueue = LinkedBlockingQueue<ByteArray>(10)
+    // Smooth jitter queue (holds up to 20 frames, pre-buffers for seamless playback)
+    private val playbackQueue = LinkedBlockingQueue<ByteArray>(25)
 
     var onAudioFrameCaptured: ((ByteArray) -> Unit)? = null
 
@@ -52,7 +52,7 @@ class AndroidAudioEngine(private val context: Context) {
         startPlaybackOnly()
 
         val inBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfigIn, audioFormat)
-        val actualInBufSize = maxOf(inBufferSize * 2, 2048)
+        val actualInBufSize = maxOf(inBufferSize * 2, 4096)
 
         try {
             audioRecord = AudioRecord(
@@ -70,7 +70,7 @@ class AndroidAudioEngine(private val context: Context) {
                         enabled = true
                     }
                 } catch (e: Exception) {
-                    Log.w("AudioEngine", "AEC unavailable: ${e.message}")
+                    Log.w("AudioEngine", "AEC note: ${e.message}")
                 }
             }
 
@@ -80,7 +80,7 @@ class AndroidAudioEngine(private val context: Context) {
                         enabled = true
                     }
                 } catch (e: Exception) {
-                    Log.w("AudioEngine", "NS unavailable: ${e.message}")
+                    Log.w("AudioEngine", "NS note: ${e.message}")
                 }
             }
 
@@ -90,7 +90,7 @@ class AndroidAudioEngine(private val context: Context) {
                         enabled = true
                     }
                 } catch (e: Exception) {
-                    Log.w("AudioEngine", "AGC unavailable: ${e.message}")
+                    Log.w("AudioEngine", "AGC note: ${e.message}")
                 }
             }
 
@@ -99,32 +99,13 @@ class AndroidAudioEngine(private val context: Context) {
 
             recordingThread = Thread {
                 Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
-                val audioBuffer = ByteArray(640) // 20ms @ 16kHz mono (320 samples)
-                var prevSample = 0f
+                // 320 samples = 20ms @ 16kHz 16-bit PCM = 640 bytes
+                val audioBuffer = ByteArray(640)
 
                 while (isRecording.get()) {
                     val readBytes = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
                     if (readBytes > 0 && isRecording.get()) {
-                        val sBuf = ByteBuffer.wrap(audioBuffer, 0, readBytes)
-                            .order(ByteOrder.LITTLE_ENDIAN)
-                            .asShortBuffer()
-                        var sum = 0L
-                        val numSamples = sBuf.remaining()
-
-                        // High-pass filtering (removes DC offset and low rumble) & Energy Calculation
-                        for (i in 0 until numSamples) {
-                            val cur = sBuf.get(i).toFloat()
-                            val filtered = cur - prevSample * 0.85f
-                            prevSample = cur
-                            sum += Math.abs(filtered.toLong())
-                        }
-                        val avg = sum / maxOf(1, numSamples)
-
-                        // Squelch Noise Gate: Safe threshold to allow soft whispers and normal voice
-                        if (avg < 50) {
-                            continue
-                        }
-
+                        // Frame format: [0xAA, 0x55, SampleRate_High, SampleRate_Low] + PCM Bytes
                         val packet = ByteArray(4 + readBytes)
                         packet[0] = 0xAA.toByte()
                         packet[1] = 0x55.toByte()
@@ -139,7 +120,7 @@ class AndroidAudioEngine(private val context: Context) {
                 start()
             }
         } catch (e: Exception) {
-            Log.e("AudioEngine", "Error starting recording: ${e.message}")
+            Log.e("AudioEngine", "Error starting voice record: ${e.message}")
         }
     }
 
@@ -147,7 +128,7 @@ class AndroidAudioEngine(private val context: Context) {
         if (isPlaying.get() && audioTrack != null) return
 
         val outBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfigOut, audioFormat)
-        val actualOutBufSize = maxOf(outBufferSize * 2, 2048)
+        val actualOutBufSize = maxOf(outBufferSize * 4, 8192)
 
         try {
             audioTrack = AudioTrack.Builder()
@@ -182,7 +163,7 @@ class AndroidAudioEngine(private val context: Context) {
                     } catch (e: InterruptedException) {
                         break
                     } catch (e: Exception) {
-                        Log.e("AudioEngine", "Playback error: ${e.message}")
+                        Log.e("AudioEngine", "Playback stream notice: ${e.message}")
                     }
                 }
             }.apply {
@@ -202,16 +183,20 @@ class AndroidAudioEngine(private val context: Context) {
         var pcmBytes: ByteArray
         var senderRate = sampleRate
 
+        // Parse header if present
         if (frame.size >= 4 && (frame[0].toInt() and 0xFF) == 0xAA && (frame[1].toInt() and 0xFF) == 0x55) {
             senderRate = ((frame[2].toInt() and 0xFF) shl 8) or (frame[3].toInt() and 0xFF)
             pcmBytes = frame.copyOfRange(4, frame.size)
         } else {
             pcmBytes = frame
+            if (frame.size > 1000) {
+                senderRate = 48000 // Standard browser rate
+            }
         }
 
         if (pcmBytes.isEmpty()) return
 
-        // Resample if sender rate differs (e.g. 48000 Hz from laptop down to 16000 Hz)
+        // Resample from senderRate (e.g. 48000 Hz or 44100 Hz from laptop/browser) to 16000 Hz
         val processedPcm = if (senderRate != sampleRate && senderRate > 0) {
             resamplePcm16(pcmBytes, senderRate, sampleRate)
         } else {
@@ -220,8 +205,8 @@ class AndroidAudioEngine(private val context: Context) {
 
         val clean = applySoftLimiter(processedPcm)
 
-        // Drop stale packets to prevent latency accumulation (maintain <40ms delay)
-        while (playbackQueue.size > 4) {
+        // Prevent overflow buffer delay: maintain under 150ms buffer
+        while (playbackQueue.size > 12) {
             playbackQueue.poll()
         }
 
@@ -236,7 +221,7 @@ class AndroidAudioEngine(private val context: Context) {
 
         for (i in 0 until numSamples) {
             val sample = inBuf.get(i).toFloat()
-            val limited = (sample * 1.05f).coerceIn(-32767f, 32767f).toInt().toShort()
+            val limited = (sample * 1.2f).coerceIn(-32767f, 32767f).toInt().toShort()
             outBuf.put(i, limited)
         }
         return output
@@ -249,6 +234,8 @@ class AndroidAudioEngine(private val context: Context) {
 
         val ratio = fromRate.toDouble() / toRate.toDouble()
         val outLen = (inLen / ratio).toInt()
+        if (outLen <= 0) return input
+
         val outputBytes = ByteArray(outLen * 2)
         val outBuf = ByteBuffer.wrap(outputBytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
 

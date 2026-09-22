@@ -414,6 +414,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
         }
 
+        bridge.startBluetooth(this)
         bridge.connect()
     }
 
@@ -1366,6 +1367,14 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         if (neededPermissions.isNotEmpty()) {
             ActivityCompat.requestPermissions(this, neededPermissions.toTypedArray(), 1001)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 1001) {
+            bridge.startBluetooth(this)
+            initLocationEngine()
         }
     }
 
