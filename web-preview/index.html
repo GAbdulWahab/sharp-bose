@@ -1488,59 +1488,76 @@
     function renderPeers(peers) {
       currentPeersList = peers;
       const otherPeers = peers.filter(p => p.id !== myId);
-      document.getElementById('peer-section-title').innerText = `CONNECTED PEOPLE &amp; PEERS (${otherPeers.length})`;
+      document.getElementById('peer-section-title').innerText = `PEOPLE & NODES (${otherPeers.length} Connected)`;
 
       const container = document.getElementById('live-peers-container');
+      
+      let html = `<div style="font-size: 11px; font-weight: 800; color: #10B981; margin-bottom: 6px;">🟢 CONNECTED DEVICES (${otherPeers.length})</div>`;
+      
       if (otherPeers.length === 0) {
-        container.innerHTML = `
-          <div class="card" style="text-align: center; color: var(--text-sub); font-size: 12px; padding: 20px;">
-            <div>👥 Waiting for other people/devices to connect...</div>
-            <div style="font-size: 11px; color: var(--accent-cyan); margin-top: 6px;">
-              Open <strong>https://${location.hostname}:3443</strong> on phone
-            </div>
+        html += `
+          <div class="card" style="text-align: center; color: var(--text-sub); font-size: 12px; padding: 16px; margin-bottom: 12px;">
+            <div>👥 Standby • Laptop node active. Open the Android app or connect below.</div>
           </div>
         `;
-        renderRadarScreen();
-        return;
-      }
+      } else {
+        html += otherPeers.map(peer => {
+          let locTag = '⚡ Direct Local Mesh (0 Hops)';
+          if (peer.hopCount && peer.hopCount > 0) {
+            locTag = `🔀 Relayed (${peer.hopCount} Hops • Extended Range)`;
+          } else if (myLocation && peer.location && peer.location.lat && peer.location.lng) {
+            const dist = calculateDistanceMeters(myLocation.lat, myLocation.lng, peer.location.lat, peer.location.lng);
+            const bearing = calculateBearingDegrees(myLocation.lat, myLocation.lng, peer.location.lat, peer.location.lng);
+            const heading = getCompassHeading(bearing);
+            locTag = `📍 ${formatDistance(dist)} ${heading.arrow} ${heading.text}`;
+          }
 
-      container.innerHTML = otherPeers.map(peer => {
-        let locTag = '⚡ Direct Local Mesh (0 Hops)';
-        if (peer.hopCount && peer.hopCount > 0) {
-          locTag = `🔀 Relayed (${peer.hopCount} Hops • Extended Range)`;
-        } else if (myLocation && peer.location && peer.location.lat && peer.location.lng) {
-          const dist = calculateDistanceMeters(myLocation.lat, myLocation.lng, peer.location.lat, peer.location.lng);
-          const bearing = calculateBearingDegrees(myLocation.lat, myLocation.lng, peer.location.lat, peer.location.lng);
-          const heading = getCompassHeading(bearing);
-          locTag = `📍 ${formatDistance(dist)} ${heading.arrow} ${heading.text}`;
-        }
+          const devIcon = peer.deviceType === 'Android' ? '📱' : '💻';
 
-        const devIcon = peer.deviceType === 'Android' ? '📱' : '💻';
-
-        return `
-          <div class="peer-card">
-            <div class="peer-card-top">
-              <div class="peer-info" onclick="openChat('${peer.nickname}')">
-                <span style="font-size: 18px;">${devIcon}</span>
-                <div>
-                  <div class="peer-name">
-                    ${peer.nickname} 
-                    <span style="font-size: 10px; background: #064E3B; color: #34D399; padding: 2px 6px; border-radius: 4px; font-weight: bold;">🔒 E2EE</span>
-                    <span style="font-size: 10px; background: var(--card-border); padding: 2px 6px; border-radius: 4px;">${peer.status || 'Online'}</span>
+          return `
+            <div class="peer-card">
+              <div class="peer-card-top">
+                <div class="peer-info" onclick="openChat('${peer.nickname}')">
+                  <span style="font-size: 18px;">${devIcon}</span>
+                  <div>
+                    <div class="peer-name">
+                      ${peer.nickname} 
+                      <span style="font-size: 10px; background: #064E3B; color: #34D399; padding: 2px 6px; border-radius: 4px; font-weight: bold;">🔒 E2EE</span>
+                      <span style="font-size: 10px; background: var(--card-border); padding: 2px 6px; border-radius: 4px;">${peer.status || 'Online'}</span>
+                    </div>
+                    <div class="peer-meta">ID: ${peer.id} • <span style="color: var(--accent-emerald); font-weight: bold;">${locTag}</span></div>
                   </div>
-                  <div class="peer-meta">ID: ${peer.id} • <span style="color: var(--accent-emerald); font-weight: bold;">${locTag}</span></div>
+                </div>
+                <div class="btn-group">
+                  <button class="btn-sm" style="background: #0284C7;" onclick="showScreen('radar')" title="View on Radar">📍</button>
+                  <button class="btn-sm btn-call" onclick="sendLiveCallInvite('${peer.id}', '${peer.nickname}')">📞 Call</button>
+                  <button class="btn-sm btn-chat" onclick="openChat('${peer.nickname}')">💬</button>
                 </div>
               </div>
-              <div class="btn-group">
-                <button class="btn-sm" style="background: #0284C7;" onclick="showScreen('radar')" title="View on Radar">📍</button>
-                <button class="btn-sm btn-call" onclick="sendLiveCallInvite('${peer.id}', '${peer.nickname}')">📞 Call</button>
-                <button class="btn-sm btn-chat" onclick="openChat('${peer.nickname}')">💬</button>
-              </div>
             </div>
-          </div>
-        `;
-      }).join('');
+          `;
+        }).join('');
+      }
 
+      html += `
+        <div style="font-size: 11px; font-weight: 800; color: #38BDF8; margin: 12px 0 6px;">📡 AVAILABLE RADIOS & PHONE LINKS</div>
+        <div class="card" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div>
+            <div style="font-weight: 700; font-size: 13px;">📶 Wi-Fi LAN Audio Link</div>
+            <div style="font-size: 11px; color: var(--text-sub);">https://10.19.238.166:3443 (or http://10.19.238.166:3000)</div>
+          </div>
+          <button class="btn-sm btn-chat" onclick="navigator.clipboard.writeText('https://10.19.238.166:3443'); alert('Copied Wi-Fi URL!')">📋 Copy</button>
+        </div>
+        <div class="card" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div>
+            <div style="font-weight: 700; font-size: 13px;">🔵 Bluetooth PAN Audio Link</div>
+            <div style="font-size: 11px; color: var(--text-sub);">https://172.27.180.170:3443 (or http://172.27.180.170:3000)</div>
+          </div>
+          <button class="btn-sm btn-chat" onclick="navigator.clipboard.writeText('https://172.27.180.170:3443'); alert('Copied Bluetooth PAN URL!')">📋 Copy</button>
+        </div>
+      `;
+
+      container.innerHTML = html;
       renderRadarScreen();
     }
 

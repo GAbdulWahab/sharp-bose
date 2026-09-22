@@ -227,6 +227,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         for (card in cards) {
             card.setCardBackgroundColor(bgCard)
         }
+        renderConnectedPeopleList(connectedPeersList)
     }
 
     private fun initLocationEngine() {
@@ -316,6 +317,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 } else {
                     tvStatus.setTextColor(ContextCompat.getColor(this, R.color.accent_cyan))
                 }
+                renderConnectedPeopleList(connectedPeersList)
             }
         }
 
@@ -426,33 +428,67 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         bridge.startBluetooth(this)
         bridge.connect(context = this)
+        renderConnectedPeopleList(connectedPeersList)
     }
 
     private fun renderConnectedPeopleList(peers: List<PeerNode>) {
         llConnectedPeople.removeAllViews()
 
         val otherPeers = peers.filter { it.id != localPeerId }
-        tvPeopleCount.text = "${otherPeers.size} Online"
 
-        if (otherPeers.isEmpty()) {
-            val tvEmpty = TextView(this).apply {
-                text = "📡 Scanning for connected mesh people / devices..."
-                setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
-                textSize = 12f
-                gravity = Gravity.CENTER
-                setPadding(0, 24, 0, 24)
-            }
-            llConnectedPeople.addView(tvEmpty)
-            return
+        // Dynamic list of available network and bluetooth targets
+        // Tuple: (Title, Subtitle/Type, TargetAddress/IP)
+        val availableList = mutableListOf<Triple<String, String, String>>()
+
+        val isConnectedToWifi = bridge.isConnected && bridge.currentHost == "10.19.238.166"
+        val isConnectedToBtPan = bridge.isConnected && bridge.currentHost == "172.27.180.170"
+
+        if (!isConnectedToWifi) {
+            availableList.add(Triple("💻 Laptop Node (Wi-Fi)", "Wi-Fi LAN • 10.19.238.166:3000", "10.19.238.166"))
+        }
+        if (!isConnectedToBtPan) {
+            availableList.add(Triple("🔵 Laptop Node (Bluetooth PAN)", "Bluetooth PAN • 172.27.180.170:3000", "172.27.180.170"))
         }
 
-        for (peer in otherPeers) {
-            val peerRow = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
+        // Discover Paired / Bonded Bluetooth Devices safely
+        try {
+            val btAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+            if (btAdapter != null && btAdapter.isEnabled) {
+                val bonded = btAdapter.bondedDevices
+                if (bonded != null) {
+                    for (dev in bonded) {
+                        val devName = dev.name ?: "Bluetooth Device"
+                        val devAddr = dev.address
+                        val isAlreadyConnected = otherPeers.any { it.id.contains(devAddr, true) || it.nickname.contains(devName, true) }
+                        if (!isAlreadyConnected) {
+                            availableList.add(Triple("📱 $devName", "Paired Bluetooth • $devAddr", "BT:$devAddr"))
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {}
+
+        // Update People Count Header Badge
+        tvPeopleCount.text = "${otherPeers.size} Connected • ${availableList.size} Available"
+
+        // ==========================================
+        // SECTION 1: 🟢 CONNECTED DEVICES / ACTIVE NODES
+        // ==========================================
+        val tvConnectedHeader = TextView(this).apply {
+            text = "🟢 CONNECTED DEVICES (${otherPeers.size})"
+            textSize = 12f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.parseColor("#10B981"))
+            setPadding(4, 4, 4, 8)
+        }
+        llConnectedPeople.addView(tvConnectedHeader)
+
+        if (otherPeers.isEmpty()) {
+            val emptyCard = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
                 val bg = if (isDarkMode) Color.parseColor("#0F172A") else Color.parseColor("#F1F5F9")
                 setBackgroundColor(bg)
-                setPadding(18, 14, 18, 14)
+                setPadding(16, 14, 16, 14)
                 val params = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
@@ -462,86 +498,225 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 layoutParams = params
             }
 
-            // Left Icon & Info
+            val tvNotice = TextView(this).apply {
+                text = if (bridge.isConnected) {
+                    "● Link active on ${bridge.currentHost}:3000. Ready for 2-way call! Select a device below to start."
+                } else {
+                    "○ Standby • Tap 'Connect' on any available device below to link."
+                }
+                setTextColor(if (isDarkMode) Color.parseColor("#94A3B8") else Color.parseColor("#64748B"))
+                textSize = 12f
+            }
+            emptyCard.addView(tvNotice)
+            llConnectedPeople.addView(emptyCard)
+        } else {
+            for (peer in otherPeers) {
+                val peerRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    val bg = if (isDarkMode) Color.parseColor("#0F172A") else Color.parseColor("#F1F5F9")
+                    setBackgroundColor(bg)
+                    setPadding(18, 14, 18, 14)
+                    val params = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        setMargins(0, 0, 0, 10)
+                    }
+                    layoutParams = params
+                }
+
+                // Left Icon & Info
+                val leftInfo = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+
+                val iconStr = if (peer.deviceType.contains("Android", true)) "📱" else "💻"
+                val tvName = TextView(this).apply {
+                    text = "$iconStr ${peer.nickname}"
+                    setTextColor(if (isDarkMode) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A"))
+                    textSize = 14f
+                    setTypeface(null, android.graphics.Typeface.BOLD)
+                }
+
+                var distStr = "⚡ Direct (0 Hops)"
+                if (peer.hopCount > 0) {
+                    distStr = "🔀 Multi-Hop (${peer.hopCount} Hops)"
+                } else if (hasGpsFix && peer.location != null && peer.location.lat != 0.0) {
+                    val dist = calculateDistanceMeters(currentLatitude, currentLongitude, peer.location.lat, peer.location.lng)
+                    val bearing = calculateBearingDegrees(currentLatitude, currentLongitude, peer.location.lat, peer.location.lng)
+                    val heading = getCompassHeading(bearing)
+                    distStr = "📍 ${formatDistance(dist)} ${heading.second} ${heading.first}"
+                }
+
+                val tvMeta = TextView(this).apply {
+                    text = "🟢 Connected • 🔒 E2EE • ${peer.status} • $distStr"
+                    setTextColor(Color.parseColor("#10B981"))
+                    textSize = 11f
+                }
+
+                leftInfo.addView(tvName)
+                leftInfo.addView(tvMeta)
+                peerRow.addView(leftInfo)
+
+                // Security Fingerprint Button
+                val btnSecurity = Button(this).apply {
+                    text = "🔒"
+                    textSize = 12f
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+                    setTextColor(Color.parseColor("#38BDF8"))
+                    setOnClickListener {
+                        showSecurityDialog(peer.id)
+                    }
+                }
+
+                // Quick Call Button
+                val btnQuickCall = Button(this).apply {
+                    text = "📞 Call"
+                    textSize = 11f
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
+                    setTextColor(Color.WHITE)
+                    setOnClickListener {
+                        startVoiceCall(peer.id, peer.nickname)
+                    }
+                }
+
+                // Quick Message Button
+                val btnQuickChat = Button(this).apply {
+                    text = "💬"
+                    textSize = 12f
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
+                    setTextColor(Color.WHITE)
+                    setOnClickListener {
+                        showChatDialog()
+                    }
+                }
+
+                val btnParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 100).apply {
+                    marginStart = 6
+                }
+                btnSecurity.layoutParams = btnParams
+                btnQuickCall.layoutParams = btnParams
+                btnQuickChat.layoutParams = btnParams
+
+                peerRow.addView(btnSecurity)
+                peerRow.addView(btnQuickCall)
+                peerRow.addView(btnQuickChat)
+
+                llConnectedPeople.addView(peerRow)
+            }
+        }
+
+        // ==========================================
+        // SECTION 2: 📡 AVAILABLE DEVICES & RADIOS (Tap to Link)
+        // ==========================================
+        val tvAvailableHeader = TextView(this).apply {
+            text = "📡 AVAILABLE DEVICES & RADIOS (${availableList.size})"
+            textSize = 12f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.parseColor("#38BDF8"))
+            setPadding(4, 14, 4, 8)
+        }
+        llConnectedPeople.addView(tvAvailableHeader)
+
+        for ((devTitle, devSubtitle, targetAddr) in availableList) {
+            val availRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                val bg = if (isDarkMode) Color.parseColor("#1E293B") else Color.parseColor("#FFFFFF")
+                setBackgroundColor(bg)
+                setPadding(16, 12, 16, 12)
+                val params = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(0, 0, 0, 8)
+                }
+                layoutParams = params
+            }
+
             val leftInfo = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             }
 
-            val iconStr = if (peer.deviceType.contains("Android", true)) "📱" else "💻"
-            val tvName = TextView(this).apply {
-                text = "$iconStr ${peer.nickname}"
+            val tvTitle = TextView(this).apply {
+                text = devTitle
                 setTextColor(if (isDarkMode) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A"))
-                textSize = 14f
+                textSize = 13f
                 setTypeface(null, android.graphics.Typeface.BOLD)
             }
 
-            var distStr = "⚡ Direct (0 Hops)"
-            if (peer.hopCount > 0) {
-                distStr = "🔀 Multi-Hop (${peer.hopCount} Hops)"
-            } else if (hasGpsFix && peer.location != null && peer.location.lat != 0.0) {
-                val dist = calculateDistanceMeters(currentLatitude, currentLongitude, peer.location.lat, peer.location.lng)
-                val bearing = calculateBearingDegrees(currentLatitude, currentLongitude, peer.location.lat, peer.location.lng)
-                val heading = getCompassHeading(bearing)
-                distStr = "📍 ${formatDistance(dist)} ${heading.second} ${heading.first}"
-            }
-
-            val tvMeta = TextView(this).apply {
-                text = "🔒 E2EE • ${peer.status} • $distStr"
-                setTextColor(Color.parseColor("#10B981"))
+            val tvSubtitle = TextView(this).apply {
+                text = "⚡ $devSubtitle"
+                setTextColor(if (isDarkMode) Color.parseColor("#94A3B8") else Color.parseColor("#64748B"))
                 textSize = 11f
             }
 
-            leftInfo.addView(tvName)
-            leftInfo.addView(tvMeta)
-            peerRow.addView(leftInfo)
+            leftInfo.addView(tvTitle)
+            leftInfo.addView(tvSubtitle)
+            availRow.addView(leftInfo)
 
-            // Security Fingerprint Button
-            val btnSecurity = Button(this).apply {
-                text = "🔒"
-                textSize = 12f
-                backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
-                setTextColor(Color.parseColor("#38BDF8"))
-                setOnClickListener {
-                    showSecurityDialog(peer.id)
-                }
-            }
-
-            // Quick Call Button
-            val btnQuickCall = Button(this).apply {
-                text = "📞 Call"
+            val btnConnect = Button(this).apply {
+                text = "🔗 Connect"
                 textSize = 11f
-                backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
-                setTextColor(Color.WHITE)
-                setOnClickListener {
-                    startVoiceCall(peer.id, peer.nickname)
-                }
-            }
-
-            // Quick Message Button
-            val btnQuickChat = Button(this).apply {
-                text = "💬"
-                textSize = 12f
                 backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
                 setTextColor(Color.WHITE)
                 setOnClickListener {
-                    showChatDialog()
+                    if (targetAddr.startsWith("BT:")) {
+                        val mac = targetAddr.removePrefix("BT:")
+                        val btAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+                        val dev = btAdapter?.getRemoteDevice(mac)
+                        if (dev != null) {
+                            bridge.bluetoothMesh?.connectToDeviceAsync(dev)
+                            Toast.makeText(this@MainActivity, "Connecting to Bluetooth Device $devTitle...", Toast.LENGTH_SHORT).show()
+                        }
+                    } else {
+                        bridge.connect(targetAddr, this@MainActivity)
+                        Toast.makeText(this@MainActivity, "Connecting to $devTitle ($targetAddr:3000)...", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
-
-            val btnParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 100).apply {
+            val btnParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 90).apply {
                 marginStart = 6
             }
-            btnSecurity.layoutParams = btnParams
-            btnQuickCall.layoutParams = btnParams
-            btnQuickChat.layoutParams = btnParams
+            btnConnect.layoutParams = btnParams
+            availRow.addView(btnConnect)
 
-            peerRow.addView(btnSecurity)
-            peerRow.addView(btnQuickCall)
-            peerRow.addView(btnQuickChat)
-
-            llConnectedPeople.addView(peerRow)
+            llConnectedPeople.addView(availRow)
         }
+
+        // Quick Scan & Config Action Buttons at bottom of list
+        val actionRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 8, 0, 4)
+        }
+
+        val btnQuickScan = Button(this).apply {
+            text = "🔄 Auto-Scan All"
+            textSize = 11f
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#334155"))
+            setTextColor(Color.WHITE)
+            setOnClickListener {
+                bridge.autoDiscoverAndConnect()
+                Toast.makeText(this@MainActivity, "Auto-scanning all network interfaces & Bluetooth...", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        val btnCustomSettings = Button(this).apply {
+            text = "⚙️ Custom IP"
+            textSize = 11f
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#475569"))
+            setTextColor(Color.WHITE)
+            setOnClickListener {
+                showIpSettingsDialog()
+            }
+        }
+
+        actionRow.addView(btnQuickScan, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = 4 })
+        actionRow.addView(btnCustomSettings, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { marginStart = 4 })
+        llConnectedPeople.addView(actionRow)
     }
 
     private fun showSecurityDialog(targetPeerId: String = "node-peer") {
