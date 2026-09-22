@@ -338,26 +338,33 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
             }
 
             val uniqueCandidates = candidates.distinct()
-            var connected = false
+            val hasConnected = AtomicBoolean(false)
+            val latch = java.util.concurrent.CountDownLatch(minOf(uniqueCandidates.size, 8))
 
-            // Probe top candidates in parallel with 2500ms timeout
-            val executor = Executors.newFixedThreadPool(4)
+            val executor = Executors.newFixedThreadPool(8)
             for (cand in uniqueCandidates) {
-                if (isConnected) {
-                    connected = true
-                    break
-                }
-                val url = "ws://$cand:3000"
-                if (tryConnectSync(url, cand)) {
-                    connected = true
-                    break
+                if (isConnected || hasConnected.get()) break
+                executor.execute {
+                    try {
+                        if (!isConnected && !hasConnected.get()) {
+                            val url = "ws://$cand:3000"
+                            if (tryConnectSync(url, cand)) {
+                                hasConnected.set(true)
+                            }
+                        }
+                    } finally {
+                        latch.countDown()
+                    }
                 }
             }
-            executor.shutdown()
+            try {
+                latch.await(3000, TimeUnit.MILLISECONDS)
+            } catch (e: Exception) {}
+            executor.shutdownNow()
 
             isConnecting.set(false)
 
-            if (!connected && !isConnected) {
+            if (!hasConnected.get() && !isConnected) {
                 val status = if (bluetoothMesh?.hasConnectedPeers() == true) "● Bluetooth Mesh Active" else "○ Radios Active (Auto-Scanning)"
                 onStatusChanged?.invoke(status, bluetoothMesh?.hasConnectedPeers() == true)
                 scheduleAutoReconnect()

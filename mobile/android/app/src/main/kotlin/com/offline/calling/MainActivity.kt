@@ -135,7 +135,10 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         callHistoryManager = CallHistoryManager(this)
         audioEngine = AndroidAudioEngine(this)
-        try { audioEngine.setSpeakerphoneOn(true) } catch (e: Exception) {}
+        try {
+            audioEngine.startPlaybackOnly()
+            audioEngine.setSpeakerphoneOn(true)
+        } catch (e: Exception) {}
 
         bindViews()
         applyTheme(isDarkMode)
