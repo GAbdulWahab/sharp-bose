@@ -275,13 +275,13 @@
       </div>
 
       <!-- Audio & Mic Activation Banner -->
-      <div class="audio-alert-banner" id="audio-perm-banner" onclick="startMicAndAudio()">
+      <div class="audio-alert-banner" id="audio-perm-banner" onclick="toggleMicrophone()">
         <div>
           <div style="font-weight: bold; color: var(--accent-cyan);">🎙️ Microphone: <span id="mic-status-label">Tap to Activate</span></div>
-          <div style="font-size: 10px; color: #94A3B8;" id="mic-sub-label">Click to enable live 2-way microphone &amp; speaker</div>
+          <div style="font-size: 10px; color: #94A3B8;" id="mic-sub-label">Click to broadcast live HD voice to phone</div>
         </div>
         <button class="btn-sm" style="background: var(--accent-cyan); color: #000; font-weight: bold;">
-          Activate
+          Talk / Mute
         </button>
       </div>
 
@@ -962,10 +962,21 @@
       }
     }
 
+    function toggleMicrophone() {
+      if (localStream && isTransmittingVoice) {
+        stopMicAndAudio();
+      } else {
+        startMicAndAudio(true);
+      }
+    }
+
     // Microphone Activation & Studio DSP Setup
-    async function startMicAndAudio() {
+    async function startMicAndAudio(enableTransmit = true) {
       await ensureAudioContextActive();
       stopMicAndAudio();
+      if (enableTransmit) {
+        isTransmittingVoice = true;
+      }
 
       try {
         localStream = await navigator.mediaDevices.getUserMedia({
@@ -1015,9 +1026,9 @@
         scriptProcessor.connect(silentGain);
         silentGain.connect(audioCtx.destination);
 
-        document.getElementById('mic-status-label').innerText = 'Active ✅';
+        document.getElementById('mic-status-label').innerText = 'LIVE & TRANSMITTING 🟢';
         document.getElementById('mic-status-label').style.color = '#10B981';
-        document.getElementById('mic-sub-label').innerText = `HD Voice Active (${audioCtx.sampleRate} Hz)`;
+        document.getElementById('mic-sub-label').innerText = `Broadcasting HD Voice to Phone (${audioCtx.sampleRate} Hz) • Tap to Mute`;
         document.getElementById('audio-perm-banner').style.background = '#064E3B';
         document.getElementById('audio-perm-banner').style.borderColor = '#10B981';
         return true;

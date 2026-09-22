@@ -131,6 +131,10 @@ class AndroidAudioEngine(private val context: Context) {
         val actualOutBufSize = maxOf(outBufferSize * 4, 8192)
 
         try {
+            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+            audioManager.isSpeakerphoneOn = true
+
             audioTrack = AudioTrack.Builder()
                 .setAudioAttributes(
                     AudioAttributes.Builder()
