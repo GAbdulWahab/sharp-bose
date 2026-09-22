@@ -1,6 +1,8 @@
 package com.offline.calling.radio
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.util.Log
 import okhttp3.*
@@ -12,6 +14,7 @@ import java.io.FileReader
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -44,8 +47,10 @@ data class PeerNode(
 class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.randomUUID().toString().substring(0, 8)) {
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
-        .connectTimeout(1500, TimeUnit.MILLISECONDS)
+        .connectTimeout(3000, TimeUnit.MILLISECONDS)
         .build()
+
+    var appContext: Context? = null
 
     val crypto = MeshCryptoEngine.instance
     val router = MeshRouter(localNodeId)
@@ -121,6 +126,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
      * Activates 100% Offline Bluetooth Mesh Transport
      */
     fun startBluetooth(context: Context) {
+        appContext = context.applicationContext
         if (bluetoothMesh != null) return
 
         try {
@@ -170,7 +176,10 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
     private val isConnecting = AtomicBoolean(false)
     private var reconnectThread: Thread? = null
 
-    fun connect(host: String? = null) {
+    fun connect(host: String? = null, context: Context? = null) {
+        if (context != null) {
+            appContext = context.applicationContext
+        }
         if (host != null && host.isNotEmpty()) {
             currentHost = host
             connectDirect(host)
@@ -232,19 +241,56 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
         Thread {
             val candidates = mutableListOf<String>()
 
-            // 1. Priority targets: Bluetooth PAN, Wi-Fi, USB Reverse, Emulator
-            candidates.add(currentHost)
-            candidates.add("172.27.180.170") // Bluetooth PAN Laptop IP
-            candidates.add("172.27.180.37")  // Bluetooth PAN Gateway
-            candidates.add("172.27.180.1")   // Bluetooth PAN Gateway
-            candidates.add("10.19.238.166")  // Wi-Fi Laptop IP
-            candidates.add("10.19.238.104")  // Wi-Fi Gateway
-            candidates.add("127.0.0.1")      // USB Reverse (adb reverse)
-            candidates.add("10.0.2.2")       // Android Emulator Host
-            candidates.add("192.168.42.129") // USB Tethering (RNDIS Host)
-            candidates.add("192.168.42.1")   // USB Tethering Gateway
+            // 1. Dynamic Gateway Detection from Android ConnectivityManager
+            try {
+                val cm = appContext?.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+                if (cm != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    val activeNet = cm.activeNetwork
+                    val linkProps = cm.getLinkProperties(activeNet)
+                    linkProps?.routes?.forEach { route ->
+                        val gw = route.gateway?.hostAddress
+                        if (!gw.isNullOrEmpty() && gw != "0.0.0.0" && !candidates.contains(gw)) {
+                            candidates.add(gw)
+                        }
+                    }
 
-            // 2. Discover peer IPs from ARP table (detects connected Bluetooth/Hotspot clients)
+                    cm.allNetworks.forEach { net ->
+                        val lp = cm.getLinkProperties(net)
+                        lp?.routes?.forEach { route ->
+                            val gw = route.gateway?.hostAddress
+                            if (!gw.isNullOrEmpty() && gw != "0.0.0.0" && !candidates.contains(gw)) {
+                                candidates.add(gw)
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.d("MeshBridge", "ConnectivityManager gateway scan note: ${e.message}")
+            }
+
+            // 2. High-priority known Bluetooth PAN and Wi-Fi targets
+            if (!candidates.contains(currentHost)) candidates.add(currentHost)
+            val priorityIps = listOf(
+                "172.27.180.170", // Bluetooth PAN Laptop IP
+                "172.27.180.37",  // Bluetooth PAN Gateway
+                "172.27.180.1",   // Bluetooth PAN Gateway
+                "172.27.180.2",
+                "10.19.238.166",  // Wi-Fi Laptop IP
+                "10.19.238.104",  // Wi-Fi Gateway
+                "10.19.238.1",
+                "127.0.0.1",      // USB Reverse (adb reverse)
+                "10.0.2.2",       // Android Emulator Host
+                "192.168.44.1",   // Bluetooth Tethering Alternate
+                "192.168.43.1",   // Wi-Fi Hotspot Host
+                "192.168.137.1",  // Windows Mobile Hotspot Gateway
+                "192.168.42.129", // USB Tethering (RNDIS Host)
+                "192.168.42.1"    // USB Tethering Gateway
+            )
+            for (ip in priorityIps) {
+                if (!candidates.contains(ip)) candidates.add(ip)
+            }
+
+            // 3. Discover peer IPs from ARP table (detects connected Bluetooth/Hotspot clients)
             try {
                 val br = BufferedReader(FileReader("/proc/net/arp"))
                 var line: String?
@@ -262,7 +308,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                 Log.d("MeshBridge", "ARP note: ${e.message}")
             }
 
-            // 3. Inspect all local network interfaces (bt-pan, wlan0, rndis0, ap0, etc.)
+            // 4. Inspect all local network interfaces (bt-pan, wlan0, rndis0, ap0, etc.)
             try {
                 val interfaces = NetworkInterface.getNetworkInterfaces()
                 while (interfaces.hasMoreElements()) {
@@ -276,7 +322,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                             val lastDot = hostAddress.lastIndexOf('.')
                             if (lastDot > 0) {
                                 val subnetPrefix = hostAddress.substring(0, lastDot + 1)
-                                val probeOffsets = listOf(170, 37, 1, 2, 10, 100, 113, 166, 200)
+                                val probeOffsets = listOf(170, 37, 1, 2, 10, 100, 113, 166, 200, 254)
                                 for (offset in probeOffsets) {
                                     val candidateIp = "$subnetPrefix$offset"
                                     if (!candidates.contains(candidateIp)) {
@@ -291,12 +337,12 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                 Log.e("MeshBridge", "Interface scan error: ${e.message}")
             }
 
-            candidates.add("192.168.44.1")
-            candidates.add("192.168.43.1")
-            candidates.add("192.168.137.1")
-
+            val uniqueCandidates = candidates.distinct()
             var connected = false
-            for (cand in candidates.distinct()) {
+
+            // Probe top candidates in parallel with 2500ms timeout
+            val executor = Executors.newFixedThreadPool(4)
+            for (cand in uniqueCandidates) {
                 if (isConnected) {
                     connected = true
                     break
@@ -307,6 +353,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                     break
                 }
             }
+            executor.shutdown()
 
             isConnecting.set(false)
 
@@ -364,7 +411,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
         })
 
         try {
-            latch.await(1000, TimeUnit.MILLISECONDS)
+            latch.await(2500, TimeUnit.MILLISECONDS)
         } catch (e: InterruptedException) {
             ws.cancel()
         }

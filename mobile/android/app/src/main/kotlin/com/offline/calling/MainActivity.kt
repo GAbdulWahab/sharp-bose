@@ -415,7 +415,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
 
         bridge.startBluetooth(this)
-        bridge.connect()
+        bridge.connect(context = this)
     }
 
     private fun renderConnectedPeopleList(peers: List<PeerNode>) {
