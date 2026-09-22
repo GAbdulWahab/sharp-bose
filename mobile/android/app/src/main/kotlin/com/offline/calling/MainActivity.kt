@@ -14,6 +14,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
