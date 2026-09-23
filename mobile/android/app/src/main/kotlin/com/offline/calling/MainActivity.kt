@@ -44,7 +44,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private var isCalling = false
     private var isSpeakerOn = true
     private var isPttTransmitting = false
-    private val localPeerId = "node-" + UUID.randomUUID().toString().substring(0, 8)
+    private val localPeerId get() = bridge.localNodeId
     private var callStartTime: Long = 0L
     private var activeCallPeerName: String = "Mesh Peer"
     private var activeCallPeerId: String = ""
@@ -806,7 +806,12 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         btnCall.setOnClickListener {
             if (!isCalling) {
-                startVoiceCall()
+                val targetPeer = connectedPeersList.firstOrNull { it.id != localPeerId }
+                if (targetPeer != null) {
+                    startVoiceCall(targetPeer.id, targetPeer.nickname)
+                } else {
+                    startVoiceCall("", "Mesh Broadcast")
+                }
             } else {
                 stopVoiceCall()
             }

@@ -48,6 +48,7 @@ class AndroidAudioEngine(private val context: Context) {
 
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
+        audioManager.isSpeakerphoneOn = true
 
         startPlaybackOnly()
 
@@ -55,13 +56,34 @@ class AndroidAudioEngine(private val context: Context) {
         val actualInBufSize = maxOf(inBufferSize * 2, 4096)
 
         try {
-            audioRecord = AudioRecord(
-                MediaRecorder.AudioSource.VOICE_COMMUNICATION,
-                sampleRate,
-                channelConfigIn,
-                audioFormat,
-                actualInBufSize
-            )
+            var rec: AudioRecord? = null
+            try {
+                rec = AudioRecord(
+                    MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                    sampleRate,
+                    channelConfigIn,
+                    audioFormat,
+                    actualInBufSize
+                )
+            } catch (e: Exception) {
+                Log.w("AudioEngine", "VOICE_COMMUNICATION init note: ${e.message}")
+            }
+
+            if (rec == null || rec.state != AudioRecord.STATE_INITIALIZED) {
+                rec = AudioRecord(
+                    MediaRecorder.AudioSource.MIC,
+                    sampleRate,
+                    channelConfigIn,
+                    audioFormat,
+                    actualInBufSize
+                )
+            }
+            audioRecord = rec
+
+            if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
+                Log.e("AudioEngine", "AudioRecord failed to initialize")
+                return
+            }
 
             val audioSessionId = audioRecord?.audioSessionId ?: 0
             if (AcousticEchoCanceler.isAvailable()) {
@@ -138,7 +160,7 @@ class AndroidAudioEngine(private val context: Context) {
             audioTrack = AudioTrack.Builder()
                 .setAudioAttributes(
                     AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
                         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                         .build()
                 )

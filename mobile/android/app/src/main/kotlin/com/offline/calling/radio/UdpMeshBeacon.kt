@@ -74,7 +74,7 @@ class UdpMeshBeacon(
             start()
         }
 
-        // 2. Start UDP Broadcast Broadcaster Thread (Every 1.5s)
+        // 2. Start UDP Broadcast Broadcaster Thread (Every 1.0s)
         broadcastThread = Thread {
             try {
                 broadcastSocket = DatagramSocket().apply {
@@ -89,16 +89,36 @@ class UdpMeshBeacon(
                     put("timestamp", System.currentTimeMillis())
                 }.toString().toByteArray(Charsets.UTF_8)
 
-                val broadcastAddr = InetAddress.getByName("255.255.255.255")
-                val packet = DatagramPacket(beaconJson, beaconJson.size, broadcastAddr, beaconPort)
-
                 while (isRunning.get()) {
+                    val targetAddrs = mutableListOf<InetAddress>()
                     try {
-                        broadcastSocket?.send(packet)
-                    } catch (e: Exception) {
-                        Log.d("UdpMeshBeacon", "Broadcast tick notice: ${e.message}")
+                        targetAddrs.add(InetAddress.getByName("255.255.255.255"))
+                        targetAddrs.add(InetAddress.getByName("192.168.43.255"))
+                        targetAddrs.add(InetAddress.getByName("192.168.43.1"))
+                        targetAddrs.add(InetAddress.getByName("172.27.180.255"))
+                        targetAddrs.add(InetAddress.getByName("10.19.238.255"))
+
+                        val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
+                        while (interfaces != null && interfaces.hasMoreElements()) {
+                            val iface = interfaces.nextElement()
+                            if (!iface.isUp || iface.isLoopback) continue
+                            for (ifaceAddr in iface.interfaceAddresses) {
+                                val bcast = ifaceAddr.broadcast
+                                if (bcast != null && !targetAddrs.contains(bcast)) {
+                                    targetAddrs.add(bcast)
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {}
+
+                    for (addr in targetAddrs) {
+                        try {
+                            val packet = DatagramPacket(beaconJson, beaconJson.size, addr, beaconPort)
+                            broadcastSocket?.send(packet)
+                        } catch (e: Exception) {}
                     }
-                    Thread.sleep(1500)
+
+                    Thread.sleep(1000)
                 }
             } catch (e: Exception) {
                 if (isRunning.get()) {
