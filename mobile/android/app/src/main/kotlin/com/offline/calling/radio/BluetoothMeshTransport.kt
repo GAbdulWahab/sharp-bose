@@ -67,21 +67,38 @@ class BluetoothMeshTransport(
         @SuppressLint("MissingPermission")
         override fun onReceive(context: Context, intent: Intent) {
             val action = intent.action
-            if (BluetoothDevice.ACTION_FOUND == action) {
-                val device: BluetoothDevice? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
-                }
-
-                if (device != null) {
-                    val address = device.address
-                    val alreadyConnected = connectedPeers.any { it.device.address == address }
-                    if (!alreadyConnected && !connectingAddresses.contains(address)) {
-                        Log.d(TAG, "Discovered nearby Bluetooth phone: ${device.name ?: "Unknown"} ($address)")
-                        connectToDeviceAsync(device)
+            when (action) {
+                BluetoothDevice.ACTION_FOUND -> {
+                    val device: BluetoothDevice? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
                     }
+
+                    if (device != null) {
+                        val address = device.address
+                        val alreadyConnected = connectedPeers.any { it.device.address == address }
+                        if (!alreadyConnected && !connectingAddresses.contains(address)) {
+                            Log.d(TAG, "Discovered nearby Bluetooth phone: ${device.name ?: "Unknown"} ($address)")
+                            connectToDeviceAsync(device)
+                        }
+                    }
+                }
+                BluetoothAdapter.ACTION_STATE_CHANGED -> {
+                    val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                    if (state == BluetoothAdapter.STATE_ON) {
+                        Log.d(TAG, "⚡ Bluetooth turned ON! Activating RFCOMM server and auto-connecting...")
+                        startServerListener()
+                        startAutoConnectorLoop()
+                        triggerImmediateScanAndConnect()
+                    } else if (state == BluetoothAdapter.STATE_OFF) {
+                        Log.d(TAG, "Bluetooth turned OFF.")
+                    }
+                }
+                BluetoothDevice.ACTION_ACL_CONNECTED -> {
+                    Log.d(TAG, "Bluetooth ACL Connected. Ensuring mesh link...")
+                    triggerImmediateScanAndConnect()
                 }
             }
         }
@@ -90,16 +107,16 @@ class BluetoothMeshTransport(
     @SuppressLint("MissingPermission")
     fun start() {
         if (isRunning.get() || bluetoothAdapter == null) return
-        try {
-            if (!bluetoothAdapter.isEnabled) return
-        } catch (e: Exception) {
-            return
-        }
         isRunning.set(true)
 
-        // 1. Register discovery receiver safely
+        // 1. Register discovery receiver safely (active in all power states)
         try {
-            val filter = IntentFilter(BluetoothDevice.ACTION_FOUND)
+            val filter = IntentFilter().apply {
+                addAction(BluetoothDevice.ACTION_FOUND)
+                addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
+                addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+                addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 context.registerReceiver(discoveryReceiver, filter, Context.RECEIVER_EXPORTED)
             } else {
@@ -109,15 +126,40 @@ class BluetoothMeshTransport(
             Log.w(TAG, "Receiver register note: ${e.message}")
         }
 
-        // 2. Start RFCOMM Server Accept Loop
-        startServerListener()
+        // 2. Start RFCOMM Server Accept Loop & Auto-Connector if Bluetooth is currently ON
+        if (bluetoothAdapter.isEnabled) {
+            startServerListener()
+            startAutoConnectorLoop()
+            triggerImmediateScanAndConnect()
+        }
+    }
 
-        // 3. Start Periodic Auto-Scan and Bonded Device Connector Loop
-        startAutoConnectorLoop()
+    @SuppressLint("MissingPermission")
+    fun triggerImmediateScanAndConnect() {
+        Thread {
+            try {
+                if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) return@Thread
+                val bonded = try { bluetoothAdapter.bondedDevices ?: emptySet() } catch (e: Exception) { emptySet() }
+                for (device in bonded) {
+                    val address = device.address
+                    val isConnected = connectedPeers.any { it.device.address == address }
+                    if (!isConnected && !connectingAddresses.contains(address)) {
+                        connectToDeviceAsync(device)
+                    }
+                }
+
+                if (connectedPeers.isEmpty() && !bluetoothAdapter.isDiscovering) {
+                    bluetoothAdapter.startDiscovery()
+                }
+            } catch (e: Exception) {
+                Log.d(TAG, "Immediate scan error: ${e.message}")
+            }
+        }.start()
     }
 
     @SuppressLint("MissingPermission")
     private fun startServerListener() {
+        if (acceptThread != null && acceptThread?.isAlive == true) return
         acceptThread = Thread {
             try {
                 serverSocket = try {
@@ -129,6 +171,11 @@ class BluetoothMeshTransport(
 
                 while (isRunning.get()) {
                     val socket = serverSocket?.accept() ?: break
+                    val remoteAddr = try { socket.remoteDevice.address } catch (e: Exception) { "" }
+                    if (remoteAddr.isNotEmpty() && connectedPeers.any { it.device.address == remoteAddr }) {
+                        try { socket.close() } catch (e: Exception) {}
+                        continue
+                    }
                     handleConnectedSocket(socket, isIncoming = true)
                 }
             } catch (e: Exception) {
@@ -145,33 +192,38 @@ class BluetoothMeshTransport(
 
     @SuppressLint("MissingPermission")
     private fun startAutoConnectorLoop() {
+        if (autoScanThread != null && autoScanThread?.isAlive == true) return
         autoScanThread = Thread {
             while (isRunning.get()) {
                 try {
-                    // Connect to bonded/paired devices first
-                    val bonded = try {
-                        bluetoothAdapter?.bondedDevices ?: emptySet()
-                    } catch (e: Exception) {
-                        emptySet()
-                    }
-                    for (device in bonded) {
-                        val address = device.address
-                        val isConnected = connectedPeers.any { it.device.address == address }
-                        if (!isConnected && !connectingAddresses.contains(address)) {
-                            connectToDeviceAsync(device)
+                    if (bluetoothAdapter?.isEnabled == true) {
+                        // Connect to bonded/paired devices first
+                        val bonded = try {
+                            bluetoothAdapter.bondedDevices ?: emptySet()
+                        } catch (e: Exception) {
+                            emptySet()
+                        }
+                        for (device in bonded) {
+                            val address = device.address
+                            val isConnected = connectedPeers.any { it.device.address == address }
+                            if (!isConnected && !connectingAddresses.contains(address)) {
+                                connectToDeviceAsync(device)
+                            }
+                        }
+
+                        // Trigger nearby discovery if no peers connected
+                        if (connectedPeers.isEmpty()) {
+                            try {
+                                if (!bluetoothAdapter.isDiscovering) {
+                                    bluetoothAdapter.startDiscovery()
+                                }
+                            } catch (e: Exception) {}
                         }
                     }
 
-                    // Trigger nearby discovery if no peers connected
-                    if (connectedPeers.isEmpty()) {
-                        try {
-                            if (bluetoothAdapter != null && bluetoothAdapter.isEnabled && !bluetoothAdapter.isDiscovering) {
-                                bluetoothAdapter.startDiscovery()
-                            }
-                        } catch (e: Exception) {}
-                    }
-
-                    Thread.sleep(1500)
+                    // Randomized interval (1.2s - 2.5s) to prevent symmetric RFCOMM collision
+                    val sleepTime = 1200L + (Math.random() * 1300L).toLong()
+                    Thread.sleep(sleepTime)
                 } catch (e: InterruptedException) {
                     break
                 } catch (e: Exception) {
@@ -192,6 +244,12 @@ class BluetoothMeshTransport(
         Thread {
             var socket: BluetoothSocket? = null
             try {
+                // Jitter delay (50ms - 300ms) to resolve simultaneous mutual connection race conditions
+                val jitter = (Math.random() * 250).toLong()
+                if (jitter > 0) Thread.sleep(jitter)
+
+                if (connectedPeers.any { it.device.address == address }) return@Thread
+
                 // CRITICAL: Always cancel discovery before connecting to prevent RFCOMM timeouts
                 try {
                     if (bluetoothAdapter?.isDiscovering == true) {
@@ -202,20 +260,35 @@ class BluetoothMeshTransport(
                 Log.d(TAG, "Connecting to Bluetooth peer ${device.name ?: "Device"} ($address)...")
 
                 // Multi-strategy socket connection
-                val newSocket: BluetoothSocket = try {
-                    device.createInsecureRfcommSocketToServiceRecord(SPP_UUID)
-                } catch (e: Exception) {
-                    try {
-                        device.createRfcommSocketToServiceRecord(SPP_UUID)
-                    } catch (e2: Exception) {
+                var connected = false
+                val strategies: List<() -> BluetoothSocket> = listOf(
+                    { device.createInsecureRfcommSocketToServiceRecord(SPP_UUID) },
+                    { device.createRfcommSocketToServiceRecord(SPP_UUID) },
+                    { device.createInsecureRfcommSocketToServiceRecord(MESH_CUSTOM_UUID) },
+                    {
+                        val m = device.javaClass.getMethod("createInsecureRfcommSocket", Int::class.javaPrimitiveType)
+                        m.invoke(device, 1) as BluetoothSocket
+                    },
+                    {
                         val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
                         m.invoke(device, 1) as BluetoothSocket
                     }
-                }
+                )
 
-                socket = newSocket
-                newSocket.connect()
-                handleConnectedSocket(newSocket, isIncoming = false)
+                for (strategy in strategies) {
+                    if (connectedPeers.any { it.device.address == address }) break
+                    try {
+                        val s = strategy()
+                        socket = s
+                        s.connect()
+                        connected = true
+                        handleConnectedSocket(s, isIncoming = false)
+                        break
+                    } catch (e: Exception) {
+                        try { socket?.close() } catch (ex: Exception) {}
+                        socket = null
+                    }
+                }
             } catch (e: Exception) {
                 try { socket?.close() } catch (ex: Exception) {}
             } finally {

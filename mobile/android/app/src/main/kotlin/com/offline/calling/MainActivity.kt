@@ -182,6 +182,19 @@ class MainActivity : AppCompatActivity(), LocationListener {
         handleIncomingCallIntent(intent)
     }
 
+    override fun onResume() {
+        super.onResume()
+        try {
+            startMeshService()
+            bridge.startBluetooth(this)
+            bridge.autoDiscoverAndConnect()
+            bridge.bluetoothMesh?.triggerImmediateScanAndConnect()
+            renderConnectedPeopleList(connectedPeersList)
+        } catch (e: Exception) {
+            Log.w("MainActivity", "onResume auto-connect note: ${e.message}")
+        }
+    }
+
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -699,11 +712,15 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
 
             val tvNotice = TextView(this).apply {
-                text = if (bridge.isConnected) {
-                    "● Mesh Link Active (${bridge.currentHost}:3000)\nWaiting for companion device to connect..."
+                val statusMsg = if (bridge.bluetoothMesh?.hasConnectedPeers() == true) {
+                    "● Direct Hardware Bluetooth Active\nConnected peer-to-peer over Bluetooth RFCOMM."
+                } else if (bridge.isConnected) {
+                    val hostInfo = if (bridge.currentHost.isNotEmpty()) " (${bridge.currentHost})" else ""
+                    "● Wi-Fi Mesh Connected$hostInfo\nMesh link active on local network."
                 } else {
-                    "○ No other devices connected.\nAuto-discovery is scanning Bluetooth & Wi-Fi in the background."
+                    "○ Scanning Direct Radios...\nBluetooth & Wi-Fi auto-discovery active in background."
                 }
+                text = statusMsg
                 setTextColor(if (isDarkMode) Color.parseColor("#38BDF8") else Color.parseColor("#64748B"))
                 textSize = 12f
                 typeface = android.graphics.Typeface.MONOSPACE
@@ -1249,7 +1266,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
         layout.addView(tvNetHeader)
 
         val tvCurrent = TextView(this).apply {
-            text = "CARRIER: ${bridge.currentHost}:3000 // STATUS: ${tvStatus.text}"
+            val carrierStr = if (bridge.currentHost.isNotEmpty()) "${bridge.currentHost}:3000" else "P2P BLUETOOTH / DYNAMIC MESH"
+            text = "CARRIER: $carrierStr // STATUS: ${tvStatus.text}"
             textSize = 10f
             typeface = android.graphics.Typeface.MONOSPACE
             setTextColor(if (isDarkMode) Color.parseColor("#10B981") else Color.parseColor("#475569"))
@@ -1257,40 +1275,27 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
         layout.addView(tvCurrent)
 
-        val btnWifi = Button(this).apply {
-            text = "[ 💻 CONNECT LAPTOP WI-FI (10.19.238.166) ]"
-            textSize = 11f
-            typeface = android.graphics.Typeface.MONOSPACE
-            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
-            setTextColor(Color.WHITE)
-            setOnClickListener {
-                bridge.connect("10.19.238.166", this@MainActivity)
-                Toast.makeText(this@MainActivity, "Connecting to Laptop Wi-Fi (10.19.238.166)...", Toast.LENGTH_SHORT).show()
-                dialog.dismiss()
-            }
-        }
-        layout.addView(btnWifi)
-
         val btnBt = Button(this).apply {
-            text = "[ 📱 CONNECT LAPTOP BLUETOOTH (172.27.180.170) ]"
+            text = "[ 📱 AUTO-SCAN & CONNECT BLUETOOTH ]"
             textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
             setTextColor(Color.WHITE)
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(0, 6, 0, 0)
+                setMargins(0, 4, 0, 0)
             }
             layoutParams = lp
             setOnClickListener {
-                bridge.connect("172.27.180.170", this@MainActivity)
-                Toast.makeText(this@MainActivity, "Connecting to Laptop Bluetooth (172.27.180.170)...", Toast.LENGTH_SHORT).show()
+                bridge.startBluetooth(this@MainActivity)
+                bridge.bluetoothMesh?.triggerImmediateScanAndConnect()
+                Toast.makeText(this@MainActivity, "🔄 Scanning & connecting nearby Bluetooth peers...", Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
             }
         }
         layout.addView(btnBt)
 
         val btnScan = Button(this).apply {
-            text = "[ 🔄 AUTO-SCAN ALL INTERFACES ]"
+            text = "[ 🔄 AUTO-DISCOVER WI-FI & HOTSPOT ]"
             textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
@@ -1301,14 +1306,14 @@ class MainActivity : AppCompatActivity(), LocationListener {
             layoutParams = lp
             setOnClickListener {
                 bridge.autoDiscoverAndConnect()
-                Toast.makeText(this@MainActivity, "Auto-scanning all network interfaces...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "Auto-discovering dynamic mesh interfaces...", Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
             }
         }
         layout.addView(btnScan)
 
         val inputIp = EditText(this).apply {
-            hint = "Custom Node IP (e.g. 172.27.180.170)"
+            hint = "Custom Node IP (optional)"
             typeface = android.graphics.Typeface.MONOSPACE
             setHintTextColor(Color.parseColor("#64748B"))
             setTextColor(if (isDarkMode) Color.parseColor("#F8FAFC") else Color.BLACK)

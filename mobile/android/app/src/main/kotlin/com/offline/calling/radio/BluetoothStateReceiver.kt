@@ -21,8 +21,16 @@ class BluetoothStateReceiver : BroadcastReceiver() {
             BluetoothAdapter.ACTION_STATE_CHANGED -> {
                 val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
                 if (state == BluetoothAdapter.STATE_ON) {
-                    Log.d("BtStateReceiver", "Bluetooth turned ON. Starting background mesh service and auto-connecting...")
+                    Log.d("BtStateReceiver", "⚡ Bluetooth turned ON! Starting background mesh service and auto-connecting...")
                     ForegroundMeshService.startService(context)
+                    try {
+                        val bridge = ForegroundMeshService.getSharedBridge(context)
+                        bridge.startBluetooth(context)
+                        bridge.autoDiscoverAndConnect()
+                        bridge.bluetoothMesh?.triggerImmediateScanAndConnect()
+                    } catch (e: Exception) {
+                        Log.w("BtStateReceiver", "Bridge kick on STATE_ON note: ${e.message}")
+                    }
                 } else if (state == BluetoothAdapter.STATE_OFF) {
                     Log.d("BtStateReceiver", "Bluetooth turned OFF.")
                 }
@@ -34,6 +42,14 @@ class BluetoothStateReceiver : BroadcastReceiver() {
                 val adapter = BluetoothAdapter.getDefaultAdapter()
                 if (adapter != null && adapter.isEnabled) {
                     ForegroundMeshService.startService(context)
+                    try {
+                        val bridge = ForegroundMeshService.getSharedBridge(context)
+                        bridge.startBluetooth(context)
+                        bridge.autoDiscoverAndConnect()
+                        bridge.bluetoothMesh?.triggerImmediateScanAndConnect()
+                    } catch (e: Exception) {
+                        Log.w("BtStateReceiver", "Bridge kick on trigger note: ${e.message}")
+                    }
                 }
             }
         }

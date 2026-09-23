@@ -212,6 +212,11 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
      */
     fun startBluetooth(context: Context) {
         appContext = context.applicationContext
+        udpBeacon.context = appContext
+        try {
+            udpBeacon.start()
+        } catch (e: Exception) {}
+
         if (bluetoothMesh != null) return
 
         try {
@@ -241,7 +246,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
         }
     }
 
-    var currentHost: String = "172.27.180.170"
+    var currentHost: String = ""
         private set
     var currentRoom: String = "INDIA-MAIN"
 
@@ -251,6 +256,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
     fun connect(host: String? = null, context: Context? = null) {
         if (context != null) {
             appContext = context.applicationContext
+            udpBeacon.context = appContext
         }
         if (host != null && host.isNotEmpty()) {
             currentHost = host
@@ -263,8 +269,8 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
 
     private fun connectDirect(host: String) {
         val cleanHost = host.replace("ws://", "").replace("http://", "").split(":")[0]
-        if (getLocalIpAddresses().contains(cleanHost) || cleanHost == "127.0.0.1" || cleanHost == "localhost" || cleanHost == "0.0.0.0") {
-            Log.d("MeshBridge", "Skipping connection to own local device address: $cleanHost")
+        if (cleanHost.isEmpty() || getLocalIpAddresses().contains(cleanHost) || cleanHost == "127.0.0.1" || cleanHost == "localhost" || cleanHost == "0.0.0.0") {
+            Log.d("MeshBridge", "Skipping connection to own local device address or empty host: $cleanHost")
             return
         }
         webSocket?.close(1000, "Reconnecting")
@@ -312,7 +318,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
 
     /**
      * Automatically scans all network interfaces (Bluetooth PAN, Wi-Fi, Hotspot, USB)
-     * and connects only to external new peer devices (never own device).
+     * and connects only to external new peer devices (never own device) with NO pre-recorded IP.
      */
     fun autoDiscoverAndConnect() {
         if (isConnected || isConnecting.get()) return
@@ -348,28 +354,11 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 Log.d("MeshBridge", "ConnectivityManager gateway scan note: ${e.message}")
             }
 
-            // 2. High-priority known Bluetooth PAN and Wi-Fi targets
-            if (!candidates.contains(currentHost)) candidates.add(currentHost)
-            val priorityIps = listOf(
-                "172.27.180.170", // Bluetooth PAN Laptop IP
-                "172.27.180.37",  // Bluetooth PAN Gateway
-                "172.27.180.1",   // Bluetooth PAN Gateway
-                "172.27.180.2",
-                "10.19.238.166",  // Wi-Fi Laptop IP
-                "10.19.238.104",  // Wi-Fi Gateway
-                "10.19.238.1",
-                "10.0.2.2",       // Android Emulator Host
-                "192.168.44.1",   // Bluetooth Tethering Alternate
-                "192.168.43.1",   // Wi-Fi Hotspot Host
-                "192.168.137.1",  // Windows Mobile Hotspot Gateway
-                "192.168.42.129", // USB Tethering (RNDIS Host)
-                "192.168.42.1"    // USB Tethering Gateway
-            )
-            for (ip in priorityIps) {
-                if (!candidates.contains(ip)) candidates.add(ip)
+            if (currentHost.isNotEmpty() && !candidates.contains(currentHost)) {
+                candidates.add(currentHost)
             }
 
-            // 3. Discover peer IPs from ARP table (detects connected Bluetooth/Hotspot clients)
+            // 2. Discover peer IPs from ARP table (detects connected Bluetooth/Hotspot clients)
             try {
                 val br = BufferedReader(FileReader("/proc/net/arp"))
                 var line: String?
@@ -387,7 +376,8 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 Log.d("MeshBridge", "ARP note: ${e.message}")
             }
 
-            // 4. Inspect all local network interfaces (bt-pan, wlan0, rndis0, ap0, etc.)
+            // 3. Inspect all local network interfaces and add full subnet candidates
+            val subnetPrefixes = mutableListOf<String>()
             try {
                 val interfaces = NetworkInterface.getNetworkInterfaces()
                 while (interfaces.hasMoreElements()) {
@@ -400,13 +390,9 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                             val hostAddress = addr.hostAddress ?: continue
                             val lastDot = hostAddress.lastIndexOf('.')
                             if (lastDot > 0) {
-                                val subnetPrefix = hostAddress.substring(0, lastDot + 1)
-                                val probeOffsets = listOf(170, 37, 1, 2, 10, 100, 113, 166, 200, 254)
-                                for (offset in probeOffsets) {
-                                    val candidateIp = "$subnetPrefix$offset"
-                                    if (!candidates.contains(candidateIp)) {
-                                        candidates.add(candidateIp)
-                                    }
+                                val prefix = hostAddress.substring(0, lastDot + 1)
+                                if (!subnetPrefixes.contains(prefix)) {
+                                    subnetPrefixes.add(prefix)
                                 }
                             }
                         }
@@ -416,6 +402,15 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 Log.e("MeshBridge", "Interface scan error: ${e.message}")
             }
 
+            for (prefix in subnetPrefixes) {
+                for (i in 1..254) {
+                    val cand = "$prefix$i"
+                    if (!candidates.contains(cand)) {
+                        candidates.add(cand)
+                    }
+                }
+            }
+
             val localIps = getLocalIpAddresses()
             val uniqueCandidates = candidates.distinct().filter { ip ->
                 !localIps.contains(ip) && ip != "127.0.0.1" && ip != "0.0.0.0" && ip != "localhost"
@@ -423,14 +418,25 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
             val hasConnected = AtomicBoolean(false)
             val latch = java.util.concurrent.CountDownLatch(uniqueCandidates.size)
 
-            val executor = Executors.newFixedThreadPool(16)
+            val executor = Executors.newFixedThreadPool(32)
             for (cand in uniqueCandidates) {
                 executor.execute {
                     try {
                         if (!isConnected && !hasConnected.get()) {
-                            val url = "ws://$cand:3000"
-                            if (tryConnectSync(url, cand)) {
-                                hasConnected.set(true)
+                            // Quick TCP check on port 3000 to instantly skip inactive hosts
+                            var isPortOpen = false
+                            try {
+                                val testSocket = java.net.Socket()
+                                testSocket.connect(java.net.InetSocketAddress(cand, 3000), 250)
+                                testSocket.close()
+                                isPortOpen = true
+                            } catch (e: Exception) {}
+
+                            if (isPortOpen && !isConnected && !hasConnected.get()) {
+                                val url = "ws://$cand:3000"
+                                if (tryConnectSync(url, cand)) {
+                                    hasConnected.set(true)
+                                }
                             }
                         }
                     } finally {
@@ -439,7 +445,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 }
             }
             try {
-                latch.await(1800, TimeUnit.MILLISECONDS)
+                latch.await(2000, TimeUnit.MILLISECONDS)
             } catch (e: Exception) {}
             executor.shutdownNow()
 
