@@ -54,8 +54,8 @@ class UdpMeshBeacon(
                             val peerName = json.optString("name", "Mesh Peer")
                             val port = json.optInt("port", 3000)
 
-                            // Ignore self beacons
-                            if (peerId != localNodeId) {
+                            // Ignore self beacons and own IP addresses
+                            if (peerId != localNodeId && !peerId.equals(localNodeId, true) && !isSelfIp(senderIp)) {
                                 Log.d("UdpMeshBeacon", "Discovered live peer $peerName ($peerId) at $senderIp:$port")
                                 onPeerDiscovered?.invoke(senderIp, peerId, peerName, port)
                             }
@@ -129,6 +129,22 @@ class UdpMeshBeacon(
             name = "UdpMeshBroadcastThread"
             start()
         }
+    }
+
+    private fun isSelfIp(ip: String): Boolean {
+        if (ip == "127.0.0.1" || ip == "localhost" || ip == "::1" || ip == "0.0.0.0") return true
+        try {
+            val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
+            while (interfaces != null && interfaces.hasMoreElements()) {
+                val iface = interfaces.nextElement()
+                val addrs = iface.inetAddresses
+                while (addrs.hasMoreElements()) {
+                    val addr = addrs.nextElement()
+                    if (addr.hostAddress == ip) return true
+                }
+            }
+        } catch (e: Exception) {}
+        return false
     }
 
     fun stop() {

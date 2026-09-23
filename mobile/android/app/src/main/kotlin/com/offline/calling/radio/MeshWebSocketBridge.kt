@@ -103,6 +103,26 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
         onCallEnded?.invoke()
     }
 
+    fun getLocalIpAddresses(): Set<String> {
+        val ips = mutableSetOf("127.0.0.1", "localhost", "::1", "0.0.0.0")
+        try {
+            val interfaces = NetworkInterface.getNetworkInterfaces()
+            while (interfaces != null && interfaces.hasMoreElements()) {
+                val iface = interfaces.nextElement()
+                val addrs = iface.inetAddresses
+                while (addrs.hasMoreElements()) {
+                    val addr = addrs.nextElement()
+                    if (addr is Inet4Address) {
+                        addr.hostAddress?.let { ips.add(it) }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.d("MeshBridge", "IP resolution note: ${e.message}")
+        }
+        return ips
+    }
+
     init {
         router.onForwardRelayPacket = { forwardJson ->
             if (isConnected && webSocket != null) {
@@ -138,10 +158,11 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
             Log.w("MeshBridge", "P2P startup notice: ${e.message}")
         }
 
-        // 2. UDP Beacon Auto-Discovery
+        // 2. UDP Beacon Auto-Discovery (Connect only to new foreign peers, never own device)
         udpBeacon.onPeerDiscovered = { peerIp, peerId, peerName, port ->
-            if (!isConnected) {
-                Log.d("MeshBridge", "UDP Beacon detected live peer $peerName at $peerIp:$port, connecting...")
+            val localIps = getLocalIpAddresses()
+            if (!isConnected && peerId != localNodeId && !peerId.equals(localNodeId, true) && !localIps.contains(peerIp) && peerIp != "127.0.0.1") {
+                Log.d("MeshBridge", "UDP Beacon detected live new peer $peerName ($peerId) at $peerIp:$port, connecting...")
                 connectDirect(peerIp)
             }
         }
@@ -222,8 +243,12 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
     }
 
     private fun connectDirect(host: String) {
-        webSocket?.close(1000, "Reconnecting")
         val cleanHost = host.replace("ws://", "").replace("http://", "").split(":")[0]
+        if (getLocalIpAddresses().contains(cleanHost) || cleanHost == "127.0.0.1" || cleanHost == "localhost" || cleanHost == "0.0.0.0") {
+            Log.d("MeshBridge", "Skipping connection to own local device address: $cleanHost")
+            return
+        }
+        webSocket?.close(1000, "Reconnecting")
         val url = "ws://$cleanHost:3000"
         val request = Request.Builder().url(url).build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
@@ -264,7 +289,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
 
     /**
      * Automatically scans all network interfaces (Bluetooth PAN, Wi-Fi, Hotspot, USB)
-     * and connects to any active server without manual IP input.
+     * and connects only to external new peer devices (never own device).
      */
     fun autoDiscoverAndConnect() {
         if (isConnected || isConnecting.get()) return
@@ -310,7 +335,6 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 "10.19.238.166",  // Wi-Fi Laptop IP
                 "10.19.238.104",  // Wi-Fi Gateway
                 "10.19.238.1",
-                "127.0.0.1",      // USB Reverse (adb reverse)
                 "10.0.2.2",       // Android Emulator Host
                 "192.168.44.1",   // Bluetooth Tethering Alternate
                 "192.168.43.1",   // Wi-Fi Hotspot Host
@@ -369,13 +393,15 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 Log.e("MeshBridge", "Interface scan error: ${e.message}")
             }
 
-            val uniqueCandidates = candidates.distinct()
+            val localIps = getLocalIpAddresses()
+            val uniqueCandidates = candidates.distinct().filter { ip ->
+                !localIps.contains(ip) && ip != "127.0.0.1" && ip != "0.0.0.0" && ip != "localhost"
+            }
             val hasConnected = AtomicBoolean(false)
-            val latch = java.util.concurrent.CountDownLatch(minOf(uniqueCandidates.size, 8))
+            val latch = java.util.concurrent.CountDownLatch(uniqueCandidates.size)
 
-            val executor = Executors.newFixedThreadPool(8)
+            val executor = Executors.newFixedThreadPool(16)
             for (cand in uniqueCandidates) {
-                if (isConnected || hasConnected.get()) break
                 executor.execute {
                     try {
                         if (!isConnected && !hasConnected.get()) {
@@ -390,7 +416,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 }
             }
             try {
-                latch.await(3000, TimeUnit.MILLISECONDS)
+                latch.await(3500, TimeUnit.MILLISECONDS)
             } catch (e: Exception) {}
             executor.shutdownNow()
 
@@ -405,6 +431,9 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
     }
 
     private fun tryConnectSync(url: String, host: String): Boolean {
+        if (getLocalIpAddresses().contains(host) || host == "127.0.0.1" || host == "localhost" || host == "0.0.0.0") {
+            return false
+        }
         val success = AtomicBoolean(false)
         val latch = java.util.concurrent.CountDownLatch(1)
 
@@ -450,7 +479,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
         })
 
         try {
-            latch.await(2500, TimeUnit.MILLISECONDS)
+            latch.await(2000, TimeUnit.MILLISECONDS)
         } catch (e: InterruptedException) {
             ws.cancel()
         }

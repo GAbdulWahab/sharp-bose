@@ -655,11 +655,13 @@ class MainActivity : AppCompatActivity(), LocationListener {
         llConnectedPeople.removeAllViews()
 
         val otherPeers = peers.filter { 
+            it.id.isNotEmpty() &&
             it.id != localPeerId && 
             !it.id.equals(localPeerId, true) && 
             !it.id.equals(bridge.localNodeId, true) &&
             !it.id.equals("node-local", true) &&
-            !it.nickname.contains("(Host)", true)
+            !it.nickname.contains("(Host)", true) &&
+            !it.nickname.contains("Desktop Local", true)
         }
         tvPeopleCount.text = "${otherPeers.size} Connected"
 

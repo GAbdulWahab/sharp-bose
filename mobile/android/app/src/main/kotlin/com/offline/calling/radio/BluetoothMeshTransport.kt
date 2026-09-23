@@ -339,7 +339,17 @@ class BluetoothMeshTransport(
             val type = json.optString("type")
 
             if (type == "BT_HANDSHAKE") {
-                session.peerNodeId = json.optString("id", session.device.address)
+                val peerId = json.optString("id", session.device.address)
+                if (peerId == localNodeId || peerId.equals(localNodeId, true)) {
+                    Log.w(TAG, "Rejecting loopback self Bluetooth connection")
+                    session.isRunning.set(false)
+                    session.writerThread?.interrupt()
+                    connectedPeers.remove(session)
+                    notifyPeerRoster()
+                    try { session.socket.close() } catch (e: Exception) {}
+                    return
+                }
+                session.peerNodeId = peerId
                 session.peerNickname = json.optString("nickname", session.peerNickname)
                 onPeerDiscoveredAndConnected?.invoke(session.peerNodeId, session.peerNickname)
                 notifyPeerRoster()
@@ -384,9 +394,14 @@ class BluetoothMeshTransport(
     }
 
     private fun notifyPeerRoster() {
-        val peers = connectedPeers.map {
+        val peers = connectedPeers.filter {
+            it.peerNodeId.isNotEmpty() &&
+            it.peerNodeId != localNodeId &&
+            !it.peerNodeId.equals(localNodeId, true) &&
+            it.peerNodeId != "node-local"
+        }.map {
             PeerNode(
-                id = if (it.peerNodeId.isNotEmpty()) it.peerNodeId else it.device.address,
+                id = it.peerNodeId,
                 nickname = "${it.peerNickname} (Bluetooth)",
                 deviceType = "Android",
                 status = "Online (Bluetooth Direct)",

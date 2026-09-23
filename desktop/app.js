@@ -733,8 +733,11 @@ class TacticalMeshDesktop {
   renderPeers(peers) {
     this.connectedPeers = (peers || []).filter(p => {
       if (!p || !p.id) return false;
-      if (p.id === this.localNodeId || p.id.toLowerCase() === this.localNodeId.toLowerCase()) return false;
+      const pid = p.id.toLowerCase().trim();
+      const myId = (this.localNodeId || '').toLowerCase().trim();
+      if (pid === myId || pid === 'node-local') return false;
       if (p.isLocal) return false;
+      if (p.nickname && (p.nickname.includes('(Host)') || p.nickname.includes('Desktop Local'))) return false;
       return true;
     });
     const badge = document.getElementById('rosterCountBadge');

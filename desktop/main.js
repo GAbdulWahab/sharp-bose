@@ -257,9 +257,9 @@ function startEmbeddedHub() {
           const currentInfo = clients.get(client);
           const currentId = currentInfo ? currentInfo.id : null;
 
-          // Exclude the recipient's own device from the peer list
+          // Exclude the recipient's own device and self local hub
           const peerList = allClients
-            .filter(c => c.id !== currentId)
+            .filter(c => c.id !== currentId && c.id !== LOCAL_NODE_ID)
             .map(c => ({
               id: c.id,
               nickname: c.nickname,
@@ -274,14 +274,18 @@ function startEmbeddedHub() {
       }
 
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('hub:peer-list-updated', Array.from(clients.values()).map(c => ({
-          id: c.id,
-          nickname: c.nickname,
-          deviceType: c.deviceType,
-          location: c.location || null,
-          status: c.status || 'Online',
-          room: c.room || 'INDIA-MAIN'
-        })));
+        const remotePeers = Array.from(clients.values())
+          .filter(c => !c.isLocal && c.id !== LOCAL_NODE_ID)
+          .map(c => ({
+            id: c.id,
+            nickname: c.nickname,
+            deviceType: c.deviceType,
+            location: c.location || null,
+            status: c.status || 'Online',
+            room: c.room || 'INDIA-MAIN'
+          }));
+
+        mainWindow.webContents.send('hub:peer-list-updated', remotePeers);
       }
     }
 
@@ -291,13 +295,18 @@ function startEmbeddedHub() {
       ws.on('pong', () => { ws.isAlive = true; });
 
       const isMobile = /Android|iPhone|iPad/i.test(req.headers['user-agent'] || '');
+      const remoteIp = req.socket?.remoteAddress || '';
+      const isLoopback = remoteIp === '127.0.0.1' || remoteIp === '::1' || remoteIp === '::ffff:127.0.0.1';
+
       const clientInfo = {
         id: 'node-' + Math.random().toString(36).substring(2, 7),
-        nickname: isMobile ? 'Android Phone' : 'Desktop/Laptop Peer',
+        nickname: isMobile ? 'Android Phone' : (isLoopback ? 'Desktop Local' : 'Desktop/Laptop Peer'),
         deviceType: isMobile ? 'Android' : 'Desktop',
         status: 'Online',
         room: 'INDIA-MAIN',
         location: null,
+        isLocal: isLoopback,
+        remoteIp: remoteIp,
         ws: ws
       };
 
