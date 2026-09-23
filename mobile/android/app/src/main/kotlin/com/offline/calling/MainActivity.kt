@@ -611,7 +611,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         bridge.onCallDeclined = { peerId ->
             runOnUiThread {
-                stopVoiceCall(recordHistory = true)
+                stopVoiceCall(recordHistory = true, notifyRemote = false)
                 logEvent("[Live Call] Call was declined by $peerId")
                 Toast.makeText(this, "Call Declined", Toast.LENGTH_SHORT).show()
             }
@@ -619,7 +619,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         bridge.onCallTerminated = {
             runOnUiThread {
-                stopVoiceCall(recordHistory = true)
+                stopVoiceCall(recordHistory = true, notifyRemote = false)
                 logEvent("[Live Call] Remote peer ended the call")
             }
         }
@@ -983,22 +983,12 @@ class MainActivity : AppCompatActivity(), LocationListener {
     }
 
     private fun showIncomingCallDialog(callerName: String, callerId: String) {
+        if (callerId == localPeerId || callerId == bridge.localNodeId || callerId.isEmpty()) {
+            return
+        }
+
         if (isCalling) {
-            if (callerId == activeCallPeerId) {
-                // Already in active call with this peer, ignore duplicate invite
-                return
-            }
-            bridge.sendCallDecline(callerId)
-            callHistoryManager.addCallRecord(
-                CallRecord(
-                    id = UUID.randomUUID().toString(),
-                    peerName = callerName,
-                    peerId = callerId,
-                    type = "MISSED",
-                    timestamp = System.currentTimeMillis(),
-                    durationSeconds = 0
-                )
-            )
+            // Already in active call, ignore duplicate packet without declining
             return
         }
 
@@ -1110,10 +1100,10 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
     }
 
-    private fun stopVoiceCall(recordHistory: Boolean = true) {
+    private fun stopVoiceCall(recordHistory: Boolean = true, notifyRemote: Boolean = true) {
         try {
             audioEngine.stopVoice()
-            if (isCalling && recordHistory) {
+            if (isCalling && recordHistory && activeCallPeerId.isNotEmpty()) {
                 val duration = maxOf(1, ((System.currentTimeMillis() - callStartTime) / 1000).toInt())
                 callHistoryManager.addCallRecord(
                     CallRecord(
@@ -1126,11 +1116,16 @@ class MainActivity : AppCompatActivity(), LocationListener {
                     )
                 )
             }
+            val wasCalling = isCalling
             isCalling = false
+            activeCallPeerId = ""
+            activeCallPeerName = "Mesh Peer"
             btnCall.text = "[ 📞 START 2-WAY DUPLEX CALL ]"
             btnCall.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_emerald))
-            bridge.sendCallHangup()
-            logEvent("[Voice Call] Call terminated cleanly")
+            if (notifyRemote && wasCalling) {
+                bridge.sendCallHangup()
+            }
+            logEvent("[Voice Call] Call ended")
             Toast.makeText(this, "Call Ended", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             logEvent("[Error] Could not stop audio engine: ${e.message}")

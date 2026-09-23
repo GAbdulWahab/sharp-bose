@@ -54,21 +54,70 @@
       <!-- 02. Bluetooth & Network Connection Controls (Separate Card) -->
       <div class="tactical-card" style="margin-top: 14px;">
         <div class="card-title">
-          <span>📡 Bluetooth &amp; Network Controls</span>
-          <span class="status-online" id="carrierStatus">● Carrier Active</span>
+          <span>📡 Real Windows Bluetooth &amp; Mesh Carrier</span>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <span class="status-online" id="btRadioStatusBadge">● BT: ON</span>
+            <span class="status-online" id="carrierStatus">● Carrier Active</span>
+          </div>
         </div>
-        <div class="card-subtitle" id="carrierDetails" style="margin-bottom: 14px;">
-          Local Host: 127.0.0.1:3000 • UDP Beacon: Broadcasting (Port 3000)<br>
-          Interfaces: Detecting Wi-Fi, Ethernet &amp; Bluetooth PAN...
+        <div class="card-subtitle" id="carrierDetails" style="margin-bottom: 12px;">
+          Local Host: 127.0.0.1:3000 • WinRT Radio: Active • UDP Mesh Beacon: Broadcasting (3000)
         </div>
 
-        <div style="display: flex; gap: 12px;">
-          <button class="btn-tactical-sm" id="btnAutoScan" style="flex: 1; padding: 14px; font-size: 12px; justify-content: center;">
+        <!-- Bluetooth Alert / Error Banner -->
+        <div id="btAlertBanner" style="display: none; background: rgba(244, 63, 94, 0.15); border: 1px solid rgba(244, 63, 94, 0.4); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #FDA4AF; margin-bottom: 12px;">
+          <span id="btAlertText">Bluetooth is turned OFF. Turn ON Bluetooth in Windows Settings to scan devices.</span>
+        </div>
+
+        <!-- Bluetooth Active Connection Info Pill -->
+        <div id="btConnectedCard" style="display: none; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 12px 14px; margin-bottom: 12px; align-items: center; justify-content: space-between;">
+          <div>
+            <div style="font-size: 11px; color: var(--emerald-primary); font-weight: 700;">● BLUETOOTH LINK CONNECTED</div>
+            <div style="font-size: 13px; font-weight: 600; color: #FFFFFF; margin-top: 2px;" id="btConnectedDevName">Device Name</div>
+            <div style="font-size: 10px; color: var(--text-muted); font-family: monospace;" id="btConnectedDevMac">00:00:00:00:00:00</div>
+          </div>
+          <button class="btn-tactical-sm" id="btnDisconnectBtDevice" style="color: var(--rose-primary); border-color: rgba(244, 63, 94, 0.4); padding: 6px 14px;">Disconnect</button>
+        </div>
+
+        <!-- Discovered Bluetooth Devices List -->
+        <div style="margin-bottom: 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 11px; color: var(--text-secondary); font-weight: 700;">DISCOVERED BLUETOOTH DEVICES</span>
+            <span id="btScanStatusText" style="font-size: 11px; color: var(--cyan-primary);">Ready to scan</span>
+          </div>
+
+          <div class="bt-devices-container" id="btDevicesList" style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 4px 0;">
+            <div class="peer-row" style="padding: 10px 14px;">
+              <div class="peer-info">
+                <div class="peer-name" style="font-size: 12px;">🔍 No Bluetooth devices scanned yet</div>
+                <div class="peer-meta" style="font-size: 10px;">Click 'Scan Bluetooth Devices' below to discover real nearby phones, headphones &amp; laptops.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button class="btn-tactical-sm" id="btnScanBt" style="flex: 1; min-width: 140px; padding: 12px; font-size: 12px; justify-content: center; background: rgba(56, 189, 248, 0.15); color: var(--cyan-primary); border-color: var(--cyan-primary);">
+            🔍 Scan Bluetooth Devices
+          </button>
+          <button class="btn-tactical-sm" id="btnAutoScan" style="flex: 1; min-width: 140px; padding: 12px; font-size: 12px; justify-content: center;">
             🔄 Auto-Discover Mesh Peers
           </button>
-          <button class="btn-tactical-sm" id="btnConnectManual" style="flex: 1; padding: 14px; font-size: 12px; justify-content: center; color: var(--emerald-primary);">
-            ⚙️ Connect Custom Node IP
+          <button class="btn-tactical-sm" id="btnConnectManual" style="flex: 1; min-width: 140px; padding: 12px; font-size: 12px; justify-content: center; color: var(--emerald-primary);">
+            ⚙️ Connect Node IP
           </button>
+        </div>
+
+        <!-- Auto-Reconnect Row -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-glass);">
+          <div>
+            <div style="font-size: 12px; font-weight: 600; color: var(--text-primary);">🔄 Bluetooth Auto-Reconnect</div>
+            <div style="font-size: 10px; color: var(--text-muted);">Automatically re-establishes connection to previously linked device if signal drops or radio turns on.</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleBtAutoReconnect" checked>
+            <span class="slider"></span>
+          </label>
         </div>
       </div>
     </section>

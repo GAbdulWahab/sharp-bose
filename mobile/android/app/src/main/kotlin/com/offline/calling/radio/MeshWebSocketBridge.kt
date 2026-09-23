@@ -488,17 +488,31 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 "CALL_INVITE" -> {
                     val senderName = json.optString("senderName", "Mesh Peer")
                     val senderId = json.optString("senderId", "node-peer")
+                    val targetId = json.optString("targetId", "")
+                    if (senderId == localNodeId || senderId.equals(localNodeId, true)) return
+                    if (targetId.isNotEmpty() && targetId != localNodeId && !targetId.equals(localNodeId, true) && targetId != "BROADCAST") return
                     onIncomingCall?.invoke(senderName, senderId)
                 }
                 "CALL_ACCEPT" -> {
                     val senderName = json.optString("senderName", "Mesh Peer")
+                    val senderId = json.optString("senderId", "node-peer")
+                    val targetId = json.optString("targetId", "")
+                    if (senderId == localNodeId || senderId.equals(localNodeId, true)) return
+                    if (targetId.isNotEmpty() && targetId != localNodeId && !targetId.equals(localNodeId, true) && targetId != "BROADCAST") return
                     onCallAccepted?.invoke(senderName)
                 }
                 "CALL_DECLINE" -> {
                     val senderId = json.optString("senderId", "node-peer")
+                    val targetId = json.optString("targetId", "")
+                    if (senderId == localNodeId || senderId.equals(localNodeId, true)) return
+                    if (targetId.isNotEmpty() && targetId != localNodeId && !targetId.equals(localNodeId, true) && targetId != "BROADCAST") return
                     handleCallDeclined(senderId)
                 }
                 "CALL_HANGUP" -> {
+                    val senderId = json.optString("senderId", "node-peer")
+                    val targetId = json.optString("targetId", "")
+                    if (senderId == localNodeId || senderId.equals(localNodeId, true)) return
+                    if (targetId.isNotEmpty() && targetId != localNodeId && !targetId.equals(localNodeId, true) && targetId != "BROADCAST") return
                     handleCallTerminated()
                 }
                 "PTT_START" -> {

@@ -28,6 +28,13 @@ class TacticalMeshDesktop {
     this.radarSweepAngle = 0;
     this.isRadarActive = false;
     this.radarRafId = null;
+
+    // Real Windows Bluetooth State
+    this.btDevices = new Map();
+    this.isBtScanning = false;
+    this.btConnectedAddress = null;
+    this.btRadioState = 'UNKNOWN';
+    this.btAutoReconnect = true;
     
     this.init();
   }
@@ -39,6 +46,7 @@ class TacticalMeshDesktop {
     this.connectMesh();
     this.setupShortcuts();
     this.startAutoDiscoveryLoop();
+    this.initBluetooth();
   }
 
   startAutoDiscoveryLoop() {
@@ -151,6 +159,37 @@ class TacticalMeshDesktop {
         document.documentElement.style.setProperty('--bg-main', isDark ? '#0B0F19' : '#F1F5F9');
         document.documentElement.style.setProperty('--bg-card', isDark ? '#131D31' : '#FFFFFF');
         document.documentElement.style.setProperty('--text-primary', isDark ? '#F8FAFC' : '#0F172A');
+      });
+    }
+
+    // Real Windows Bluetooth UI Handlers
+    const btnScanBt = document.getElementById('btnScanBt');
+    if (btnScanBt) {
+      btnScanBt.addEventListener('click', () => {
+        if (!this.isBtScanning) {
+          if (window.bluetoothAPI) window.bluetoothAPI.startScan();
+        } else {
+          if (window.bluetoothAPI) window.bluetoothAPI.stopScan();
+        }
+      });
+    }
+
+    const btnDisconnectBt = document.getElementById('btnDisconnectBtDevice');
+    if (btnDisconnectBt) {
+      btnDisconnectBt.addEventListener('click', () => {
+        this.disconnectBtDevice();
+      });
+    }
+
+    const toggleAutoRec = document.getElementById('toggleBtAutoReconnect');
+    if (toggleAutoRec) {
+      toggleAutoRec.addEventListener('change', (e) => {
+        this.btAutoReconnect = e.target.checked;
+        localStorage.setItem('bt_auto_reconnect', this.btAutoReconnect ? 'true' : 'false');
+        if (window.bluetoothAPI) {
+          window.bluetoothAPI.setAutoReconnect(this.btAutoReconnect);
+        }
+        this.log(`Bluetooth Auto-Reconnect set to: ${this.btAutoReconnect}`);
       });
     }
 
@@ -508,6 +547,22 @@ class TacticalMeshDesktop {
       } catch (e) {
         console.warn('System info lookup:', e.message);
       }
+    } else {
+      // Browser / Webview fallback
+      try {
+        const res = await fetch('/api/status');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.nodeId) {
+            this.localNodeId = json.nodeId;
+            const nodeBadge = document.getElementById('nodeIdBadge');
+            if (nodeBadge) nodeBadge.innerText = `NODE: ${json.nodeId}`;
+          }
+          if (json.bluetooth) {
+            this.handleBtStatus(json.bluetooth);
+          }
+        }
+      } catch (e) {}
     }
   }
 
@@ -608,17 +663,30 @@ class TacticalMeshDesktop {
         this.appendChatBubble(json.senderName || 'Peer', json.text || '', false);
         break;
 
-      case 'CALL_INVITE':
-        this.activeCallPeer = { id: json.senderId, name: json.senderName };
+      case 'CALL_INVITE': {
+        const senderId = (json.senderId || '').trim();
+        if (!senderId || senderId.toLowerCase() === this.localNodeId.toLowerCase() || this.isCalling) return;
+        
+        const targetId = (json.targetId || '').toLowerCase().trim();
+        const myId = this.localNodeId.toLowerCase().trim();
+        if (targetId && targetId !== myId && targetId !== 'broadcast' && targetId !== 'all') {
+          if (!myId.includes(targetId) && !targetId.includes(myId)) return;
+        }
+
+        this.activeCallPeer = { id: json.senderId, name: json.senderName || 'Companion Node' };
         const incName = document.getElementById('incomingCallerName');
         const incId = document.getElementById('incomingCallerId');
         if (incName) incName.innerText = `[ NODE: ${(json.senderName || 'PEER').toUpperCase()} ]`;
         if (incId) incId.innerText = `ID: ${json.senderId} // E2EE NOISE_XX`;
-        document.getElementById('incomingCallModal').classList.add('open');
-        this.log(`📞 Incoming call from ${json.senderName} (${json.senderId})`);
+        const modal = document.getElementById('incomingCallModal');
+        if (modal) modal.classList.add('open');
+        this.log(`📞 Incoming call from ${json.senderName || 'Peer'} (${json.senderId})`);
         break;
+      }
 
-      case 'CALL_ACCEPT':
+      case 'CALL_ACCEPT': {
+        const senderId = (json.senderId || '').trim();
+        if (!senderId || senderId.toLowerCase() === this.localNodeId.toLowerCase()) return;
         this.isCalling = true;
         const btnCall = document.getElementById('btnGlobalCall');
         if (btnCall) {
@@ -628,12 +696,16 @@ class TacticalMeshDesktop {
         this.startMicCapture();
         this.log(`📞 Call connected with peer (${json.senderName || 'Peer'})`);
         break;
+      }
 
       case 'CALL_DECLINE':
-      case 'CALL_HANGUP':
+      case 'CALL_HANGUP': {
+        const senderId = (json.senderId || '').trim();
+        if (!senderId || senderId.toLowerCase() === this.localNodeId.toLowerCase()) return;
         this.log(`Remote peer ended/declined call.`);
-        this.stopVoiceCall();
+        this.stopVoiceCall(false);
         break;
+      }
 
       case 'PTT_START': {
         const pttLabel = document.getElementById('pttStatusLabel');
@@ -723,10 +795,10 @@ class TacticalMeshDesktop {
   async initAudioContext() {
     if (!this.audioCtx) {
       const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-      this.audioCtx = new AudioCtxClass({ sampleRate: 16000 });
+      this.audioCtx = new AudioCtxClass({ sampleRate: 16000, latencyHint: 'interactive' });
     }
     if (this.audioCtx.state === 'suspended') {
-      await this.audioCtx.resume();
+      try { await this.audioCtx.resume(); } catch (e) {}
     }
   }
 
@@ -738,7 +810,6 @@ class TacticalMeshDesktop {
       this.micStream = await navigator.mediaDevices.getUserMedia({
         audio: {
           channelCount: 1,
-          sampleRate: 16000,
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true
@@ -747,6 +818,7 @@ class TacticalMeshDesktop {
 
       const source = this.audioCtx.createMediaStreamSource(this.micStream);
       const processor = this.audioCtx.createScriptProcessor(1024, 1, 1);
+      const sampleRate = this.audioCtx.sampleRate || 16000;
 
       processor.onaudioprocess = (e) => {
         if (!this.isCalling && !this.isPttActive) return;
@@ -767,12 +839,12 @@ class TacticalMeshDesktop {
         const vuBar = document.getElementById('micVuBar');
         if (vuBar) vuBar.style.width = `${Math.min(100, avg * 350)}%`;
 
-        // Frame header: [0xAA, 0x55, 0x3E, 0x80 (16000 sample rate)]
+        // Frame header: [0xAA, 0x55, SampleRate_H, SampleRate_L] + PCM bytes
         const packet = new Uint8Array(4 + pcm16.buffer.byteLength);
         packet[0] = 0xAA;
         packet[1] = 0x55;
-        packet[2] = (16000 >> 8) & 0xFF;
-        packet[3] = 16000 & 0xFF;
+        packet[2] = (sampleRate >> 8) & 0xFF;
+        packet[3] = sampleRate & 0xFF;
         packet.set(new Uint8Array(pcm16.buffer), 4);
 
         this.sendAudioBuffer(packet);
@@ -812,33 +884,61 @@ class TacticalMeshDesktop {
       if (!this.audioCtx) return;
 
       let pcmBytes = uint8Frame;
-      if (uint8Frame[0] === 0xAA && uint8Frame[1] === 0x55) {
+      let senderRate = 16000;
+      if (uint8Frame[0] === 0xAA && uint8Frame[1] === 0x55 && uint8Frame.length >= 4) {
+        senderRate = ((uint8Frame[2] & 0xFF) << 8) | (uint8Frame[3] & 0xFF);
         pcmBytes = uint8Frame.subarray(4);
       }
 
-      // Convert Int16 to Float32
       const numSamples = Math.floor(pcmBytes.byteLength / 2);
-      const int16 = new Int16Array(pcmBytes.buffer, pcmBytes.byteOffset, numSamples);
+      if (numSamples <= 0) return;
+
       const float32 = new Float32Array(numSamples);
+      const dataView = new DataView(pcmBytes.buffer, pcmBytes.byteOffset, pcmBytes.byteLength);
       for (let i = 0; i < numSamples; i++) {
-        float32[i] = int16[i] / 32768.0;
+        float32[i] = dataView.getInt16(i * 2, true) / 32768.0;
       }
 
-      const audioBuffer = this.audioCtx.createBuffer(1, numSamples, 16000);
+      const audioBuffer = this.audioCtx.createBuffer(1, numSamples, senderRate || 16000);
       audioBuffer.getChannelData(0).set(float32);
 
       const source = this.audioCtx.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(this.audioCtx.destination);
-      source.onended = () => {
-        try { source.disconnect(); } catch(e) {}
-      };
-      source.start();
+
+      const currentTime = this.audioCtx.currentTime;
+      if (!this.nextAudioPlayTime || this.nextAudioPlayTime < currentTime) {
+        this.nextAudioPlayTime = currentTime + 0.025; // 25ms jitter buffer
+      }
+
+      source.start(this.nextAudioPlayTime);
+      this.nextAudioPlayTime += audioBuffer.duration;
     } catch (e) {}
   }
 
   acceptIncomingCall(peerId = '') {
     this.isCalling = true;
+    const modal = document.getElementById('incomingCallModal');
+    if (modal) modal.classList.remove('open');
+    const btnCall = document.getElementById('btnGlobalCall');
+    if (btnCall) {
+      btnCall.innerText = '[ 🔴 END ACTIVE VOICE CALL ]';
+      btnCall.className = 'btn-end';
+    }
+    this.startMicCapture();
+    const target = peerId || this.activeCallPeer?.id || '';
+    this.sendControlPacket({
+      type: 'CALL_ACCEPT',
+      targetId: target,
+      senderId: this.localNodeId,
+      senderName: this.nickname || 'Desktop Terminal'
+    });
+    this.log(`📞 Call accepted with peer (${this.activeCallPeer?.name || target || 'Node'})`);
+  }
+
+  startVoiceCall(peerId = '', peerName = 'Mesh Peer') {
+    this.isCalling = true;
+    this.activeCallPeer = { id: peerId, name: peerName };
     const btnCall = document.getElementById('btnGlobalCall');
     if (btnCall) {
       btnCall.innerText = '[ 🔴 END ACTIVE VOICE CALL ]';
@@ -846,36 +946,37 @@ class TacticalMeshDesktop {
     }
     this.startMicCapture();
     this.sendControlPacket({
-      type: 'CALL_ACCEPT',
+      type: 'CALL_INVITE',
       targetId: peerId,
       senderId: this.localNodeId,
-      senderName: 'Desktop Terminal'
+      senderName: this.nickname || 'Desktop Terminal'
     });
-    this.log(`📞 Call accepted with peer (${peerId || 'Node'})`);
+    this.log(`📞 Calling ${peerName} (${peerId || 'Broadcast'})...`);
   }
 
-  startVoiceCall(peerId = '') {
-    this.isCalling = true;
-    const btnCall = document.getElementById('btnGlobalCall');
-    if (btnCall) {
-      btnCall.innerText = '[ 🔴 END ACTIVE VOICE CALL ]';
-      btnCall.className = 'btn-end';
-    }
-    this.startMicCapture();
-    this.sendControlPacket({ type: 'CALL_INVITE', targetId: peerId, senderId: this.localNodeId, senderName: 'Desktop Terminal' });
-    this.log(`📞 Outgoing call initiated with mesh peer`);
-  }
-
-  stopVoiceCall() {
+  stopVoiceCall(notifyRemote = true) {
+    const wasCalling = this.isCalling;
     this.isCalling = false;
+    const modal = document.getElementById('incomingCallModal');
+    if (modal) modal.classList.remove('open');
     const btnCall = document.getElementById('btnGlobalCall');
     if (btnCall) {
       btnCall.innerText = '[ 📞 START 2-WAY DUPLEX CALL ]';
       btnCall.className = 'btn-call';
     }
-    this.stopMicCapture();
-    this.sendControlPacket({ type: 'CALL_HANGUP', senderId: this.localNodeId });
-    this.log('Voice call ended cleanly');
+    if (!this.isPttActive) {
+      this.stopMicCapture();
+    }
+    if (notifyRemote && wasCalling) {
+      this.sendControlPacket({
+        type: 'CALL_HANGUP',
+        targetId: this.activeCallPeer?.id || '',
+        senderId: this.localNodeId,
+        senderName: this.nickname || 'Desktop Terminal'
+      });
+    }
+    this.activeCallPeer = null;
+    this.log('📞 Voice call ended');
   }
 
   // -----------------------------------------------------------
@@ -1061,7 +1162,254 @@ class TacticalMeshDesktop {
   }
 
   // -----------------------------------------------------------
-  // 8. Event Logging (Capped at 50 lines to conserve RAM)
+  // 8. Real Windows Bluetooth Engine
+  // -----------------------------------------------------------
+  async initBluetooth() {
+    if (!window.bluetoothAPI) {
+      console.log('[Bluetooth] bluetoothAPI not available in current window.');
+      return;
+    }
+
+    try {
+      // 1. Initial status query
+      const status = await window.bluetoothAPI.getStatus();
+      this.handleBtStatus(status);
+
+      // 2. Event listeners
+      window.bluetoothAPI.onStatusChanged((s) => this.handleBtStatus(s));
+      window.bluetoothAPI.onDeviceDiscovered((dev) => this.handleBtDeviceDiscovered(dev));
+      window.bluetoothAPI.onConnectionChanged((conn) => this.handleBtConnectionChanged(conn));
+      window.bluetoothAPI.onScanStateChanged((state) => this.handleBtScanState(state));
+      window.bluetoothAPI.onError((err) => this.handleBtError(err));
+      window.bluetoothAPI.onLog((msg) => this.log(`[BT Service] ${msg}`));
+
+      // 3. Load saved auto-reconnect setting
+      const savedAutoRec = localStorage.getItem('bt_auto_reconnect');
+      if (savedAutoRec !== null) {
+        this.btAutoReconnect = savedAutoRec === 'true';
+        const toggle = document.getElementById('toggleBtAutoReconnect');
+        if (toggle) toggle.checked = this.btAutoReconnect;
+        window.bluetoothAPI.setAutoReconnect(this.btAutoReconnect);
+      }
+    } catch (e) {
+      console.warn('initBluetooth failed:', e.message);
+    }
+  }
+
+  handleBtStatus(status) {
+    if (!status) return;
+    const badge = document.getElementById('btRadioStatusBadge');
+    const alertBanner = document.getElementById('btAlertBanner');
+    const alertText = document.getElementById('btAlertText');
+    const btnScan = document.getElementById('btnScanBt');
+
+    const state = (status.state || 'UNKNOWN').toUpperCase();
+    this.btRadioState = state;
+
+    if (state === 'ON') {
+      if (badge) {
+        badge.innerText = '● BT: ON';
+        badge.className = 'status-online';
+      }
+      if (alertBanner) alertBanner.style.display = 'none';
+      if (btnScan) btnScan.disabled = false;
+      this.log('● Windows Bluetooth Radio is ON and ready.');
+    } else if (state === 'OFF') {
+      if (badge) {
+        badge.innerText = '○ BT: OFF';
+        badge.className = 'status-offline';
+      }
+      if (alertBanner) {
+        alertBanner.style.display = 'block';
+        if (alertText) alertText.innerText = '⚠️ Bluetooth is turned OFF in Windows. Turn ON Bluetooth in Windows Settings to discover devices.';
+      }
+      if (btnScan) btnScan.disabled = true;
+      this.isBtScanning = false;
+      this.updateScanButtonState();
+      this.log('○ Windows Bluetooth Radio is turned OFF.');
+    } else if (state === 'UNAVAILABLE' || !status.available) {
+      if (badge) {
+        badge.innerText = '✕ BT: UNAVAILABLE';
+        badge.className = 'status-offline';
+      }
+      if (alertBanner) {
+        alertBanner.style.display = 'block';
+        if (alertText) alertText.innerText = '✕ No Bluetooth adapter detected on this PC.';
+      }
+      if (btnScan) btnScan.disabled = true;
+    }
+  }
+
+  handleBtScanState(state) {
+    this.isBtScanning = state && state.scanning;
+    this.updateScanButtonState();
+    const scanStatus = document.getElementById('btScanStatusText');
+    if (scanStatus) {
+      scanStatus.innerText = this.isBtScanning ? '🔄 Scanning live BLE & Classic devices...' : `${this.btDevices.size} device(s) discovered`;
+    }
+    if (state && state.error && state.error !== 'Success') {
+      this.handleBtError(`Scanner status: ${state.error}`);
+    }
+  }
+
+  updateScanButtonState() {
+    const btnScan = document.getElementById('btnScanBt');
+    if (!btnScan) return;
+    if (this.isBtScanning) {
+      btnScan.innerText = '⏹️ Stop Scanning';
+      btnScan.style.background = 'rgba(244, 63, 94, 0.15)';
+      btnScan.style.borderColor = 'var(--rose-primary)';
+      btnScan.style.color = 'var(--rose-primary)';
+    } else {
+      btnScan.innerText = '🔍 Scan Bluetooth Devices';
+      btnScan.style.background = 'rgba(56, 189, 248, 0.15)';
+      btnScan.style.borderColor = 'var(--cyan-primary)';
+      btnScan.style.color = 'var(--cyan-primary)';
+    }
+  }
+
+  handleBtDeviceDiscovered(dev) {
+    if (!dev || !dev.address) return;
+    this.btDevices.set(dev.address, dev);
+    this.renderBtDevices();
+    const scanStatus = document.getElementById('btScanStatusText');
+    if (scanStatus && this.isBtScanning) {
+      scanStatus.innerText = `🔄 Scanning (${this.btDevices.size} found)...`;
+    }
+  }
+
+  renderBtDevices() {
+    const container = document.getElementById('btDevicesList');
+    if (!container) return;
+
+    if (this.btDevices.size === 0) {
+      container.innerHTML = `
+        <div class="peer-row" style="padding: 10px 14px;">
+          <div class="peer-info">
+            <div class="peer-name" style="font-size: 12px;">🔍 No Bluetooth devices found yet</div>
+            <div class="peer-meta" style="font-size: 10px;">Click 'Scan Bluetooth Devices' below to discover real nearby phones, headphones &amp; laptops.</div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = '';
+    this.btDevices.forEach(dev => {
+      const row = document.createElement('div');
+      row.className = 'peer-row';
+      row.style.padding = '10px 14px';
+
+      const isConnected = this.btConnectedAddress === dev.address;
+      const rssiStr = dev.rssi ? `${dev.rssi} dBm` : 'Nearby';
+
+      row.innerHTML = `
+        <div class="peer-info">
+          <div class="peer-name" style="font-size: 12px; display: flex; align-items: center; gap: 6px;">
+            <span>${isConnected ? '● 📱' : '📱'} ${escapeHtml(dev.name || 'Bluetooth Device')}</span>
+            ${isConnected ? '<span style="font-size: 10px; color: var(--emerald-primary); font-weight: 700;">[CONNECTED]</span>' : ''}
+          </div>
+          <div class="peer-meta" style="font-size: 10px; font-family: monospace;">
+            MAC: ${escapeHtml(dev.address)} • RSSI: ${rssiStr}
+          </div>
+        </div>
+        <div class="peer-actions">
+          ${isConnected ? `
+            <button class="btn-tactical-sm" style="color: var(--rose-primary); border-color: rgba(244, 63, 94, 0.4); padding: 4px 12px; font-size: 11px;" onclick="app.disconnectBtDevice('${escapeHtml(dev.address)}')">
+              Disconnect
+            </button>
+          ` : `
+            <button class="btn-tactical-sm" style="color: var(--cyan-primary); border-color: rgba(56, 189, 248, 0.4); padding: 4px 12px; font-size: 11px;" onclick="app.connectBtDevice('${escapeHtml(dev.address)}')">
+              Connect
+            </button>
+          `}
+        </div>
+      `;
+      container.appendChild(row);
+    });
+  }
+
+  async connectBtDevice(address) {
+    if (!window.bluetoothAPI) return;
+    this.log(`Connecting to Bluetooth device: ${address}...`);
+    const dev = this.btDevices.get(address);
+    const devName = dev ? dev.name : address;
+
+    const scanStatus = document.getElementById('btScanStatusText');
+    if (scanStatus) scanStatus.innerText = `Connecting to ${devName}...`;
+
+    try {
+      await window.bluetoothAPI.connect(address);
+    } catch (e) {
+      this.handleBtError(e.message);
+    }
+  }
+
+  async disconnectBtDevice() {
+    if (!window.bluetoothAPI) return;
+    this.log('Disconnecting Bluetooth device...');
+    try {
+      await window.bluetoothAPI.disconnect();
+    } catch (e) {
+      this.handleBtError(e.message);
+    }
+  }
+
+  handleBtConnectionChanged(conn) {
+    if (!conn) return;
+    const status = (conn.status || '').toUpperCase();
+    const card = document.getElementById('btConnectedCard');
+    const nameElem = document.getElementById('btConnectedDevName');
+    const macElem = document.getElementById('btConnectedDevMac');
+    const scanStatus = document.getElementById('btScanStatusText');
+
+    if (status === 'CONNECTED') {
+      this.btConnectedAddress = conn.address;
+      if (card) card.style.display = 'flex';
+      if (nameElem) nameElem.innerText = conn.name || conn.address;
+      if (macElem) macElem.innerText = conn.address;
+      if (scanStatus) scanStatus.innerText = `Connected to ${conn.name || conn.address}`;
+      this.log(`✅ Connected to Bluetooth Device: ${conn.name || conn.address} (${conn.address})`);
+      this.renderBtDevices();
+    } else if (status === 'DISCONNECTED') {
+      const oldAddress = this.btConnectedAddress;
+      this.btConnectedAddress = null;
+      if (card) card.style.display = 'none';
+      if (scanStatus) scanStatus.innerText = 'Ready to scan';
+      
+      const reason = conn.reason || 'Disconnected';
+      if (reason === 'UNEXPECTED_DISCONNECT') {
+        this.log(`⚠️ Bluetooth device (${conn.address || oldAddress}) disconnected unexpectedly.`);
+        if (this.btAutoReconnect) {
+          this.log(`🔄 Auto-reconnecting to ${conn.address || oldAddress}...`);
+        }
+      } else if (reason === 'RADIO_TURNED_OFF') {
+        this.log(`⚠️ Bluetooth radio was turned OFF. Disconnected from device.`);
+      } else {
+        this.log(`Bluetooth device disconnected.`);
+      }
+      this.renderBtDevices();
+    }
+  }
+
+  handleBtError(errorMsg) {
+    const text = typeof errorMsg === 'string' ? errorMsg : (errorMsg.message || JSON.stringify(errorMsg));
+    this.log(`[Bluetooth Alert] ${text}`);
+    const alertBanner = document.getElementById('btAlertBanner');
+    const alertText = document.getElementById('btAlertText');
+    if (alertBanner && alertText) {
+      alertBanner.style.display = 'block';
+      alertText.innerText = `⚠️ ${text}`;
+      setTimeout(() => {
+        if (alertBanner.style.display === 'block') {
+          alertBanner.style.display = 'none';
+        }
+      }, 7000);
+    }
+  }
+
+  // -----------------------------------------------------------
+  // 9. Event Logging (Capped at 50 lines to conserve RAM)
   // -----------------------------------------------------------
   log(msg) {
     const terminal = document.getElementById('systemLogsTerminal');

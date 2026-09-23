@@ -29,6 +29,7 @@
       "index.html",
       "styles.css",
       "package.json",
+      "win-bluetooth/**",
       "node_modules/ws/**",
       "!dist/**",
       "!**/*.map",

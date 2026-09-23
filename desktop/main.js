@@ -3,6 +3,7 @@ const http = require('http');
 const fs = require('fs');
 const dgram = require('dgram');
 const os = require('os');
+const { spawn } = require('child_process');
 const { WebSocketServer } = require('ws');
 
 // Safe Electron import (supports both Electron GUI runtime and pure Node.js headless runtime)
@@ -50,6 +51,118 @@ let wss = null;
 let udpSocket = null;
 let udpBeaconTimer = null;
 
+// Native Windows Bluetooth Service state
+let btProcess = null;
+let latestBtStatus = { available: false, state: 'INITIALIZING' };
+const btDiscoveredDevices = new Map();
+
+function startWindowsBluetoothService() {
+  if (process.platform !== 'win32') return;
+
+  const exePath = path.join(__dirname, 'win-bluetooth', 'SharpBoseWinBluetooth.exe');
+  if (!fs.existsSync(exePath)) {
+    console.warn('[Bluetooth Service] Binary not found at:', exePath);
+    return;
+  }
+
+  try {
+    btProcess = spawn(exePath, [], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true
+    });
+
+    let buffer = '';
+
+    btProcess.stdout.on('data', (chunk) => {
+      buffer += chunk.toString('utf8');
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // Keep last incomplete line
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const json = JSON.parse(trimmed);
+          handleBtServiceMessage(json);
+        } catch (e) {}
+      }
+    });
+
+    btProcess.stderr.on('data', (chunk) => {
+      console.warn('[BT Service Warning]', chunk.toString('utf8').trim());
+    });
+
+    btProcess.on('exit', (code) => {
+      console.log(`[Bluetooth Service] Process exited with code ${code}`);
+      btProcess = null;
+    });
+
+    console.log('[Bluetooth Service] Native Windows Bluetooth Service started.');
+  } catch (err) {
+    console.error('[Bluetooth Service] Failed to spawn service:', err.message);
+  }
+}
+
+function handleBtServiceMessage(msg) {
+  if (!msg || !msg.type) return;
+
+  let payload = msg.data;
+  if (typeof payload === 'string') {
+    try { payload = JSON.parse(payload); } catch (e) {}
+  }
+
+  switch (msg.type) {
+    case 'STATUS':
+    case 'RADIO_CHANGED':
+      latestBtStatus = payload;
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('bluetooth:status-changed', latestBtStatus);
+      }
+      break;
+
+    case 'DEVICE_FOUND':
+      if (payload && payload.address) {
+        btDiscoveredDevices.set(payload.address, payload);
+      }
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('bluetooth:device-discovered', payload);
+      }
+      break;
+
+    case 'CONNECT_STATUS':
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('bluetooth:connection-changed', payload);
+      }
+      break;
+
+    case 'SCAN_STATE':
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('bluetooth:scan-state', payload);
+      }
+      break;
+
+    case 'ERROR':
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('bluetooth:error', typeof payload === 'string' ? payload : (payload.error || payload.message || 'Bluetooth Error'));
+      }
+      break;
+
+    case 'LOG':
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('bluetooth:log', typeof payload === 'string' ? payload : JSON.stringify(payload));
+      }
+      break;
+  }
+}
+
+function sendBtCommand(cmd) {
+  if (btProcess && btProcess.stdin && !btProcess.stdin.destroyed) {
+    try {
+      btProcess.stdin.write(cmd + '\n');
+    } catch (e) {}
+  }
+}
+
 const allWebSockets = new Set();
 const clients = new Map(); // ws -> clientInfo
 
@@ -93,7 +206,8 @@ function startEmbeddedHub() {
         nodeId: LOCAL_NODE_ID,
         version: '2.0.0',
         status: 'ONLINE',
-        interfaces: getLocalIpAddresses()
+        interfaces: getLocalIpAddresses(),
+        bluetooth: latestBtStatus
       }));
       return;
     }
@@ -253,9 +367,6 @@ function startEmbeddedHub() {
                   client.send(text);
                 }
               }
-              if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.webContents.send('hub:control-packet', json);
-              }
               break;
           }
         } catch (err) {}
@@ -338,10 +449,10 @@ function createWindow() {
   if (IS_HEADLESS || !BrowserWindow) return;
 
   mainWindow = new BrowserWindow({
-    width: 1120,
-    height: 740,
-    minWidth: 860,
-    minHeight: 580,
+    width: 1140,
+    height: 760,
+    minWidth: 880,
+    minHeight: 600,
     backgroundColor: '#0B0F19',
     title: 'SHARP-BOSE TACTICAL MESH // DESKTOP TERMINAL v2.0',
     icon: path.join(__dirname, 'icon.png'),
@@ -350,7 +461,7 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
       webSecurity: true,
-      backgroundThrottling: true,
+      backgroundThrottling: false,
       spellcheck: false,
       devTools: false
     }
@@ -385,14 +496,41 @@ if (!app || IS_HEADLESS) {
       }
     });
 
-    // IPC Handlers
+    // IPC Handlers - Network and Mesh
     ipcMain.handle('app:get-interfaces', () => getLocalIpAddresses());
     ipcMain.handle('app:get-node-id', () => LOCAL_NODE_ID);
     ipcMain.handle('app:get-hostname', () => os.hostname());
 
+    // IPC Handlers - Real Windows Bluetooth Service
+    ipcMain.handle('bluetooth:get-status', () => {
+      sendBtCommand('STATUS');
+      return latestBtStatus;
+    });
+    ipcMain.handle('bluetooth:start-scan', () => {
+      sendBtCommand('SCAN:START');
+      return true;
+    });
+    ipcMain.handle('bluetooth:stop-scan', () => {
+      sendBtCommand('SCAN:STOP');
+      return true;
+    });
+    ipcMain.handle('bluetooth:connect', (event, address) => {
+      sendBtCommand(`CONNECT:${address}`);
+      return true;
+    });
+    ipcMain.handle('bluetooth:disconnect', () => {
+      sendBtCommand('DISCONNECT');
+      return true;
+    });
+    ipcMain.handle('bluetooth:set-auto-reconnect', (event, enabled) => {
+      sendBtCommand(`AUTO_RECONNECT:${enabled}`);
+      return true;
+    });
+
     app.whenReady().then(() => {
       startEmbeddedHub();
       startUdpBeacon();
+      startWindowsBluetoothService();
       createWindow();
 
       app.on('activate', () => {
@@ -405,6 +543,12 @@ if (!app || IS_HEADLESS) {
         if (udpBeaconTimer) clearInterval(udpBeaconTimer);
         if (udpSocket) try { udpSocket.close(); } catch (e) {}
         if (httpServer) try { httpServer.close(); } catch (e) {}
+        if (btProcess) {
+          try {
+            sendBtCommand('DISCONNECT');
+            btProcess.kill();
+          } catch (e) {}
+        }
         app.quit();
       }
     });
