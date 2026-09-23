@@ -616,7 +616,7 @@
                             <TextView
                                 android:layout_width="wrap_content"
                                 android:layout_height="wrap_content"
-                                android:text=">>> [ 360° PULSE ACTIVE // NO GNSS DRIFT ] <<<"
+                                android:text=">>> [ 360° PULSE ACTIVE // NO GNSS DRIFT ] &lt;&lt;&lt;"
                                 android:textColor="@color/neon_amber"
                                 android:textSize="9sp"
                                 android:fontFamily="monospace"
