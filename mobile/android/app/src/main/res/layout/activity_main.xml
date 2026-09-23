@@ -4,7 +4,7 @@
     android:id="@+id/mainScrollView"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background_dark"
+    android:background="#05080F"
     android:fillViewport="true">
 
     <LinearLayout
@@ -12,14 +12,16 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="20dp">
+        android:padding="16dp">
 
-        <!-- Header with Theme Toggle -->
+        <!-- 90s Retro Console Header -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:background="#0A0E17"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:padding="12dp">
 
             <LinearLayout
                 android:layout_width="0dp"
@@ -31,9 +33,10 @@
                     android:id="@+id/tvAppTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Offline Mesh Calling"
-                    android:textColor="@color/text_primary"
-                    android:textSize="24sp"
+                    android:fontFamily="monospace"
+                    android:text="■ [OFFLINE MESH v90] ■"
+                    android:textColor="#00F0FF"
+                    android:textSize="18sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -41,52 +44,55 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="P2P Voice, Chat &amp; Mesh Comm • No Internet"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="13sp" />
+                    android:fontFamily="monospace"
+                    android:text=">>> P2P HD VOICE // NO INTERNET &lt;&lt;&lt;"
+                    android:textColor="#00FF66"
+                    android:textSize="11sp" />
             </LinearLayout>
 
             <Button
                 android:id="@+id/btnCallHistory"
                 android:layout_width="wrap_content"
-                android:layout_height="42dp"
+                android:layout_height="38dp"
                 android:layout_marginEnd="6dp"
-                android:backgroundTint="@color/card_bg"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:text="📋 Logs"
-                android:textColor="#38BDF8"
-                android:textSize="12sp"
+                android:backgroundTint="#0F172A"
+                android:fontFamily="monospace"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:text="[LOGS]"
+                android:textColor="#00F0FF"
+                android:textSize="11sp"
                 android:textStyle="bold" />
 
             <Button
                 android:id="@+id/btnThemeToggle"
                 android:layout_width="wrap_content"
-                android:layout_height="42dp"
-                android:backgroundTint="@color/card_bg"
-                android:paddingStart="10dp"
-                android:paddingEnd="10dp"
-                android:text="🌙 Dark"
-                android:textColor="@color/accent_cyan"
-                android:textSize="12sp"
+                android:layout_height="38dp"
+                android:backgroundTint="#0F172A"
+                android:fontFamily="monospace"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:text="[🌙 CRT]"
+                android:textColor="#FFB000"
+                android:textSize="11sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Status Card -->
+        <!-- 01. Status Card -->
         <androidx.cardview.widget.CardView
             android:id="@+id/cardStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp">
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#0A0E17"
+            app:cardCornerRadius="6dp"
+            app:cardElevation="2dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="14dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -96,19 +102,20 @@
 
                     <View
                         android:id="@+id/statusIndicator"
-                        android:layout_width="12dp"
-                        android:layout_height="12dp"
+                        android:layout_width="10dp"
+                        android:layout_height="10dp"
                         android:background="@drawable/ic_launcher_background"
-                        android:backgroundTint="@color/accent_emerald" />
+                        android:backgroundTint="#00FF66" />
 
                     <TextView
                         android:id="@+id/tvStatus"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="10dp"
-                        android:text="Mesh Radio: Active (BLE L2CAP &amp; Wi-Fi Direct)"
-                        android:textColor="@color/accent_emerald"
-                        android:textSize="14sp"
+                        android:layout_marginStart="8dp"
+                        android:fontFamily="monospace"
+                        android:text="● [RADIO: BLE L2CAP // WI-FI DIRECT]"
+                        android:textColor="#00FF66"
+                        android:textSize="13sp"
                         android:textStyle="bold" />
                 </LinearLayout>
 
@@ -116,38 +123,39 @@
                     android:id="@+id/tvPeerId"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="6dp"
                     android:fontFamily="monospace"
-                    android:text="Local Peer ID: node-7f39a4... (E2EE Noise_XX)"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:text="NODE ID: [node-7f39a4] • [E2EE NOISE_XX]"
+                    android:textColor="#7DD3FC"
+                    android:textSize="11sp" />
 
                 <TextView
                     android:id="@+id/tvMeshStats"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Active Peers: Direct Local Link | E2EE Encrypted"
-                    android:textColor="@color/accent_cyan"
-                    android:textSize="12sp" />
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="monospace"
+                    android:text="STATUS: [DIRECT P2P LINK ACTIVE // 0 HOPS]"
+                    android:textColor="#00F0FF"
+                    android:textSize="11sp" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- All-India Nationwide HD Network Card -->
+        <!-- 02. All-India Nationwide HD Network Card -->
         <androidx.cardview.widget.CardView
             android:id="@+id/cardNationwide"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp">
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#0A0E17"
+            app:cardCornerRadius="6dp"
+            app:cardElevation="2dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="14dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -160,9 +168,10 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="🇮🇳 All-India HD Voice Network"
-                        android:textColor="#F59E0B"
-                        android:textSize="18sp"
+                        android:fontFamily="monospace"
+                        android:text="🇮🇳 [02. ALL-INDIA MESH BAND]"
+                        android:textColor="#FFB000"
+                        android:textSize="14sp"
                         android:textStyle="bold" />
 
                     <TextView
@@ -170,13 +179,14 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:background="#064E3B"
-                        android:paddingStart="8dp"
+                        android:fontFamily="monospace"
+                        android:paddingStart="6dp"
                         android:paddingTop="2dp"
-                        android:paddingEnd="8dp"
+                        android:paddingEnd="6dp"
                         android:paddingBottom="2dp"
-                        android:text="HD 100% • 0% Loss"
-                        android:textColor="#34D399"
-                        android:textSize="11sp"
+                        android:text="[HD 100%]"
+                        android:textColor="#00FF66"
+                        android:textSize="10sp"
                         android:textStyle="bold" />
                 </LinearLayout>
 
@@ -184,11 +194,11 @@
                     android:id="@+id/tvCurrentRoom"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
+                    android:layout_marginTop="4dp"
                     android:fontFamily="monospace"
-                    android:text="Channel: INDIA-MAIN (All-India Relay)"
-                    android:textColor="@color/accent_cyan"
-                    android:textSize="13sp"
+                    android:text="CHANNEL: [INDIA-MAIN // ALL-INDIA RELAY]"
+                    android:textColor="#00F0FF"
+                    android:textSize="12sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -196,38 +206,40 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="Continuous 16kHz PCM • Hardware AEC/NS/AGC • STUN NAT Traversal"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="11sp" />
+                    android:fontFamily="monospace"
+                    android:text="FREQ: 144.800 MHz • CONTINUOUS 16kHz PCM • HARDWARE AEC/NS"
+                    android:textColor="#7DD3FC"
+                    android:textSize="10sp" />
 
                 <Button
                     android:id="@+id/btnSwitchRoom"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginTop="12dp"
-                    android:backgroundTint="#F59E0B"
-                    android:text="🇮🇳 SWITCH NATIONWIDE CHANNEL / CITY"
-                    android:textColor="#0B0F19"
-                    android:textSize="12sp"
+                    android:layout_height="44dp"
+                    android:layout_marginTop="10dp"
+                    android:backgroundTint="#FFB000"
+                    android:fontFamily="monospace"
+                    android:text="[ 📻 TUNE CHANNEL / FREQUENCY ]"
+                    android:textColor="#05080F"
+                    android:textSize="11sp"
                     android:textStyle="bold" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Connected People (Live Mesh Roster) Card -->
+        <!-- 03. Connected People & Nodes Card -->
         <androidx.cardview.widget.CardView
             android:id="@+id/cardPeople"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp">
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#0A0E17"
+            app:cardCornerRadius="6dp"
+            app:cardElevation="2dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="14dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -240,9 +252,10 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="👥 Connected People &amp; Nodes"
-                        android:textColor="#38BDF8"
-                        android:textSize="18sp"
+                        android:fontFamily="monospace"
+                        android:text="👥 [03. NODE ROSTER &amp; RADIOS]"
+                        android:textColor="#00F0FF"
+                        android:textSize="14sp"
                         android:textStyle="bold" />
 
                     <TextView
@@ -250,13 +263,14 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:background="#064E3B"
-                        android:paddingStart="8dp"
+                        android:fontFamily="monospace"
+                        android:paddingStart="6dp"
                         android:paddingTop="2dp"
-                        android:paddingEnd="8dp"
+                        android:paddingEnd="6dp"
                         android:paddingBottom="2dp"
-                        android:text="0 Online"
-                        android:textColor="#34D399"
-                        android:textSize="11sp"
+                        android:text="[0 ONLINE]"
+                        android:textColor="#00FF66"
+                        android:textSize="10sp"
                         android:textStyle="bold" />
                 </LinearLayout>
 
@@ -264,47 +278,48 @@
                     android:id="@+id/tvPeopleSubtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Real-time list of all active phones, laptops and peers in direct mesh range."
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="monospace"
+                    android:text="ACTIVE HARDWARE MESH PEERS &amp; DISCOVERABLE RADIOS"
+                    android:textColor="#7DD3FC"
+                    android:textSize="10sp" />
 
                 <LinearLayout
                     android:id="@+id/llConnectedPeople"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="10dp"
                     android:orientation="vertical">
 
-                    <!-- Default Empty State -->
                     <TextView
                         android:id="@+id/tvNoPeersConnected"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:fontFamily="monospace"
                         android:gravity="center"
                         android:padding="12dp"
-                        android:text="📡 Scanning for connected mesh people / devices..."
-                        android:textColor="@color/text_secondary"
-                        android:textSize="12sp" />
+                        android:text=">>> SCANNING RADIO FREQUENCIES... &lt;&lt;&lt;"
+                        android:textColor="#7DD3FC"
+                        android:textSize="11sp" />
                 </LinearLayout>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Live GPS & Tactical Location Card -->
+        <!-- 04. Tactical GPS & Sensor Grid Card -->
         <androidx.cardview.widget.CardView
             android:id="@+id/cardLocation"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp">
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#0A0E17"
+            app:cardCornerRadius="6dp"
+            app:cardElevation="2dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="14dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -317,9 +332,10 @@
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
-                        android:text="📍 Live GPS &amp; Mesh Location"
-                        android:textColor="@color/accent_emerald"
-                        android:textSize="18sp"
+                        android:fontFamily="monospace"
+                        android:text="📍 [04. GPS TACTICAL GRID]"
+                        android:textColor="#00FF66"
+                        android:textSize="14sp"
                         android:textStyle="bold" />
 
                     <TextView
@@ -327,13 +343,14 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:background="#064E3B"
-                        android:paddingStart="8dp"
+                        android:fontFamily="monospace"
+                        android:paddingStart="6dp"
                         android:paddingTop="2dp"
-                        android:paddingEnd="8dp"
+                        android:paddingEnd="6dp"
                         android:paddingBottom="2dp"
-                        android:text="GPS Acquiring"
-                        android:textColor="#34D399"
-                        android:textSize="11sp"
+                        android:text="[ACQUIRING]"
+                        android:textColor="#00FF66"
+                        android:textSize="10sp"
                         android:textStyle="bold" />
                 </LinearLayout>
 
@@ -341,11 +358,11 @@
                     android:id="@+id/tvLocationCoords"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginTop="6dp"
                     android:fontFamily="monospace"
-                    android:text="Lat: Acquiring GPS... | Lon: Acquiring GPS..."
-                    android:textColor="@color/text_primary"
-                    android:textSize="13sp"
+                    android:text="GRID: LAT [--.------] // LON [--.------]"
+                    android:textColor="#00F0FF"
+                    android:textSize="12sp"
                     android:textStyle="bold" />
 
                 <TextView
@@ -353,308 +370,335 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
-                    android:text="Accuracy: ±--m • Alt: --m • Hardware GPS Offline Fix"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:fontFamily="monospace"
+                    android:text="SENSOR: ACCURACY ±--m • ALT: --m • SATELLITE FIX"
+                    android:textColor="#7DD3FC"
+                    android:textSize="10sp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="10dp"
                     android:orientation="horizontal">
 
                     <Button
                         android:id="@+id/btnShareLocation"
                         android:layout_width="0dp"
-                        android:layout_height="48dp"
+                        android:layout_height="44dp"
                         android:layout_weight="1"
                         android:backgroundTint="#0284C7"
-                        android:text="📍 Share Location"
+                        android:fontFamily="monospace"
+                        android:text="[ 📍 BROADCAST GPS ]"
                         android:textColor="#FFFFFF"
-                        android:textSize="12sp"
+                        android:textSize="11sp"
                         android:textStyle="bold" />
 
                     <Button
                         android:id="@+id/btnRadarMap"
                         android:layout_width="wrap_content"
-                        android:layout_height="48dp"
+                        android:layout_height="44dp"
                         android:layout_marginStart="8dp"
-                        android:backgroundTint="@color/card_bg"
-                        android:text="🎯 Radar &amp; Dist"
-                        android:textColor="@color/accent_emerald"
-                        android:textSize="12sp"
+                        android:backgroundTint="#0F172A"
+                        android:fontFamily="monospace"
+                        android:text="[ 🎯 RADAR ]"
+                        android:textColor="#00FF66"
+                        android:textSize="11sp"
                         android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Offline Mesh Messaging (Chat) Card -->
+        <!-- 05. Offline Messages (BBS Chat) Card -->
         <androidx.cardview.widget.CardView
             android:id="@+id/cardChat"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp">
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#0A0E17"
+            app:cardCornerRadius="6dp"
+            app:cardElevation="2dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="14dp">
 
                 <TextView
                     android:id="@+id/tvChatTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="💬 Offline Mesh Messages"
-                    android:textColor="#38BDF8"
-                    android:textSize="18sp"
+                    android:fontFamily="monospace"
+                    android:text="💬 [05. ENCRYPTED MESH BBS]"
+                    android:textColor="#00F0FF"
+                    android:textSize="14sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/tvChatSubtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Send instant offline text messages to Laptop &amp; nearby mesh peers without Internet or SIM."
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="monospace"
+                    android:text="OFFLINE TEXT MESSAGING OVER 256-BIT ENCRYPTED MESH"
+                    android:textColor="#7DD3FC"
+                    android:textSize="10sp" />
 
                 <Button
                     android:id="@+id/btnOpenChat"
                     android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="12dp"
+                    android:layout_height="46dp"
+                    android:layout_marginTop="10dp"
                     android:backgroundTint="#0284C7"
-                    android:text="💬 OPEN OFFLINE CHAT (MESSAGES)"
+                    android:fontFamily="monospace"
+                    android:text="[ 💬 OPEN BBS TERMINAL ]"
                     android:textColor="#FFFFFF"
+                    android:textSize="11sp"
                     android:textStyle="bold" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Receive Call Option Card -->
+        <!-- 06. Receive Call Modal Card -->
         <androidx.cardview.widget.CardView
             android:id="@+id/cardReceiveCall"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp">
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#0A0E17"
+            app:cardCornerRadius="6dp"
+            app:cardElevation="2dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="14dp">
 
                 <TextView
                     android:id="@+id/tvReceiveCallTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Receive Incoming Call"
-                    android:textColor="@color/accent_emerald"
-                    android:textSize="18sp"
+                    android:fontFamily="monospace"
+                    android:text="📞 [06. INCOMING COMM TEST]"
+                    android:textColor="#00FF66"
+                    android:textSize="14sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/tvReceiveCallSubtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Displays incoming encrypted mesh call from Laptop with Accept &amp; Decline dialog."
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="monospace"
+                    android:text="TEST INCOMING ENCRYPTED MODAL &amp; RING ALERT"
+                    android:textColor="#7DD3FC"
+                    android:textSize="10sp" />
 
                 <Button
                     android:id="@+id/btnReceiveCall"
                     android:layout_width="match_parent"
-                    android:layout_height="54dp"
-                    android:layout_marginTop="12dp"
-                    android:backgroundTint="@color/accent_emerald"
-                    android:text="📞 RECEIVE CALL (INCOMING MODAL)"
+                    android:layout_height="46dp"
+                    android:layout_marginTop="10dp"
+                    android:backgroundTint="#059669"
+                    android:fontFamily="monospace"
+                    android:text="[ 📞 SIMULATE INCOMING MODAL ]"
                     android:textColor="#FFFFFF"
+                    android:textSize="11sp"
                     android:textStyle="bold" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Walkie-Talkie Push-To-Talk Card -->
+        <!-- 07. Walkie-Talkie Push-To-Talk Card -->
         <androidx.cardview.widget.CardView
             android:id="@+id/cardPtt"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp">
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#0A0E17"
+            app:cardCornerRadius="6dp"
+            app:cardElevation="2dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="14dp">
 
                 <TextView
                     android:id="@+id/tvPttTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Walkie-Talkie (PTT Intercom)"
-                    android:textColor="@color/accent_cyan"
-                    android:textSize="18sp"
+                    android:fontFamily="monospace"
+                    android:text="📻 [07. WALKIE-TALKIE PTT]"
+                    android:textColor="#00F0FF"
+                    android:textSize="14sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/tvPttChannel"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Channel 1: Emergency &amp; Tactical Recon • Floor: Clear"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="monospace"
+                    android:text="CH-01: TACTICAL VOICE • FLOOR: [CLEAR]"
+                    android:textColor="#7DD3FC"
+                    android:textSize="10sp" />
 
                 <Button
                     android:id="@+id/btnPtt"
                     android:layout_width="match_parent"
-                    android:layout_height="56dp"
-                    android:layout_marginTop="12dp"
-                    android:backgroundTint="@color/accent_cyan"
-                    android:text="HOLD TO TALK (PTT)"
-                    android:textColor="#0B0F19"
+                    android:layout_height="52dp"
+                    android:layout_marginTop="10dp"
+                    android:backgroundTint="#00F0FF"
+                    android:fontFamily="monospace"
+                    android:text="[ ■■ HOLD TO TALK (PTT) ■■ ]"
+                    android:textColor="#05080F"
+                    android:textSize="12sp"
                     android:textStyle="bold" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Voice Call Card -->
+        <!-- 08. Voice Call Card -->
         <androidx.cardview.widget.CardView
             android:id="@+id/cardCall"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp">
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#0A0E17"
+            app:cardCornerRadius="6dp"
+            app:cardElevation="2dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="14dp">
 
                 <TextView
                     android:id="@+id/tvCallTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Real-Time Full-Duplex Call"
-                    android:textColor="@color/text_primary"
-                    android:textSize="18sp"
+                    android:fontFamily="monospace"
+                    android:text="🎙️ [08. 2-WAY DUPLEX COMM]"
+                    android:textColor="#00FF66"
+                    android:textSize="14sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/tvAudioInfo"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="16kHz PCM • Hardware AEC/NS • HD Clarity"
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="monospace"
+                    android:text="STREAM: 16kHz PCM • HARDWARE AEC/NS • HD VOICE"
+                    android:textColor="#7DD3FC"
+                    android:textSize="10sp" />
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
+                    android:layout_marginTop="10dp"
                     android:orientation="horizontal">
 
                     <Button
                         android:id="@+id/btnCall"
                         android:layout_width="0dp"
-                        android:layout_height="52dp"
+                        android:layout_height="48dp"
                         android:layout_weight="1"
-                        android:backgroundTint="@color/accent_emerald"
-                        android:text="Start Voice Call"
+                        android:backgroundTint="#059669"
+                        android:fontFamily="monospace"
+                        android:text="[ 📞 START VOICE CALL ]"
                         android:textColor="#FFFFFF"
+                        android:textSize="11sp"
                         android:textStyle="bold" />
 
                     <Button
                         android:id="@+id/btnSpeaker"
                         android:layout_width="wrap_content"
-                        android:layout_height="52dp"
+                        android:layout_height="48dp"
                         android:layout_marginStart="8dp"
-                        android:backgroundTint="@color/primary"
-                        android:text="Speaker"
-                        android:textColor="@color/accent_cyan" />
+                        android:backgroundTint="#0F172A"
+                        android:fontFamily="monospace"
+                        android:text="[ 🔊 SPKR ]"
+                        android:textColor="#00F0FF"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
                 </LinearLayout>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Emergency SOS Card -->
+        <!-- 09. Distress SOS Card -->
         <androidx.cardview.widget.CardView
             android:id="@+id/cardSos"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardBackgroundColor="@color/card_bg"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp">
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#0A0E17"
+            app:cardCornerRadius="6dp"
+            app:cardElevation="2dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="14dp">
 
                 <TextView
                     android:id="@+id/tvSosTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Emergency Broadcast"
-                    android:textColor="@color/accent_rose"
-                    android:textSize="18sp"
+                    android:fontFamily="monospace"
+                    android:text="🚨 [09. EMERGENCY SOS BROADCAST]"
+                    android:textColor="#FF0055"
+                    android:textSize="14sp"
                     android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/tvSosSubtitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="Floods emergency distress packets across all mesh nodes with maximum priority."
-                    android:textColor="@color/text_secondary"
-                    android:textSize="12sp" />
+                    android:layout_marginTop="2dp"
+                    android:fontFamily="monospace"
+                    android:text="FLOODS DISTRESS BEACON ACROSS ALL 15-HOP MESH RADIOS"
+                    android:textColor="#7DD3FC"
+                    android:textSize="10sp" />
 
                 <Button
                     android:id="@+id/btnSos"
                     android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="12dp"
-                    android:backgroundTint="@color/accent_rose"
-                    android:text="BROADCAST SOS BEACON"
+                    android:layout_height="48dp"
+                    android:layout_marginTop="10dp"
+                    android:backgroundTint="#DC2626"
+                    android:fontFamily="monospace"
+                    android:text="[ 🚨 BROADCAST DISTRESS SOS 🚨 ]"
                     android:textColor="#FFFFFF"
+                    android:textSize="11sp"
                     android:textStyle="bold" />
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Live Network Activity Log -->
+        <!-- 10. Live CRT Network Activity Log -->
         <TextView
             android:id="@+id/tvLogsHeader"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:text="Mesh Activity Log"
-            android:textColor="@color/text_primary"
-            android:textSize="16sp"
+            android:layout_marginTop="16dp"
+            android:fontFamily="monospace"
+            android:text="=== [10. CRT SYSTEM TELEMETRY LOG] ==="
+            android:textColor="#00F0FF"
+            android:textSize="12sp"
             android:textStyle="bold" />
 
         <TextView
             android:id="@+id/tvLogs"
             android:layout_width="match_parent"
-            android:layout_height="140dp"
-            android:layout_marginTop="8dp"
-            android:background="@color/primary_dark"
+            android:layout_height="130dp"
+            android:layout_marginTop="6dp"
+            android:background="#020617"
             android:fontFamily="monospace"
-            android:padding="12dp"
-            android:text="[Mesh] Radio initialized on BLE L2CAP\n[Mesh] Channel PSM allocated: 128\n[Audio] AudioRecord &amp; AudioTrack ready\n[PTT] Multicast Channel 1 joined\n[Crypto] Noise_XX ephemeral keys generated"
-            android:textColor="@color/accent_cyan"
+            android:padding="10dp"
+            android:text="[SYS] CRT Radio console initialized\n[SYS] SampleRate: 16000 Hz Mono PCM\n[SYS] E2EE Noise_XX protocol active\n[SYS] Scanning all mesh radios..."
+            android:textColor="#00FF66"
             android:textSize="11sp" />
 
     </LinearLayout>

@@ -5,7 +5,7 @@
     android:layout_height="wrap_content"
     android:background="@drawable/dialog_background"
     android:orientation="vertical"
-    android:padding="20dp">
+    android:padding="18dp">
 
     <!-- Header -->
     <LinearLayout
@@ -19,25 +19,28 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="📋 Call History &amp; Logs"
-            android:textColor="#38BDF8"
-            android:textSize="18sp"
+            android:fontFamily="monospace"
+            android:text="📋 [COMMUNICATION CDR LOGS]"
+            android:textColor="#00F0FF"
+            android:textSize="15sp"
             android:textStyle="bold" />
 
         <Button
             android:id="@+id/btnClearHistory"
             android:layout_width="wrap_content"
             android:layout_height="36dp"
-            android:backgroundTint="#334155"
-            android:text="Clear"
-            android:textColor="#94A3B8"
-            android:textSize="11sp" />
+            android:backgroundTint="#0F172A"
+            android:fontFamily="monospace"
+            android:text="[CLEAR]"
+            android:textColor="#FF0055"
+            android:textSize="10sp"
+            android:textStyle="bold" />
 
         <ImageButton
             android:id="@+id/btnCloseHistory"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginStart="6dp"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_marginStart="4dp"
             android:background="?android:attr/selectableItemBackgroundBorderless"
             android:contentDescription="Close"
             android:src="@android:drawable/ic_menu_close_clear_cancel" />
@@ -47,16 +50,19 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
-        android:text="Persistent log of all offline mesh and nationwide calls."
-        android:textColor="#94A3B8"
-        android:textSize="12sp" />
+        android:fontFamily="monospace"
+        android:text="PERSISTENT CALL RECORDS • INCOMING / OUTGOING / MISSED MATRIX"
+        android:textColor="#7DD3FC"
+        android:textSize="10sp" />
 
     <!-- History List Container -->
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="14dp"
-        android:maxHeight="380dp">
+        android:layout_marginTop="10dp"
+        android:background="#020617"
+        android:maxHeight="360dp"
+        android:padding="6dp">
 
         <LinearLayout
             android:id="@+id/llCallHistoryContainer"
@@ -69,11 +75,12 @@
                 android:id="@+id/tvEmptyHistory"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:fontFamily="monospace"
                 android:gravity="center"
-                android:padding="30dp"
-                android:text="No call logs yet.\nMake or receive mesh calls to see history here."
-                android:textColor="#64748B"
-                android:textSize="13sp" />
+                android:padding="24dp"
+                android:text=">>> NO CDR LOGS RECORDED &lt;&lt;&lt;\nMake or receive calls to populate matrix."
+                android:textColor="#7DD3FC"
+                android:textSize="11sp" />
         </LinearLayout>
     </ScrollView>
 
