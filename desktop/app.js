@@ -13,6 +13,7 @@ class TacticalMeshDesktop {
     this.ws = null;
     this.isConnected = false;
     this.reconnectTimer = null;
+    this.autoScanTimer = null;
     
     // Audio Engine State
     this.audioCtx = null;
@@ -37,6 +38,58 @@ class TacticalMeshDesktop {
     await this.fetchSystemInfo();
     this.connectMesh();
     this.setupShortcuts();
+    this.startAutoDiscoveryLoop();
+  }
+
+  startAutoDiscoveryLoop() {
+    if (this.autoScanTimer) clearInterval(this.autoScanTimer);
+    this.autoScanTimer = setInterval(() => {
+      if (!this.isConnected) {
+        this.autoDiscoverLocalHub();
+      }
+    }, 3000);
+  }
+
+  async autoDiscoverLocalHub() {
+    const candidates = [
+      '127.0.0.1:3000',
+      '172.27.180.170:3000',
+      '172.27.180.37:3000',
+      '172.27.180.1:3000',
+      '192.168.44.1:3000',
+      '192.168.137.1:3000',
+      '10.19.238.166:3000',
+      '10.19.238.104:3000'
+    ];
+
+    for (const host of candidates) {
+      if (this.isConnected) break;
+      const [h, p] = host.split(':');
+      const reachable = await new Promise(resolve => {
+        try {
+          const testWs = new WebSocket(`ws://${host}`);
+          const tm = setTimeout(() => {
+            try { testWs.close(); } catch(e){}
+            resolve(false);
+          }, 800);
+          testWs.onopen = () => {
+            clearTimeout(tm);
+            try { testWs.close(); } catch(e){}
+            resolve(true);
+          };
+          testWs.onerror = () => {
+            clearTimeout(tm);
+            resolve(false);
+          };
+        } catch(e) { resolve(false); }
+      });
+
+      if (reachable && !this.isConnected) {
+        this.log(`[Auto-Discovery] Connected to mesh node at ${host}`);
+        this.connectMesh(h, parseInt(p, 10));
+        break;
+      }
+    }
   }
 
   // -----------------------------------------------------------
@@ -89,6 +142,26 @@ class TacticalMeshDesktop {
         document.documentElement.style.setProperty('--bg-main', isDark ? '#0B0F19' : '#F1F5F9');
         document.documentElement.style.setProperty('--bg-card', isDark ? '#131D31' : '#FFFFFF');
         document.documentElement.style.setProperty('--text-primary', isDark ? '#F8FAFC' : '#0F172A');
+      });
+    }
+
+    // Auto-Discover & Custom Connect Buttons
+    const btnAutoScan = document.getElementById('btnAutoScan');
+    if (btnAutoScan) {
+      btnAutoScan.addEventListener('click', () => {
+        this.log('Scanning for active Bluetooth PAN & Wi-Fi mesh carriers...');
+        this.autoDiscoverLocalHub();
+      });
+    }
+
+    const btnConnectManual = document.getElementById('btnConnectManual');
+    if (btnConnectManual) {
+      btnConnectManual.addEventListener('click', () => {
+        const ip = prompt('Enter custom Mesh Node IP or Hostname (e.g. 172.27.180.170:3000):', '172.27.180.170:3000');
+        if (ip) {
+          const parts = ip.trim().split(':');
+          this.connectMesh(parts[0], parseInt(parts[1] || '3000', 10));
+        }
       });
     }
 
@@ -324,11 +397,11 @@ class TacticalMeshDesktop {
         this.isConnected = false;
         const carrierStatus = document.getElementById('carrierStatus');
         if (carrierStatus) {
-          carrierStatus.innerText = '○ CARRIER RECONNECTING...';
+          carrierStatus.innerText = '○ CARRIER AUTO-CONNECTING...';
           carrierStatus.className = 'status-offline';
         }
         if (!this.reconnectTimer) {
-          this.reconnectTimer = setTimeout(() => this.connectMesh(host, port), 3000);
+          this.reconnectTimer = setTimeout(() => this.connectMesh(host, port), 2500);
         }
       };
 
@@ -421,7 +494,7 @@ class TacticalMeshDesktop {
         <div class="peer-row">
           <div class="peer-info">
             <div class="peer-name">📱 No companion peers connected yet.</div>
-            <div class="peer-meta">Start Android App or laptop browser on same network to link immediately.</div>
+            <div class="peer-meta">Turn Bluetooth on Android or connect to same network — auto-connects in seconds.</div>
           </div>
         </div>
       `;

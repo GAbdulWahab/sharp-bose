@@ -6,9 +6,12 @@
   "scripts": {
     "start": "electron .",
     "start:low-ram": "electron . --js-flags=\"--max-old-space-size=64 --lite-mode\" --disable-gpu",
+    "start:webview": "launch-app-webview.bat",
     "serve": "node main.js --headless",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder --win portable"
+    "dist": "electron-builder --win nsis portable -c.win.signAndEditExecutable=false -c.forceCodeSigning=false",
+    "dist:portable": "electron-builder --win portable -c.win.signAndEditExecutable=false -c.forceCodeSigning=false",
+    "dist:installer": "electron-builder --win nsis -c.win.signAndEditExecutable=false -c.forceCodeSigning=false"
   },
   "build": {
     "appId": "com.sharpbose.desktop",
@@ -16,6 +19,9 @@
     "forceCodeSigning": false,
     "compression": "maximum",
     "asar": true,
+    "electronLanguages": [
+      "en-US"
+    ],
     "files": [
       "main.js",
       "preload.js",
@@ -24,11 +30,22 @@
       "styles.css",
       "package.json",
       "node_modules/ws/**",
-      "!dist/**"
+      "!dist/**",
+      "!**/*.map",
+      "!**/*.md"
     ],
     "win": {
-      "target": "portable",
+      "target": [
+        "nsis",
+        "portable"
+      ],
       "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
+      "differentialPackage": false
     },
     "directories": {
       "output": "dist"

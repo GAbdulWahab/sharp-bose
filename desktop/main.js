@@ -1,4 +1,3 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
@@ -6,25 +5,44 @@ const dgram = require('dgram');
 const os = require('os');
 const { WebSocketServer } = require('ws');
 
+// Safe Electron import (supports both Electron GUI runtime and pure Node.js headless runtime)
+let electron = null;
+let app = null;
+let BrowserWindow = null;
+let ipcMain = null;
+
+try {
+  electron = require('electron');
+  if (typeof electron === 'object' && electron !== null && electron.app) {
+    app = electron.app;
+    BrowserWindow = electron.BrowserWindow;
+    ipcMain = electron.ipcMain;
+  }
+} catch (e) {
+  // Pure Node.js environment
+}
+
 // -------------------------------------------------------------
-// Low-RAM / Low-CPU Chromium Engine Flags for Low-End Systems
+// Low-RAM / Low-CPU Chromium Engine Flags (when in Electron)
 // -------------------------------------------------------------
-app.commandLine.appendSwitch('disable-gpu');
-app.commandLine.appendSwitch('disable-software-rasterizer');
-app.commandLine.appendSwitch('disable-gpu-compositing');
-app.commandLine.appendSwitch('disable-extensions');
-app.commandLine.appendSwitch('disable-component-update');
-app.commandLine.appendSwitch('disable-background-networking');
-app.commandLine.appendSwitch('disable-sync');
-app.commandLine.appendSwitch('disable-breakpad');
-app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion,SpareRendererForSitePerProcess');
-app.commandLine.appendSwitch('js-flags', '--max-old-space-size=64 --lite-mode');
-app.commandLine.appendSwitch('renderer-process-limit', '1');
+if (app && app.commandLine) {
+  app.commandLine.appendSwitch('disable-gpu');
+  app.commandLine.appendSwitch('disable-software-rasterizer');
+  app.commandLine.appendSwitch('disable-gpu-compositing');
+  app.commandLine.appendSwitch('disable-extensions');
+  app.commandLine.appendSwitch('disable-component-update');
+  app.commandLine.appendSwitch('disable-background-networking');
+  app.commandLine.appendSwitch('disable-sync');
+  app.commandLine.appendSwitch('disable-breakpad');
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion,SpareRendererForSitePerProcess');
+  app.commandLine.appendSwitch('js-flags', '--max-old-space-size=64 --lite-mode');
+  app.commandLine.appendSwitch('renderer-process-limit', '1');
+}
 
 const HTTP_PORT = 3000;
 const UDP_PORT = 3000;
 const LOCAL_NODE_ID = 'node-desktop-' + Math.random().toString(36).substring(2, 6);
-const IS_HEADLESS = process.argv.includes('--headless') || process.argv.includes('-h');
+const IS_HEADLESS = process.argv.includes('--headless') || process.argv.includes('-h') || !app;
 
 let mainWindow = null;
 let httpServer = null;
@@ -80,7 +98,7 @@ function startEmbeddedHub() {
       return;
     }
 
-    // Serve static frontend files (allows headless browser usage with ~20MB RAM)
+    // Serve static frontend files (allows browser usage with ~20MB RAM)
     if (reqPath === '/' || reqPath === '') reqPath = '/index.html';
     const filePath = path.join(__dirname, reqPath);
 
@@ -104,139 +122,145 @@ function startEmbeddedHub() {
   });
 
   httpServer.on('error', (err) => {
-    console.warn('[HTTP Server Warning]', err.message);
+    if (err.code === 'EADDRINUSE') {
+      console.log(`[Mesh Hub] Port ${HTTP_PORT} is already in use by active mesh hub. Connecting as client terminal.`);
+    } else {
+      console.warn('[HTTP Server Warning]', err.message);
+    }
   });
 
-  wss = new WebSocketServer({ server: httpServer });
+  try {
+    wss = new WebSocketServer({ server: httpServer });
 
-  function broadcastPeerList() {
-    const peerList = Array.from(clients.values()).map(c => ({
-      id: c.id,
-      nickname: c.nickname,
-      deviceType: c.deviceType,
-      location: c.location || null,
-      status: c.status || 'Online',
-      room: c.room || 'INDIA-MAIN',
-      isLocal: false
-    }));
+    function broadcastPeerList() {
+      const peerList = Array.from(clients.values()).map(c => ({
+        id: c.id,
+        nickname: c.nickname,
+        deviceType: c.deviceType,
+        location: c.location || null,
+        status: c.status || 'Online',
+        room: c.room || 'INDIA-MAIN',
+        isLocal: false
+      }));
 
-    const msg = JSON.stringify({ type: 'PEER_LIST', peers: peerList });
-    for (const client of allWebSockets) {
-      if (client.readyState === 1) { // OPEN
-        client.send(msg);
+      const msg = JSON.stringify({ type: 'PEER_LIST', peers: peerList });
+      for (const client of allWebSockets) {
+        if (client.readyState === 1) { // OPEN
+          client.send(msg);
+        }
+      }
+
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('hub:peer-list-updated', peerList);
       }
     }
 
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('hub:peer-list-updated', peerList);
-    }
-  }
-
-  wss.on('connection', (ws, req) => {
-    allWebSockets.add(ws);
-    ws.isAlive = true;
-    ws.on('pong', () => { ws.isAlive = true; });
-
-    const isMobile = /Android|iPhone|iPad/i.test(req.headers['user-agent'] || '');
-    const clientInfo = {
-      id: 'node-' + Math.random().toString(36).substring(2, 7),
-      nickname: isMobile ? 'Android Phone' : 'Desktop/Laptop Peer',
-      deviceType: isMobile ? 'Android' : 'Desktop',
-      status: 'Online',
-      room: 'INDIA-MAIN',
-      location: null,
-      ws: ws
-    };
-
-    clients.set(ws, clientInfo);
-
-    // Assign ID to client
-    ws.send(JSON.stringify({
-      type: 'ASSIGN_ID',
-      id: clientInfo.id,
-      nickname: clientInfo.nickname,
-      room: clientInfo.room
-    }));
-
-    broadcastPeerList();
-
-    ws.on('message', (message, isBinary) => {
+    wss.on('connection', (ws, req) => {
+      allWebSockets.add(ws);
       ws.isAlive = true;
-      // Audio stream binary forwarder (zero-copy forward to peers)
-      const isAudioFrame = isBinary || (Buffer.isBuffer(message) && message.length >= 4 && message[0] === 0xAA && message[1] === 0x55);
-      if (isAudioFrame) {
-        for (const client of allWebSockets) {
-          if (client !== ws && client.readyState === 1) {
-            client.send(message, { binary: true });
+      ws.on('pong', () => { ws.isAlive = true; });
+
+      const isMobile = /Android|iPhone|iPad/i.test(req.headers['user-agent'] || '');
+      const clientInfo = {
+        id: 'node-' + Math.random().toString(36).substring(2, 7),
+        nickname: isMobile ? 'Android Phone' : 'Desktop/Laptop Peer',
+        deviceType: isMobile ? 'Android' : 'Desktop',
+        status: 'Online',
+        room: 'INDIA-MAIN',
+        location: null,
+        ws: ws
+      };
+
+      clients.set(ws, clientInfo);
+
+      // Assign ID to client
+      ws.send(JSON.stringify({
+        type: 'ASSIGN_ID',
+        id: clientInfo.id,
+        nickname: clientInfo.nickname,
+        room: clientInfo.room
+      }));
+
+      broadcastPeerList();
+
+      ws.on('message', (message, isBinary) => {
+        ws.isAlive = true;
+        // Audio stream binary forwarder
+        const isAudioFrame = isBinary || (Buffer.isBuffer(message) && message.length >= 4 && message[0] === 0xAA && message[1] === 0x55);
+        if (isAudioFrame) {
+          for (const client of allWebSockets) {
+            if (client !== ws && client.readyState === 1) {
+              client.send(message, { binary: true });
+            }
           }
+          return;
         }
-        return;
-      }
 
-      try {
-        const text = message.toString();
-        const json = JSON.parse(text);
+        try {
+          const text = message.toString();
+          const json = JSON.parse(text);
 
-        switch (json.type) {
-          case 'SET_NICKNAME':
-            if (json.nickname) clientInfo.nickname = json.nickname;
-            if (json.deviceType) clientInfo.deviceType = json.deviceType;
-            broadcastPeerList();
-            break;
+          switch (json.type) {
+            case 'SET_NICKNAME':
+              if (json.nickname) clientInfo.nickname = json.nickname;
+              if (json.deviceType) clientInfo.deviceType = json.deviceType;
+              broadcastPeerList();
+              break;
 
-          case 'JOIN_ROOM':
-            if (json.room) clientInfo.room = json.room.toUpperCase();
-            broadcastPeerList();
-            break;
+            case 'JOIN_ROOM':
+              if (json.room) clientInfo.room = json.room.toUpperCase();
+              broadcastPeerList();
+              break;
 
-          case 'LOCATION_UPDATE':
-            clientInfo.location = {
-              lat: json.latitude,
-              lng: json.longitude,
-              alt: json.altitude || 0,
-              accuracy: json.accuracy || 0,
-              timestamp: Date.now()
-            };
-            broadcastPeerList();
-            break;
+            case 'LOCATION_UPDATE':
+              clientInfo.location = {
+                lat: json.latitude,
+                lng: json.longitude,
+                alt: json.altitude || 0,
+                accuracy: json.accuracy || 0,
+                timestamp: Date.now()
+              };
+              broadcastPeerList();
+              break;
 
-          case 'CALL_INVITE':
-          case 'CALL_ACCEPT':
-          case 'CALL_DECLINE':
-          case 'CALL_HANGUP':
-          case 'PTT_START':
-          case 'PTT_STOP':
-          case 'CHAT_MSG':
-          case 'SOS_BEACON':
-            // Broadcast packet to all other connected peers
-            for (const client of allWebSockets) {
-              if (client !== ws && client.readyState === 1) {
-                client.send(text);
+            case 'CALL_INVITE':
+            case 'CALL_ACCEPT':
+            case 'CALL_DECLINE':
+            case 'CALL_HANGUP':
+            case 'PTT_START':
+            case 'PTT_STOP':
+            case 'CHAT_MSG':
+            case 'SOS_BEACON':
+              // Broadcast packet to all other connected peers
+              for (const client of allWebSockets) {
+                if (client !== ws && client.readyState === 1) {
+                  client.send(text);
+                }
               }
-            }
-            if (mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('hub:control-packet', json);
-            }
-            break;
-        }
-      } catch (err) {
-        // Silently discard malformed packets
-      }
+              if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('hub:control-packet', json);
+              }
+              break;
+          }
+        } catch (err) {}
+      });
+
+      const cleanup = () => {
+        allWebSockets.delete(ws);
+        clients.delete(ws);
+        broadcastPeerList();
+      };
+
+      ws.on('close', cleanup);
+      ws.on('error', cleanup);
     });
 
-    const cleanup = () => {
-      allWebSockets.delete(ws);
-      clients.delete(ws);
-      broadcastPeerList();
-    };
-
-    ws.on('close', cleanup);
-    ws.on('error', cleanup);
-  });
-
-  httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
-    console.log(`[Mesh Hub] Embedded Hub active on port ${HTTP_PORT}`);
-  });
+    httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
+      console.log(`[Mesh Hub] Embedded Hub active on http://0.0.0.0:${HTTP_PORT}`);
+    });
+  } catch (e) {
+    console.log('[Mesh Hub Note]', e.message);
+  }
 }
 
 // -------------------------------------------------------------
@@ -285,20 +309,17 @@ function startUdpBeacon() {
           udpSocket.send(beaconMsg, 0, beaconMsg.length, UDP_PORT, '255.255.255.255', () => {});
         }
       } catch (e) {}
-    }, 3000);
+    }, 2500);
   } catch (e) {
     console.warn('[UDP Beacon Note]', e.message);
   }
 }
 
 // -------------------------------------------------------------
-// 3. Ultra-Lightweight Electron Window Creation
+// 3. Electron Window Creation
 // -------------------------------------------------------------
 function createWindow() {
-  if (IS_HEADLESS) {
-    console.log('[Headless Mode] Desktop terminal running in background hub mode on port 3000.');
-    return;
-  }
+  if (IS_HEADLESS || !BrowserWindow) return;
 
   mainWindow = new BrowserWindow({
     width: 1120,
@@ -327,39 +348,49 @@ function createWindow() {
   });
 }
 
-// Single Instance Lock to prevent multiple heavy Electron instances
-const gotSingleLock = app.requestSingleInstanceLock();
-if (!gotSingleLock && !IS_HEADLESS) {
-  app.quit();
+// -------------------------------------------------------------
+// 4. Runtime Lifecycle
+// -------------------------------------------------------------
+if (!app || IS_HEADLESS) {
+  // Pure Node.js headless mode (super lightweight ~20MB RAM)
+  startEmbeddedHub();
+  startUdpBeacon();
+  console.log(`[Mesh Hub] Headless hub active. Open http://localhost:${HTTP_PORT} in your browser.`);
 } else {
-  app.on('second-instance', () => {
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
-    }
-  });
-
-  // IPC Handlers
-  ipcMain.handle('app:get-interfaces', () => getLocalIpAddresses());
-  ipcMain.handle('app:get-node-id', () => LOCAL_NODE_ID);
-  ipcMain.handle('app:get-hostname', () => os.hostname());
-
-  app.whenReady().then(() => {
-    startEmbeddedHub();
-    startUdpBeacon();
-    createWindow();
-
-    app.on('activate', () => {
-      if (BrowserWindow.getAllWindows().length === 0 && !IS_HEADLESS) createWindow();
+  // Electron App mode
+  const gotSingleLock = app.requestSingleInstanceLock();
+  if (!gotSingleLock) {
+    app.quit();
+  } else {
+    app.on('second-instance', () => {
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.focus();
+      }
     });
-  });
 
-  app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-      if (udpBeaconTimer) clearInterval(udpBeaconTimer);
-      if (udpSocket) try { udpSocket.close(); } catch (e) {}
-      if (httpServer) try { httpServer.close(); } catch (e) {}
-      app.quit();
-    }
-  });
+    // IPC Handlers
+    ipcMain.handle('app:get-interfaces', () => getLocalIpAddresses());
+    ipcMain.handle('app:get-node-id', () => LOCAL_NODE_ID);
+    ipcMain.handle('app:get-hostname', () => os.hostname());
+
+    app.whenReady().then(() => {
+      startEmbeddedHub();
+      startUdpBeacon();
+      createWindow();
+
+      app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) createWindow();
+      });
+    });
+
+    app.on('window-all-closed', () => {
+      if (process.platform !== 'darwin') {
+        if (udpBeaconTimer) clearInterval(udpBeaconTimer);
+        if (udpSocket) try { udpSocket.close(); } catch (e) {}
+        if (httpServer) try { httpServer.close(); } catch (e) {}
+        app.quit();
+      }
+    });
+  }
 }

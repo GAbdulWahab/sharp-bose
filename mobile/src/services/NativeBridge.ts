@@ -1,34 +1,42 @@
 import { Platform } from 'react-native';
 import { PeerNode, ActiveCallStats, ChatMessage, EmergencySOSAlert } from '../types/protocol';
 
-// Candidate endpoints for Bluetooth PAN, Wi-Fi, USB reverse, Hotspot, and Localhost
+// Dynamic candidates for Bluetooth PAN, Wi-Fi, USB reverse, Hotspot, and Localhost
 export const CANDIDATE_MESH_HOSTS: string[] = [
-  // 1. Bluetooth PAN Laptop & Gateway IPs
+  // 1. Bluetooth PAN Laptop & Dynamic Gateway IPs (All common subnets)
   '172.27.180.170:3000',
   '172.27.180.37:3000',
   '172.27.180.1:3000',
+  '172.27.180.2:3000',
+  '172.27.180.3:3000',
+  '172.27.180.4:3000',
+  '172.27.180.5:3000',
 
-  // 2. Wi-Fi Laptop & Gateway IPs
+  // 2. Wi-Fi Laptop & Gateway Subnet IPs
   '10.19.238.166:3000',
   '10.19.238.104:3000',
+  '10.19.238.1:3000',
+  '192.168.1.1:3000',
+  '192.168.0.1:3000',
 
   // 3. Localhost & USB Reverse / Web
   Platform.OS === 'web' ? 'localhost:3000' : '127.0.0.1:3000',
   '10.0.2.2:3000', // Android Studio Emulator
 
-  // 4. USB Tethering (RNDIS Host)
+  // 4. USB / Bluetooth Tethering Gateways (RNDIS Host)
   '192.168.42.129:3000',
   '192.168.42.1:3000',
+  '192.168.44.1:3000',
+  '192.168.44.170:3000',
 
   // 5. Mobile Hotspot Gateways
   '192.168.43.1:3000',
-  '192.168.44.1:3000',
   '192.168.137.1:3000',
 ];
 
 export const DEFAULT_MESH_HOST = Platform.OS === 'web' 
   ? 'localhost:3000' 
-  : '172.27.180.170:3000'; // Default to Bluetooth PAN or Wi-Fi
+  : '172.27.180.170:3000'; // Default to Bluetooth PAN
 
 type Listener<T> = (data: T) => void;
 
@@ -38,6 +46,7 @@ export class NativeBridgeService {
   private serverHost: string = DEFAULT_MESH_HOST;
   private reconnectTimer: any = null;
   private pingTimer: any = null;
+  private autoScanTimer: any = null;
   private isScanning: boolean = false;
   
   public myId: string = 'node-' + Math.random().toString(36).substring(2, 7);
@@ -58,7 +67,7 @@ export class NativeBridgeService {
   private hostChangeListeners: Set<Listener<string>> = new Set();
 
   private constructor() {
-    this.connectWebSocket(this.serverHost);
+    this.startAutoScanLoop();
   }
 
   public static getInstance(): NativeBridgeService {
@@ -66,6 +75,19 @@ export class NativeBridgeService {
       NativeBridgeService.instance = new NativeBridgeService();
     }
     return NativeBridgeService.instance;
+  }
+
+  private startAutoScanLoop() {
+    // Initial fast auto-discovery scan across all Bluetooth PAN and Wi-Fi endpoints
+    this.autoScanMeshServers();
+
+    // Continuous automatic discovery loop (auto-connects the moment Bluetooth or Wi-Fi is enabled)
+    if (this.autoScanTimer) clearInterval(this.autoScanTimer);
+    this.autoScanTimer = setInterval(() => {
+      if (!this.isConnected && !this.isScanning) {
+        this.autoScanMeshServers();
+      }
+    }, 3000);
   }
 
   public setServerHost(host: string) {
@@ -88,12 +110,11 @@ export class NativeBridgeService {
   }
 
   /**
-   * Fast auto-discovery: tests candidate IP endpoints and connects to the first responding server
+   * Fast auto-discovery: tests candidate IP endpoints in parallel and connects immediately
    */
   public async autoScanMeshServers(): Promise<boolean> {
-    if (this.isScanning) return false;
+    if (this.isScanning || this.isConnected) return this.isConnected;
     this.isScanning = true;
-    console.log('[Mesh Radio] Starting auto-scan across Bluetooth PAN & Wi-Fi candidates...');
 
     // Prioritize current host, Bluetooth PAN, Wi-Fi, USB
     const candidates = [
@@ -101,16 +122,21 @@ export class NativeBridgeService {
       ...CANDIDATE_MESH_HOSTS
     ].filter((v, i, a) => a.indexOf(v) === i);
 
-    for (const host of candidates) {
+    // Batch probe in parallel chunks of 4 for ultra-fast discovery
+    const chunkSize = 4;
+    for (let i = 0; i < candidates.length; i += chunkSize) {
       if (this.isConnected) {
         this.isScanning = false;
         return true;
       }
 
-      const reached = await this.testHostConnection(host);
-      if (reached) {
-        console.log(`[Mesh Radio] Auto-discovery succeeded on ${host}`);
-        this.serverHost = host;
+      const chunk = candidates.slice(i, i + chunkSize);
+      const results = await Promise.all(chunk.map((host) => this.testHostConnection(host)));
+      
+      const foundIdx = results.findIndex((res) => res === true);
+      if (foundIdx !== -1) {
+        const foundHost = chunk[foundIdx];
+        this.serverHost = foundHost;
         this.notifyHostChanged(this.serverHost);
         this.isScanning = false;
         return true;
@@ -118,8 +144,6 @@ export class NativeBridgeService {
     }
 
     this.isScanning = false;
-    console.log('[Mesh Radio] Auto-scan completed. Retrying current host...');
-    this.connectWebSocket(this.serverHost);
     return false;
   }
 
@@ -134,14 +158,14 @@ export class NativeBridgeService {
             try { testWs.close(); } catch (e) {}
             resolve(false);
           }
-        }, 1200);
+        }, 1000);
 
         testWs.onopen = () => {
           if (!settled) {
             settled = true;
             clearTimeout(timeout);
             try { testWs.close(); } catch (e) {}
-            // Now establish regular connection on this verified host
+            // Now establish permanent connection on this verified host
             this.serverHost = host;
             this.connectWebSocket(host);
             resolve(true);
@@ -171,12 +195,15 @@ export class NativeBridgeService {
     const host = targetHost || this.serverHost;
 
     try {
+      if (this.ws) {
+        try { this.ws.close(); } catch(e){}
+        this.ws = null;
+      }
+
       const wsUrl = `ws://${host}`;
-      console.log(`[Mesh Radio] Connecting to ${wsUrl}...`);
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
-        console.log(`[Mesh Radio] Connected to Mesh Server at ${host}`);
         this.isConnected = true;
         this.serverHost = host;
         this.notifyHostChanged(host);
@@ -208,7 +235,6 @@ export class NativeBridgeService {
           if (data.type === 'ASSIGN_ID') {
             this.myId = data.id;
             if (data.nickname) this.myNickname = data.nickname;
-            console.log(`[Mesh Radio] Assigned node ID: ${this.myId} (${this.myNickname})`);
           } else if (data.type === 'PEER_LIST') {
             const peers: PeerNode[] = (data.peers || [])
               .filter((p: any) => p.id !== this.myId)
@@ -225,7 +251,6 @@ export class NativeBridgeService {
             this.activePeers = peers;
             this.notifyPeerList(peers);
           } else if (data.type === 'CALL_INVITE') {
-            // Incoming call from laptop or another phone
             const callerPeer: PeerNode = {
               id: data.senderId,
               nickname: data.senderName || 'Mesh User',
@@ -277,13 +302,11 @@ export class NativeBridgeService {
             };
             this.notifySOS(sosAlert);
           }
-        } catch (e) {
-          console.error('[Mesh Radio] Error parsing packet:', e);
-        }
+        } catch (e) {}
       };
 
-      this.ws.onerror = (err) => {
-        console.warn('[Mesh Radio] WebSocket connection error on', host, err);
+      this.ws.onerror = () => {
+        this.isConnected = false;
       };
 
       this.ws.onclose = () => {
@@ -291,20 +314,18 @@ export class NativeBridgeService {
         this.notifyConnectionStatus(false);
         if (this.pingTimer) clearInterval(this.pingTimer);
 
-        // Attempt fallback / reconnect
         this.reconnectTimer = setTimeout(() => {
           if (!this.isConnected && !this.isScanning) {
             this.autoScanMeshServers();
           }
-        }, 2500);
+        }, 2000);
       };
     } catch (e) {
-      console.warn('[Mesh Radio] Socket initialization error:', e);
       this.reconnectTimer = setTimeout(() => {
         if (!this.isConnected && !this.isScanning) {
           this.autoScanMeshServers();
         }
-      }, 2500);
+      }, 2000);
     }
   }
 
