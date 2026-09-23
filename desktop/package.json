@@ -1,0 +1,40 @@
+{
+  "name": "sharp-bose-desktop",
+  "version": "2.0.0",
+  "description": "Standalone Offline Desktop Tactical Mesh Terminal & Hub",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "serve": "node main.js --headless",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win portable"
+  },
+  "build": {
+    "appId": "com.sharpbose.desktop",
+    "productName": "SharpBoseTacticalMesh",
+    "forceCodeSigning": false,
+    "win": {
+      "target": "portable",
+      "signAndEditExecutable": false
+    },
+    "directories": {
+      "output": "dist"
+    }
+  },
+  "keywords": [
+    "mesh",
+    "offline-calling",
+    "tactical-radio",
+    "p2p",
+    "e2ee"
+  ],
+  "author": "Sharp-Bose Team",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  }
+}
