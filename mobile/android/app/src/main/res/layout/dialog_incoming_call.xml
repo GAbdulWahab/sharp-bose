@@ -58,7 +58,7 @@
             android:textSize="18sp"
             android:textStyle="bold" />
 
-        <!-- Route & Encryption Meta -->
+        <!-- Route and Encryption Meta -->
         <TextView
             android:id="@+id/tvIncomingRoute"
             android:layout_width="wrap_content"
@@ -78,7 +78,7 @@
             android:textColor="#7DD3FC"
             android:textSize="10sp" />
 
-        <!-- Action Buttons: Decline & Accept -->
+        <!-- Action Buttons: Decline and Accept -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

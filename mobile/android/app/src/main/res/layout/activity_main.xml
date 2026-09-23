@@ -77,7 +77,7 @@
         android:layout_weight="1">
 
         <!-- ========================================================= -->
-        <!-- SCREEN 1: 🏠 NODE ROSTER & RADIOS                         -->
+        <!-- SCREEN 1: 🏠 NODE ROSTER and RADIOS                         -->
         <!-- ========================================================= -->
         <ScrollView
             android:id="@+id/screenRoster"
@@ -151,7 +151,7 @@
                     </LinearLayout>
                 </androidx.cardview.widget.CardView>
 
-                <!-- 02. ACTIVE MESH NODES & AVAILABLE RADIOS -->
+                <!-- 02. ACTIVE MESH NODES and AVAILABLE RADIOS -->
                 <androidx.cardview.widget.CardView
                     android:id="@+id/cardPeople"
                     android:layout_width="match_parent"
@@ -179,7 +179,7 @@
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:text="[ 02. NODE ROSTER & RADIOS ]"
+                                android:text="[ 02. NODE ROSTER &amp; RADIOS ]"
                                 android:textColor="@color/neon_cyan"
                                 android:textSize="12sp"
                                 android:textStyle="bold"
@@ -199,14 +199,14 @@
                             android:id="@+id/tvPeopleSubtitle"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Direct peer-to-peer Wi-Fi LAN, Bluetooth PAN & BLE mesh devices."
+                            android:text="Direct peer-to-peer Wi-Fi LAN, Bluetooth PAN &amp; BLE mesh devices."
                             android:textColor="@color/text_secondary"
                             android:textSize="10sp"
                             android:fontFamily="monospace"
                             android:layout_marginTop="4dp"
                             android:layout_marginBottom="8dp" />
 
-                        <!-- Dynamic Connected & Available List -->
+                        <!-- Dynamic Connected and Available List -->
                         <LinearLayout
                             android:id="@+id/llConnectedPeople"
                             android:layout_width="match_parent"
@@ -218,7 +218,7 @@
         </ScrollView>
 
         <!-- ========================================================= -->
-        <!-- SCREEN 2: 📞 COMMS (CALL & WALKIE-TALKIE PTT)              -->
+        <!-- SCREEN 2: 📞 COMMS (CALL and WALKIE-TALKIE PTT)              -->
         <!-- ========================================================= -->
         <ScrollView
             android:id="@+id/screenComms"
@@ -537,7 +537,7 @@
         </LinearLayout>
 
         <!-- ========================================================= -->
-        <!-- SCREEN 4: 🎯 GPS TACTICAL RADAR & PROXIMITY MATRIX         -->
+        <!-- SCREEN 4: 🎯 GPS TACTICAL RADAR and PROXIMITY MATRIX         -->
         <!-- ========================================================= -->
         <ScrollView
             android:id="@+id/screenRadar"
@@ -883,7 +883,7 @@
         </ScrollView>
 
         <!-- ========================================================= -->
-        <!-- SCREEN 6: 📋 CDR LOGS, CIPHER & CRT TELEMETRY             -->
+        <!-- SCREEN 6: 📋 CDR LOGS, CIPHER and CRT TELEMETRY             -->
         <!-- ========================================================= -->
         <ScrollView
             android:id="@+id/screenLogsSecurity"
