@@ -685,7 +685,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 setTextColor(if (isDarkMode) Color.parseColor("#38BDF8") else Color.parseColor("#64748B"))
                 textSize = 12f
                 typeface = android.graphics.Typeface.MONOSPACE
-                lineSpacingExtra = 4f
+                setLineSpacing(4f, 1.0f)
             }
             emptyCard.addView(tvNotice)
             llConnectedPeople.addView(emptyCard)
