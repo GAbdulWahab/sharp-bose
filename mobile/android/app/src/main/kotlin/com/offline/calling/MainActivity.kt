@@ -812,7 +812,6 @@ class MainActivity : AppCompatActivity(), LocationListener {
             peerRow.addView(btnQuickChat)
 
             llConnectedPeople.addView(peerRow)
-        }
     }
 
     private fun appendChatBubble(

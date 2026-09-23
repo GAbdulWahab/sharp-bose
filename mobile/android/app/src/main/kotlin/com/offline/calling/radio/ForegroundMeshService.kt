@@ -79,7 +79,7 @@ class ForegroundMeshService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         try {
             val launchIntent = Intent(this, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             }
             val pendingIntent = PendingIntent.getActivity(
                 this, 0, launchIntent,
@@ -117,7 +117,7 @@ class ForegroundMeshService : Service() {
 
     private fun showIncomingCallNotification(callerName: String, callerId: String) {
         val launchIntent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            this.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("EXTRA_INCOMING_CALL", true)
             putExtra("EXTRA_CALLER_NAME", callerName)
             putExtra("EXTRA_CALLER_ID", callerId)
