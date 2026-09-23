@@ -647,6 +647,16 @@ class TacticalMeshDesktop {
   handleIncomingControl(json) {
     if (!json || !json.type) return;
 
+    if (json.msgId) {
+      if (!this.processedMsgIds) this.processedMsgIds = new Set();
+      if (this.processedMsgIds.has(json.msgId)) return;
+      this.processedMsgIds.add(json.msgId);
+      if (this.processedMsgIds.size > 200) {
+        const first = this.processedMsgIds.values().next().value;
+        this.processedMsgIds.delete(first);
+      }
+    }
+
     switch (json.type) {
       case 'ASSIGN_ID':
         this.localNodeId = json.id;
@@ -659,9 +669,15 @@ class TacticalMeshDesktop {
         this.renderPeers(json.peers || []);
         break;
 
-      case 'CHAT_MSG':
+      case 'CHAT_MSG': {
+        const sig = `${json.senderName || ''}_${json.text || ''}_${Math.floor(Date.now() / 2500)}`;
+        if (!this.recentChatSigs) this.recentChatSigs = new Set();
+        if (this.recentChatSigs.has(sig)) return;
+        this.recentChatSigs.add(sig);
+        setTimeout(() => this.recentChatSigs.delete(sig), 4000);
         this.appendChatBubble(json.senderName || 'Peer', json.text || '', false);
         break;
+      }
 
       case 'CALL_INVITE': {
         const senderId = (json.senderId || '').trim();
@@ -731,7 +747,7 @@ class TacticalMeshDesktop {
   // 3. Roster & Peer Rendering
   // -----------------------------------------------------------
   renderPeers(peers) {
-    this.connectedPeers = (peers || []).filter(p => {
+    const validPeers = (peers || []).filter(p => {
       if (!p || !p.id) return false;
       const pid = p.id.toLowerCase().trim();
       const myId = (this.localNodeId || '').toLowerCase().trim();
@@ -740,6 +756,9 @@ class TacticalMeshDesktop {
       if (p.nickname && (p.nickname.includes('(Host)') || p.nickname.includes('Desktop Local'))) return false;
       return true;
     });
+
+    // Exclusively show only ONE single connected device
+    this.connectedPeers = validPeers.length > 0 ? [validPeers[0]] : [];
     const badge = document.getElementById('rosterCountBadge');
     if (badge) badge.innerText = `${this.connectedPeers.length} Connected`;
 

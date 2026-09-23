@@ -59,7 +59,7 @@ class BluetoothMeshTransport(
         var peerNickname: String = device.name ?: "Bluetooth Phone",
         val isRunning: AtomicBoolean = AtomicBoolean(true)
     ) {
-        val sendQueue = LinkedBlockingQueue<ByteArray>(40)
+        val sendQueue = LinkedBlockingQueue<ByteArray>(10)
         var writerThread: Thread? = null
     }
 
@@ -138,6 +138,7 @@ class BluetoothMeshTransport(
             }
         }.apply {
             name = "BtMeshAcceptThread"
+            priority = Thread.MAX_PRIORITY
             start()
         }
     }
@@ -170,7 +171,7 @@ class BluetoothMeshTransport(
                         } catch (e: Exception) {}
                     }
 
-                    Thread.sleep(4000)
+                    Thread.sleep(1500)
                 } catch (e: InterruptedException) {
                     break
                 } catch (e: Exception) {
@@ -244,11 +245,18 @@ class BluetoothMeshTransport(
 
         connectedPeers.add(session)
 
-        // Start dedicated asynchronous writer thread for this peer session
+        // Cancel discovery immediately once connected to maximize Bluetooth RF bandwidth for live audio
+        try {
+            if (bluetoothAdapter?.isDiscovering == true) {
+                bluetoothAdapter.cancelDiscovery()
+            }
+        } catch (e: Exception) {}
+
+        // Dedicated zero-latency asynchronous writer thread
         session.writerThread = Thread {
             while (isRunning.get() && session.isRunning.get()) {
                 try {
-                    val packet = session.sendQueue.poll(50, java.util.concurrent.TimeUnit.MILLISECONDS)
+                    val packet = session.sendQueue.take()
                     if (packet != null && packet.isNotEmpty()) {
                         synchronized(session.output) {
                             session.output.write(packet)
@@ -263,6 +271,7 @@ class BluetoothMeshTransport(
             }
         }.apply {
             name = "BtWriter_${address.takeLast(4)}"
+            priority = Thread.MAX_PRIORITY
             start()
         }
 
@@ -272,12 +281,13 @@ class BluetoothMeshTransport(
             put("id", localNodeId)
             put("nickname", localNickname)
             put("deviceType", "Android (Bluetooth)")
+            put("isAck", false)
         }.toString()
         sendRawPacket(session, 0x01 /* JSON Control */, handshakeJson.toByteArray(Charsets.UTF_8))
 
         notifyPeerRoster()
 
-        // Read packet stream loop
+        // Read packet stream loop with high priority
         Thread {
             val headerBuffer = ByteArray(5)
             while (isRunning.get() && session.isRunning.get()) {
@@ -329,6 +339,7 @@ class BluetoothMeshTransport(
             try { session.socket.close() } catch (e: Exception) {}
         }.apply {
             name = "BtRead_${address.takeLast(4)}"
+            priority = Thread.MAX_PRIORITY
             start()
         }
     }
@@ -351,6 +362,20 @@ class BluetoothMeshTransport(
                 }
                 session.peerNodeId = peerId
                 session.peerNickname = json.optString("nickname", session.peerNickname)
+
+                // If not an ACK, reply with immediate ACK handshake for instant two-way sync
+                val isAck = json.optBoolean("isAck", false)
+                if (!isAck) {
+                    val ackJson = JSONObject().apply {
+                        put("type", "BT_HANDSHAKE")
+                        put("id", localNodeId)
+                        put("nickname", localNickname)
+                        put("deviceType", "Android (Bluetooth)")
+                        put("isAck", true)
+                    }.toString()
+                    sendRawPacket(session, 0x01 /* JSON Control */, ackJson.toByteArray(Charsets.UTF_8))
+                }
+
                 onPeerDiscoveredAndConnected?.invoke(session.peerNodeId, session.peerNickname)
                 notifyPeerRoster()
                 return
@@ -386,8 +411,8 @@ class BluetoothMeshTransport(
         packet[4] = (length and 0xFF).toByte()
         System.arraycopy(payload, 0, packet, 5, length)
 
-        // Non-blocking queue offer to prevent blocking audio capture thread
-        while (session.sendQueue.size > 30) {
+        // Drop older audio frames to guarantee instant <40ms live voice delay
+        while (session.sendQueue.size > 2) {
             session.sendQueue.poll()
         }
         session.sendQueue.offer(packet)

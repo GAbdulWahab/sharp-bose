@@ -432,6 +432,7 @@ class AndroidMeshServer(
     }
 
     fun hasClients(): Boolean = connectedClients.isNotEmpty()
+    fun hasConnectedClients(): Boolean = connectedClients.isNotEmpty()
 
     fun stop() {
         isRunning.set(false)

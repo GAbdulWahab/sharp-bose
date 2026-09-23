@@ -39,7 +39,7 @@ import kotlin.math.*
 class MainActivity : AppCompatActivity(), LocationListener {
 
     private lateinit var audioEngine: AndroidAudioEngine
-    private val bridge = MeshWebSocketBridge()
+    private val bridge get() = ForegroundMeshService.getSharedBridge(this)
     private lateinit var callHistoryManager: CallHistoryManager
     private var isCalling = false
     private var isSpeakerOn = true
@@ -179,6 +179,22 @@ class MainActivity : AppCompatActivity(), LocationListener {
         initLocationEngine()
         setupUIListeners()
         setupMeshBridge()
+        handleIncomingCallIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIncomingCallIntent(intent)
+    }
+
+    private fun handleIncomingCallIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra("EXTRA_INCOMING_CALL", false) == true) {
+            val callerName = intent.getStringExtra("EXTRA_CALLER_NAME") ?: "Mesh Peer"
+            val callerId = intent.getStringExtra("EXTRA_CALLER_ID") ?: ""
+            switchScreen(1)
+            showIncomingCallDialog(callerName, callerId)
+        }
     }
 
     private fun bindViews() {
@@ -665,9 +681,11 @@ class MainActivity : AppCompatActivity(), LocationListener {
             !it.nickname.contains("(Host)", true) &&
             !it.nickname.contains("Desktop Local", true)
         }
-        tvPeopleCount.text = "${otherPeers.size} Connected"
+        
+        val singlePeer = otherPeers.firstOrNull()
+        tvPeopleCount.text = if (singlePeer != null) "1 Connected" else "0 Connected"
 
-        if (otherPeers.isEmpty()) {
+        if (singlePeer == null) {
             val emptyCard = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 val bg = if (isDarkMode) Color.parseColor("#131D31") else Color.parseColor("#F1F5F9")
@@ -696,21 +714,21 @@ class MainActivity : AppCompatActivity(), LocationListener {
             return
         }
 
-        for (peer in otherPeers) {
-            val peerRow = LinearLayout(this).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER_VERTICAL
-                val bg = if (isDarkMode) Color.parseColor("#131D31") else Color.parseColor("#F1F5F9")
-                setBackgroundColor(bg)
-                setPadding(16, 12, 16, 12)
-                val params = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                ).apply {
-                    setMargins(0, 0, 0, 10)
-                }
-                layoutParams = params
+        val peer = singlePeer
+        val peerRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            val bg = if (isDarkMode) Color.parseColor("#131D31") else Color.parseColor("#F1F5F9")
+            setBackgroundColor(bg)
+            setPadding(16, 12, 16, 12)
+            val params = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, 0, 0, 10)
             }
+            layoutParams = params
+        }
 
             val leftInfo = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
@@ -1441,7 +1459,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         super.onDestroy()
         try {
             locationManager?.removeUpdates(this)
-            bridge.disconnect()
+            // Note: ForegroundMeshService keeps the shared bridge alive in the background
             if (isCalling || isPttTransmitting) {
                 audioEngine.stopVoice()
             }

@@ -202,7 +202,9 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 combined.add(p)
             }
         }
-        publishPeers(combined)
+        // Exclusively show only ONE single connected device at any time
+        val singlePeerRoster = if (combined.isNotEmpty()) listOf(combined.first()) else emptyList()
+        publishPeers(singlePeerRoster)
     }
 
     /**
@@ -437,7 +439,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 }
             }
             try {
-                latch.await(3500, TimeUnit.MILLISECONDS)
+                latch.await(1800, TimeUnit.MILLISECONDS)
             } catch (e: Exception) {}
             executor.shutdownNow()
 
@@ -504,7 +506,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
         })
 
         try {
-            latch.await(2000, TimeUnit.MILLISECONDS)
+            latch.await(1000, TimeUnit.MILLISECONDS)
         } catch (e: InterruptedException) {
             ws.cancel()
         }
@@ -528,9 +530,22 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
         }.apply { start() }
     }
 
+    private val processedMsgIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val recentChatSignatures = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
     private fun handleIncomingJson(text: String) {
         try {
             val json = JSONObject(text)
+            val msgId = json.optString("msgId")
+            if (msgId.isNotEmpty()) {
+                if (!processedMsgIds.add(msgId)) {
+                    return // Duplicate packet received via another transport, ignore
+                }
+                if (processedMsgIds.size > 300) {
+                    processedMsgIds.clear()
+                }
+            }
+
             val type = json.optString("type")
             when (type) {
                 "ASSIGN_ID" -> {
@@ -585,7 +600,11 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                         msgText = crypto.decryptText(cipherText)
                     }
                     if (msgText.isNotEmpty()) {
-                        onChatMessageReceived?.invoke(senderName, msgText)
+                        val sig = "${senderName}_${msgText}_${System.currentTimeMillis() / 2500}"
+                        if (recentChatSignatures.add(sig)) {
+                            if (recentChatSignatures.size > 200) recentChatSignatures.clear()
+                            onChatMessageReceived?.invoke(senderName, msgText)
+                        }
                     }
                 }
                 "PEER_LIST" -> {
@@ -637,9 +656,11 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
     fun sendAudioFrame(frame: ByteArray) {
         if (isConnected && webSocket != null) {
             webSocket?.send(frame.toByteString())
+        } else if (embeddedServer.hasConnectedClients()) {
+            embeddedServer.broadcastLocalAudio(frame)
+        } else {
+            bluetoothMesh?.broadcastAudioFrame(frame)
         }
-        embeddedServer.broadcastLocalAudio(frame)
-        bluetoothMesh?.broadcastAudioFrame(frame)
     }
 
     fun sendChatMessage(text: String, senderName: String = "Android Phone") {
@@ -731,12 +752,17 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
     }
 
     private fun sendJson(json: JSONObject) {
+        if (!json.has("msgId")) {
+            json.put("msgId", java.util.UUID.randomUUID().toString())
+        }
         val text = json.toString()
         if (isConnected && webSocket != null) {
             webSocket?.send(text)
+        } else if (embeddedServer.hasConnectedClients()) {
+            embeddedServer.broadcastLocalText(text)
+        } else {
+            bluetoothMesh?.broadcastControlMessage(text)
         }
-        embeddedServer.broadcastLocalText(text)
-        bluetoothMesh?.broadcastControlMessage(text)
     }
 
     fun disconnect() {
