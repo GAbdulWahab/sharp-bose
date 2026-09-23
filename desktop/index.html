@@ -3,47 +3,51 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SHARP-BOSE // TACTICAL MESH DESKTOP</title>
+  <title>SHARP-BOSE // TACTICAL MESH</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-  <!-- Top Tactical Header -->
+  <!-- Modern Top Navigation Bar -->
   <header class="tactical-header">
     <div class="header-left">
-      <div class="header-title">📟 [ SHARP-BOSE TACTICAL MESH // DESKTOP TERMINAL ]</div>
-      <div class="header-meta" id="headerHubStatus">>>> HUB: ONLINE (0.0.0.0:3000) • E2EE NOISE_XX • 100% OFFLINE</div>
+      <div class="header-title">
+        <span>⚡</span> SHARP-BOSE TACTICAL MESH
+      </div>
+      <div class="header-meta" id="headerHubStatus">
+        <span class="indicator"></span> Embedded Mesh Hub Live • 256-bit Noise_XX • 100% Offline
+      </div>
     </div>
     <div class="header-right">
       <div class="node-badge" id="nodeIdBadge">NODE: INITIALIZING...</div>
-      <button class="btn-tactical-sm" id="btnThemeToggle">[ 🌙 CRT DARK ]</button>
+      <button class="btn-tactical-sm" id="btnThemeToggle">🌙 Dark</button>
     </div>
   </header>
 
-  <!-- Main 6-View Container -->
+  <!-- Main Views Container -->
   <main class="main-container">
 
     <!-- ========================================================= -->
-    <!-- SCREEN 0: 🏠 NODE ROSTER & RADIOS                         -->
+    <!-- SCREEN 0: 🏠 NODE ROSTER & RADIOS (HOME)                   -->
     <!-- ========================================================= -->
     <section class="screen-view active" id="viewRoster">
       <!-- 01. Carrier & Hub Telemetry -->
       <div class="tactical-card">
         <div class="card-title">
-          <span>[ 01. MESH RADIO CARRIER LINK ]</span>
-          <span class="status-online" id="carrierStatus">● CARRIER ACTIVE</span>
+          <span>Mesh Radio Carrier Link</span>
+          <span class="status-online" id="carrierStatus">● Carrier Active</span>
         </div>
         <div class="card-subtitle" id="carrierDetails">
-          LOCAL HOST: 127.0.0.1:3000 // UDP BEACON: BROADCASTING (PORT 3000)<br>
-          INTERFACES: Detecting Wi-Fi, Ethernet &amp; Bluetooth PAN...
+          Local Host: 127.0.0.1:3000 • UDP Beacon: Broadcasting (Port 3000)<br>
+          Interfaces: Detecting Wi-Fi, Ethernet &amp; Bluetooth PAN...
         </div>
       </div>
 
       <!-- 02. Connected Peers & Available Nodes -->
       <div class="tactical-card">
         <div class="card-title">
-          <span>[ 02. ACTIVE MESH LINKS &amp; RADIOS ]</span>
-          <span id="rosterCountBadge" style="color: var(--cyan-primary);">[ 0 ACTIVE // 0 STANDBY ]</span>
+          <span>Active Mesh Links &amp; Radios</span>
+          <span id="rosterCountBadge" style="color: var(--cyan-primary); font-weight: 600;">0 Active Peers</span>
         </div>
         <div class="card-subtitle">
           Direct P2P duplex voice and multi-hop packets active across all local network interfaces.
@@ -53,16 +57,20 @@
           <div class="peer-row">
             <div class="peer-info">
               <div class="peer-name">📱 Searching for companion Android phones &amp; mesh radios...</div>
-              <div class="peer-meta">Launch Android App or connect to same Wi-Fi / Hotspot / Bluetooth PAN to pair automatically.</div>
+              <div class="peer-meta">Turn on Bluetooth on Android or connect to the same network to link automatically.</div>
             </div>
           </div>
         </div>
       </div>
 
       <!-- Quick Action Controls -->
-      <div style="display: flex; gap: 10px; margin-top: 10px;">
-        <button class="btn-tactical-sm" id="btnAutoScan" style="flex: 1; padding: 12px;">[ 🔄 AUTO-DISCOVER MESH PEERS ]</button>
-        <button class="btn-tactical-sm" id="btnConnectManual" style="flex: 1; padding: 12px; color: var(--emerald-primary);">[ ⚙️ CONNECT CUSTOM NODE IP ]</button>
+      <div style="display: flex; gap: 12px; margin-top: 12px;">
+        <button class="btn-tactical-sm" id="btnAutoScan" style="flex: 1; padding: 14px; font-size: 12px; justify-content: center;">
+          🔄 Auto-Discover Mesh Peers
+        </button>
+        <button class="btn-tactical-sm" id="btnConnectManual" style="flex: 1; padding: 14px; font-size: 12px; justify-content: center; color: var(--emerald-primary);">
+          ⚙️ Connect Custom Node IP
+        </button>
       </div>
     </section>
 
@@ -73,17 +81,17 @@
       <div class="comms-grid">
         <!-- Duplex Call Box -->
         <div class="tactical-card">
-          <div class="card-title">[ 01. FULL-DUPLEX 2-WAY HD VOICE ]</div>
-          <div class="card-subtitle" style="margin-bottom: 14px;">
+          <div class="card-title">Full-Duplex 2-Way HD Voice</div>
+          <div class="card-subtitle" style="margin-bottom: 16px;">
             16 kHz PCM crystal-clear voice stream with hardware Acoustic Echo Cancellation &amp; Noise Suppression.
           </div>
           
-          <button class="btn-call" id="btnGlobalCall" style="width: 100%; height: 50px; font-size: 13px;">
-            [ 📞 START 2-WAY DUPLEX CALL ]
+          <button class="btn-call" id="btnGlobalCall" style="width: 100%; height: 52px; font-size: 13px;">
+            📞 Start 2-Way Duplex Call
           </button>
 
-          <div style="margin-top: 14px;">
-            <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 6px;">MIC AUDIO INPUT LEVEL:</div>
+          <div style="margin-top: 16px;">
+            <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; font-weight: 600;">MIC INPUT LEVEL:</div>
             <div class="audio-vu-container">
               <div class="audio-vu-bar" id="micVuBar"></div>
             </div>
@@ -92,32 +100,32 @@
 
         <!-- PTT Tactical Radio Box -->
         <div class="tactical-card ptt-box">
-          <div class="card-title" style="width: 100%;">[ 02. PUSH-TO-TALK (PTT) RADIO ]</div>
-          <div id="pttStatusLabel" style="font-size: 11px; color: var(--emerald-primary); font-weight: bold;">
+          <div class="card-title" style="width: 100%;">Push-To-Talk (PTT) Radio</div>
+          <div id="pttStatusLabel" style="font-size: 12px; color: var(--emerald-primary); font-weight: 600;">
             FREQ 01: EMERGENCY &amp; TACTICAL • FLOOR: CLEAR
           </div>
 
           <button class="btn-ptt-large" id="btnPtt">
-            🎙️ HOLD SPACEBAR OR CLICK TO TALK (PTT)
+            🎙️ Hold Spacebar or Click to Talk
           </button>
 
-          <div style="font-size: 10px; color: var(--text-muted);">
+          <div style="font-size: 11px; color: var(--text-muted);">
             Broadcasts instantly to all nodes on current frequency channel.
           </div>
         </div>
       </div>
 
       <!-- Emergency SOS Distress Card -->
-      <div class="tactical-card" style="margin-top: 14px; border-color: rgba(239, 68, 68, 0.4);">
+      <div class="tactical-card" style="margin-top: 16px; border-color: rgba(244, 63, 94, 0.4);">
         <div class="card-title" style="color: var(--rose-primary);">
-          <span>[ 03. EMERGENCY DISTRESS BEACON ]</span>
-          <span style="color: var(--rose-primary);">15-HOP MAX RELAY</span>
+          <span>Emergency Distress Beacon</span>
+          <span style="color: var(--rose-primary); font-weight: 600;">15-Hop Relay</span>
         </div>
-        <div class="card-subtitle" style="margin-bottom: 12px;">
+        <div class="card-subtitle" style="margin-bottom: 14px;">
           Broadcasts critical high-priority SOS emergency beacon with coordinates to all reachable nodes.
         </div>
-        <button class="btn-end" id="btnSosBeacon" style="width: 100%; height: 44px;">
-          🚨 BROADCAST EMERGENCY SOS TO ALL MESH NODES
+        <button class="btn-end" id="btnSosBeacon" style="width: 100%; height: 48px; font-size: 13px;">
+          🚨 Broadcast Emergency SOS to All Mesh Nodes
         </button>
       </div>
     </section>
@@ -128,20 +136,20 @@
     <section class="screen-view" id="viewChat">
       <div class="tactical-card" style="margin-bottom: 0;">
         <div class="card-title">
-          <span>[ TERMINAL // ENCRYPTED MESH BBS ]</span>
-          <span style="color: var(--emerald-primary);">NOISE-XX • 256-BIT E2EE</span>
+          <span>Encrypted Mesh BBS Chat</span>
+          <span style="color: var(--emerald-primary); font-weight: 600;">Noise-XX • 256-Bit E2EE</span>
         </div>
         
         <div class="chat-window" id="chatMessages">
           <div class="chat-bubble peer">
-            <div class="chat-sender peer">[ SYSTEM // MESH ROUTER ]</div>
+            <div class="chat-sender peer">System Mesh Router</div>
             <div>Tactical BBS initialized. All messages routed over local P2P mesh network with zero cloud storage.</div>
           </div>
         </div>
 
         <div class="chat-input-bar">
-          <input type="text" class="chat-input" id="chatInput" placeholder="usr@tactical-mesh:~$ Type message and press Enter..." />
-          <button class="btn-bbs" id="btnSendChat" style="padding: 0 20px;">[ SEND ]</button>
+          <input type="text" class="chat-input" id="chatInput" placeholder="Type a message and press Enter..." />
+          <button class="btn-bbs" id="btnSendChat" style="padding: 0 24px;">Send</button>
         </div>
       </div>
     </section>
@@ -154,26 +162,26 @@
         <!-- Canvas Sweep Box -->
         <div class="radar-canvas-box">
           <canvas id="radarCanvas" width="340" height="340"></canvas>
-          <div style="font-size: 10px; color: var(--emerald-primary); margin-top: 10px; letter-spacing: 1px;">
-            >>> 360° SWEEP ACTIVE // ZERO DRIFT <<<
+          <div style="font-size: 11px; color: var(--emerald-primary); margin-top: 12px; letter-spacing: 0.5px; font-weight: 600;">
+            ● 360° SWEEP ACTIVE // ZERO DRIFT
           </div>
         </div>
 
         <!-- Telemetry List Box -->
         <div class="radar-telemetry-box">
           <div class="tactical-card">
-            <div class="card-title">[ LOCAL GPS FIX ]</div>
+            <div class="card-title">Local GPS Fix</div>
             <div class="card-subtitle" id="selfCoordsLabel">
-              GPS: STANDALONE BASE STATION<br>
-              BEARING: 000° NORTH // ALT: 0.0m
+              Base Station Coordinates<br>
+              Bearing: 000° North • Alt: 0.0m
             </div>
-            <button class="btn-tactical-sm" id="btnBroadcastGps" style="width: 100%; margin-top: 10px;">
-              📍 TRANSMIT DESKTOP COORDINATES
+            <button class="btn-tactical-sm" id="btnBroadcastGps" style="width: 100%; margin-top: 12px; justify-content: center;">
+              📍 Transmit Desktop Coordinates
             </button>
           </div>
 
           <div class="tactical-card" style="flex: 1;">
-            <div class="card-title">[ PEER RANGEFINDER ]</div>
+            <div class="card-title">Peer Rangefinder</div>
             <div id="radarPeerList" style="display: flex; flex-direction: column; gap: 8px; font-size: 11px;">
               <div style="color: var(--text-muted);">Awaiting peer GPS telemetry broadcasts...</div>
             </div>
@@ -188,29 +196,29 @@
     <section class="screen-view" id="viewChannels">
       <div class="tactical-card">
         <div class="card-title">
-          <span>[ ALL-INDIA NATIONWIDE MESH RELAY ]</span>
-          <span style="color: var(--cyan-primary);" id="activeChannelLabel">🇮🇳 [ FREQ: INDIA-MAIN ]</span>
+          <span>Nationwide Mesh Relay Channels</span>
+          <span style="color: var(--cyan-primary); font-weight: 600;" id="activeChannelLabel">🇮🇳 Frequency: INDIA-MAIN</span>
         </div>
         <div class="card-subtitle">
           Select regional tactical hubs or switch to custom private frequencies for isolated comms.
         </div>
 
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 16px;">
-          <button class="btn-tactical-sm btn-freq-hub" data-room="INDIA-MAIN" style="padding: 14px; border-color: var(--cyan-primary);">🇮🇳 [ INDIA-MAIN ]</button>
-          <button class="btn-tactical-sm btn-freq-hub" data-room="DELHI-HUB" style="padding: 14px;">🏛️ [ DELHI-HUB ]</button>
-          <button class="btn-tactical-sm btn-freq-hub" data-room="MUMBAI-NET" style="padding: 14px;">🌊 [ MUMBAI-NET ]</button>
-          <button class="btn-tactical-sm btn-freq-hub" data-room="BANGALORE-MESH" style="padding: 14px;">💻 [ BANGALORE ]</button>
-          <button class="btn-tactical-sm btn-freq-hub" data-room="CHENNAI-RELAY" style="padding: 14px;">🚢 [ CHENNAI ]</button>
-          <button class="btn-tactical-sm btn-freq-hub" data-room="HYDERABAD-CORE" style="padding: 14px;">🏰 [ HYDERABAD ]</button>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 18px;">
+          <button class="btn-tactical-sm btn-freq-hub" data-room="INDIA-MAIN" style="padding: 16px; border-color: var(--cyan-primary); justify-content: center;">🇮🇳 India Main</button>
+          <button class="btn-tactical-sm btn-freq-hub" data-room="DELHI-HUB" style="padding: 16px; justify-content: center;">🏛️ Delhi Hub</button>
+          <button class="btn-tactical-sm btn-freq-hub" data-room="MUMBAI-NET" style="padding: 16px; justify-content: center;">🌊 Mumbai Net</button>
+          <button class="btn-tactical-sm btn-freq-hub" data-room="BANGALORE-MESH" style="padding: 16px; justify-content: center;">💻 Bangalore</button>
+          <button class="btn-tactical-sm btn-freq-hub" data-room="CHENNAI-RELAY" style="padding: 16px; justify-content: center;">🚢 Chennai</button>
+          <button class="btn-tactical-sm btn-freq-hub" data-room="HYDERABAD-CORE" style="padding: 16px; justify-content: center;">🏰 Hyderabad</button>
         </div>
       </div>
 
-      <div class="tactical-card" style="margin-top: 14px;">
-        <div class="card-title">[ CUSTOM PRIVATE FREQUENCY KEY ]</div>
+      <div class="tactical-card" style="margin-top: 16px;">
+        <div class="card-title">Custom Private Frequency Key</div>
         <div class="chat-input-bar">
           <input type="text" class="chat-input" id="customRoomInput" placeholder="e.g. TACTICAL-ALPHA-01" />
-          <button class="btn-tactical-sm" id="btnJoinCustomRoom" style="padding: 0 20px; background: var(--amber-primary); color: #000;">
-            [ LOCK FREQUENCY ]
+          <button class="btn-tactical-sm" id="btnJoinCustomRoom" style="padding: 0 24px; background: var(--amber-primary); color: #000; font-weight: 700;">
+            Lock Frequency
           </button>
         </div>
       </div>
@@ -222,19 +230,19 @@
     <section class="screen-view" id="viewLogs">
       <div class="tactical-card">
         <div class="card-title">
-          <span>[ CRYPTOGRAPHIC SAFETY &amp; MULTI-HOP ROUTING ]</span>
-          <span style="color: var(--emerald-primary);">CIPHER: NOISE_XX</span>
+          <span>Cryptographic Safety &amp; Routing</span>
+          <span style="color: var(--emerald-primary); font-weight: 600;">Cipher: Noise_XX</span>
         </div>
         <div class="card-subtitle">
-          FINGERPRINT: <span id="safetyNumberLabel" style="color: var(--cyan-primary); font-weight: bold;">[ 7193 - 4820 - 9912 ]</span><br>
-          ROUTING: 15 MAX HOPS // AUTOMATIC P2P PACKET REPEATER ACTIVE
+          Fingerprint: <span id="safetyNumberLabel" style="color: var(--cyan-primary); font-weight: 700;">7193 - 4820 - 9912</span><br>
+          Routing: 15 Max Hops • Automatic P2P Packet Repeater Active
         </div>
       </div>
 
-      <div class="tactical-card" style="margin-top: 14px;">
+      <div class="tactical-card" style="margin-top: 16px;">
         <div class="card-title">
-          <span>[ CDR TELEPHONY &amp; SYSTEM AUDIT TRAIL ]</span>
-          <button class="btn-tactical-sm" id="btnClearLogs" style="padding: 2px 8px; font-size: 10px; color: var(--rose-primary);">[ CLEAR ]</button>
+          <span>CDR Telephony &amp; System Audit Trail</span>
+          <button class="btn-tactical-sm" id="btnClearLogs" style="padding: 4px 10px; font-size: 11px; color: var(--rose-primary);">Clear Logs</button>
         </div>
         <div class="logs-terminal" id="systemLogsTerminal">
 [00:00:00] [System] Sharp-Bose Tactical Mesh Desktop Terminal v2.0 initialized
@@ -246,29 +254,29 @@
 
   </main>
 
-  <!-- Bottom Navigation Dock -->
+  <!-- Modern Bottom Navigation Dock -->
   <footer class="tactical-dock">
-    <button class="dock-btn active" data-tab="0">[ 🏠 ROSTER ]</button>
-    <button class="dock-btn" data-tab="1">[ 📞 COMMS ]</button>
-    <button class="dock-btn" data-tab="2">[ 💬 BBS ]</button>
-    <button class="dock-btn" data-tab="3">[ 🎯 RADAR ]</button>
-    <button class="dock-btn" data-tab="4">[ 📻 FREQ ]</button>
-    <button class="dock-btn" data-tab="5">[ 📋 LOGS ]</button>
+    <button class="dock-btn active" data-tab="0">🏠 Roster</button>
+    <button class="dock-btn" data-tab="1">📞 Comms</button>
+    <button class="dock-btn" data-tab="2">💬 BBS</button>
+    <button class="dock-btn" data-tab="3">🎯 Radar</button>
+    <button class="dock-btn" data-tab="4">📻 Channels</button>
+    <button class="dock-btn" data-tab="5">📋 Logs</button>
   </footer>
 
   <!-- Incoming Call Modal -->
   <div class="tactical-modal-backdrop" id="incomingCallModal">
     <div class="tactical-modal">
       <div style="text-align: center;">
-        <div style="background: #065F46; color: var(--emerald-primary); padding: 4px 12px; font-size: 11px; font-weight: bold; display: inline-block; border-radius: 4px; margin-bottom: 12px;">
-          >>> [ INCOMING TACTICAL CALL ] <<<
+        <div style="background: rgba(16, 185, 129, 0.15); color: var(--emerald-primary); border: 1px solid rgba(16, 185, 129, 0.3); padding: 5px 14px; font-size: 11px; font-weight: 700; display: inline-block; border-radius: 20px; margin-bottom: 16px; letter-spacing: 0.5px;">
+          INCOMING TACTICAL CALL
         </div>
-        <div style="font-size: 20px; font-weight: bold; margin-bottom: 6px;" id="incomingCallerName">[ NODE: ANDROID PHONE ]</div>
-        <div style="font-size: 11px; color: var(--cyan-primary); margin-bottom: 16px;" id="incomingCallerId">ROUTE: DIRECT WI-FI // E2EE NOISE_XX</div>
+        <div style="font-size: 22px; font-weight: 700; margin-bottom: 6px; color: #FFFFFF;" id="incomingCallerName">Android Phone</div>
+        <div style="font-size: 12px; color: var(--cyan-primary); margin-bottom: 24px;" id="incomingCallerId">Direct Wi-Fi / Bluetooth • Noise_XX E2EE</div>
         
-        <div style="display: flex; gap: 10px;">
-          <button class="btn-end" id="btnDeclineIncoming" style="flex: 1; height: 44px;">[ ✕ DECLINE ]</button>
-          <button class="btn-call" id="btnAcceptIncoming" style="flex: 1; height: 44px;">[ 📞 ACCEPT ]</button>
+        <div style="display: flex; gap: 12px;">
+          <button class="btn-end" id="btnDeclineIncoming" style="flex: 1; height: 48px; font-size: 13px;">✕ Decline</button>
+          <button class="btn-call" id="btnAcceptIncoming" style="flex: 1; height: 48px; font-size: 13px;">📞 Accept</button>
         </div>
       </div>
     </div>

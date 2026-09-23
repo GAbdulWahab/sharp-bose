@@ -307,8 +307,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         tvLogsHeader.setTextColor(textPrimary)
         tvLogs.setBackgroundColor(logBg)
 
-        btnThemeToggle.typeface = android.graphics.Typeface.MONOSPACE
-        btnThemeToggle.text = if (dark) "[ 🌙 DARK ]" else "[ ☀️ LIGHT ]"
+        btnThemeToggle.text = if (dark) "🌙 Dark" else "☀️ Light"
         btnThemeToggle.backgroundTintList = android.content.res.ColorStateList.valueOf(bgCard)
         btnThemeToggle.setTextColor(if (dark) Color.parseColor("#38BDF8") else Color.parseColor("#0284C7"))
 
@@ -683,13 +682,11 @@ class MainActivity : AppCompatActivity(), LocationListener {
             Log.d("MainActivity", "Bluetooth bonded lookup notice: ${e.message}")
         }
 
-        tvPeopleCount.typeface = android.graphics.Typeface.MONOSPACE
-        tvPeopleCount.text = "[ ${otherPeers.size} ACTIVE // ${availableList.size} STANDBY ]"
+        tvPeopleCount.text = "${otherPeers.size} Active Peers"
 
         val tvConnectedHeader = TextView(this).apply {
-            text = "🟢 [ ACTIVE MESH LINKS // ${otherPeers.size} ]"
+            text = "● Active Mesh Peers (${otherPeers.size})"
             textSize = 12f
-            typeface = android.graphics.Typeface.MONOSPACE
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(Color.parseColor("#10B981"))
             setPadding(4, 4, 4, 8)
@@ -713,11 +710,10 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
             val tvNotice = TextView(this).apply {
                 text = if (bridge.isConnected) {
-                    "● LINK ACTIVE [${bridge.currentHost}:3000]. READY FOR DUPLEX VOICE. SELECT TARGET BELOW."
+                    "● Link Active (${bridge.currentHost}:3000) • Ready for Duplex Voice. Select peer below."
                 } else {
-                    "○ STANDBY • Tap [LINK] on any available node below to initialize carrier."
+                    "○ Searching for peers... Turn on Bluetooth or tap Link on an available device."
                 }
-                typeface = android.graphics.Typeface.MONOSPACE
                 setTextColor(if (isDarkMode) Color.parseColor("#38BDF8") else Color.parseColor("#64748B"))
                 textSize = 11f
             }

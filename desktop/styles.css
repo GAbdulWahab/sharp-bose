@@ -1,25 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 :root {
   --bg-main: #0B0F19;
-  --bg-header: #020617;
-  --bg-card: #131D31;
-  --bg-card-hover: #1A2640;
+  --bg-header: rgba(11, 15, 25, 0.85);
+  --bg-card: rgba(19, 29, 49, 0.7);
+  --bg-card-solid: #131D31;
+  --bg-card-hover: rgba(30, 45, 75, 0.85);
   --bg-input: #070A13;
-  --border-color: #1E293B;
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-glow: rgba(56, 189, 248, 0.4);
   --border-active: #38BDF8;
   
   --cyan-primary: #38BDF8;
+  --cyan-gradient: linear-gradient(135deg, #38BDF8 0%, #0284C7 100%);
   --cyan-glow: rgba(56, 189, 248, 0.25);
   --emerald-primary: #10B981;
+  --emerald-gradient: linear-gradient(135deg, #10B981 0%, #059669 100%);
   --emerald-glow: rgba(16, 185, 129, 0.25);
   --amber-primary: #F59E0B;
-  --rose-primary: #EF4444;
-  --blue-primary: #0284C7;
+  --rose-primary: #F43F5E;
+  --rose-gradient: linear-gradient(135deg, #F43F5E 0%, #BE123C 100%);
+  --blue-primary: #3B82F6;
   --purple-primary: #8B5CF6;
   
   --text-primary: #F8FAFC;
   --text-secondary: #94A3B8;
   --text-muted: #64748B;
-  --text-phosphor: #10B981;
+  --glass-blur: blur(16px);
 }
 
 * {
@@ -27,11 +34,16 @@
   margin: 0;
   padding: 0;
   user-select: none;
-  font-family: 'JetBrains Mono', 'Roboto Mono', 'SF Mono', Consolas, monospace;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+code, pre, .mono {
+  font-family: 'JetBrains Mono', monospace;
 }
 
 body {
-  background-color: var(--bg-main);
+  background: radial-gradient(circle at 50% 0%, #152238 0%, #0B0F19 70%);
   color: var(--text-primary);
   height: 100vh;
   display: flex;
@@ -39,70 +51,107 @@ body {
   overflow: hidden;
 }
 
-/* Header */
+/* -------------------------------------------------------------
+   1. Modern Floating Header
+------------------------------------------------------------- */
 .tactical-header {
-  background-color: var(--bg-header);
-  border-bottom: 2px solid var(--cyan-primary);
-  padding: 12px 20px;
+  background: var(--bg-header);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--border-color);
+  padding: 14px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
-  z-index: 10;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  z-index: 20;
 }
 
 .header-left {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .header-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
-  color: var(--cyan-primary);
-  letter-spacing: 0.5px;
+  background: linear-gradient(90deg, #38BDF8 0%, #818CF8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.2px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .header-meta {
-  font-size: 10px;
-  color: var(--emerald-primary);
-  letter-spacing: 0.3px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.header-meta span.indicator {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  background: var(--emerald-primary);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--emerald-primary);
+  animation: pulseDot 2s infinite;
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.7; }
 }
 
 .header-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
 .node-badge {
-  background: #0F2744;
-  border: 1px solid var(--border-color);
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(56, 189, 248, 0.2);
   color: var(--cyan-primary);
-  padding: 4px 10px;
-  border-radius: 4px;
+  padding: 6px 14px;
+  border-radius: 20px;
   font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  font-family: 'JetBrains Mono', monospace;
 }
 
 .btn-tactical-sm {
-  background: var(--bg-card);
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--border-color);
-  color: var(--cyan-primary);
-  padding: 6px 12px;
+  color: var(--text-primary);
+  padding: 7px 14px;
   font-size: 11px;
-  font-weight: bold;
-  border-radius: 4px;
+  font-weight: 600;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .btn-tactical-sm:hover {
-  background: #0F2744;
-  border-color: var(--cyan-primary);
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #FFFFFF;
+  transform: translateY(-1px);
 }
 
-/* Main Content Views */
+/* -------------------------------------------------------------
+   2. Main Container Views
+------------------------------------------------------------- */
 .main-container {
   flex: 1;
   display: flex;
@@ -113,166 +162,216 @@ body {
 
 .screen-view {
   flex: 1;
-  padding: 18px;
+  padding: 24px 28px;
   overflow-y: auto;
   display: none;
-  animation: fadeIn 0.15s ease;
+  animation: viewFade 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .screen-view.active {
   display: block;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(3px); }
+@keyframes viewFade {
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Tactical Card Styles */
+/* -------------------------------------------------------------
+   3. Modern Glass Card System
+------------------------------------------------------------- */
 .tactical-card {
   background: var(--bg-card);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 16px;
-  margin-bottom: 14px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border-radius: 16px;
+  padding: 20px 22px;
+  margin-bottom: 18px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  transition: all 0.25s ease;
+}
+
+.tactical-card:hover {
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
 }
 
 .card-title {
-  font-size: 12px;
-  font-weight: bold;
-  color: var(--cyan-primary);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
   margin-bottom: 8px;
-  text-transform: uppercase;
+  letter-spacing: 0.3px;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
 .card-subtitle {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-secondary);
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .status-online {
   color: var(--emerald-primary);
-  font-weight: bold;
+  font-weight: 600;
+  font-size: 11px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  padding: 4px 10px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .status-offline {
   color: var(--rose-primary);
-  font-weight: bold;
+  font-weight: 600;
+  font-size: 11px;
+  background: rgba(244, 63, 94, 0.1);
+  border: 1px solid rgba(244, 63, 94, 0.2);
+  padding: 4px 10px;
+  border-radius: 12px;
 }
 
-/* Peer Roster */
+/* -------------------------------------------------------------
+   4. Peer Roster Modern Cards
+------------------------------------------------------------- */
 .peer-list-container {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 10px;
+  margin-top: 14px;
 }
 
 .peer-row {
-  background: var(--bg-input);
+  background: rgba(10, 15, 26, 0.7);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 12px 16px;
+  border-radius: 12px;
+  padding: 14px 18px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .peer-row:hover {
-  border-color: var(--border-active);
-  background: var(--bg-card-hover);
+  border-color: var(--cyan-primary);
+  background: rgba(15, 23, 42, 0.9);
+  transform: translateX(2px);
+  box-shadow: 0 4px 20px rgba(56, 189, 248, 0.1);
 }
 
 .peer-info {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .peer-name {
   font-size: 13px;
-  font-weight: bold;
+  font-weight: 700;
   color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .peer-meta {
-  font-size: 10px;
-  color: var(--emerald-primary);
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .peer-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
+  align-items: center;
 }
 
-/* Tactical Buttons */
+/* -------------------------------------------------------------
+   5. Modern Action Buttons
+------------------------------------------------------------- */
 .btn-call {
-  background: var(--emerald-primary);
+  background: var(--emerald-gradient);
   color: #FFFFFF;
   border: none;
-  padding: 8px 14px;
-  font-size: 11px;
-  font-weight: bold;
-  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
   cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
 }
 
 .btn-call:hover {
-  background: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.45);
 }
 
 .btn-end {
-  background: var(--rose-primary);
+  background: var(--rose-gradient);
   color: #FFFFFF;
   border: none;
-  padding: 8px 14px;
-  font-size: 11px;
-  font-weight: bold;
-  border-radius: 4px;
+  padding: 8px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
   cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(244, 63, 94, 0.3);
 }
 
 .btn-end:hover {
-  background: #DC2626;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(244, 63, 94, 0.45);
 }
 
 .btn-bbs {
-  background: var(--blue-primary);
+  background: var(--cyan-gradient);
   color: #FFFFFF;
   border: none;
-  padding: 8px 12px;
-  font-size: 11px;
-  font-weight: bold;
-  border-radius: 4px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .btn-bbs:hover {
-  background: #0284C7;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.35);
 }
 
 .btn-lock {
-  background: var(--border-color);
+  background: rgba(255, 255, 255, 0.06);
   color: var(--cyan-primary);
-  border: none;
+  border: 1px solid var(--border-color);
   padding: 8px 12px;
-  font-size: 11px;
-  font-weight: bold;
-  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 8px;
   cursor: pointer;
+  transition: all 0.2s ease;
 }
 
-/* Comms & PTT Call Screen */
+.btn-lock:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: var(--cyan-primary);
+}
+
+/* -------------------------------------------------------------
+   6. Comms & PTT Call Screen
+------------------------------------------------------------- */
 .comms-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  gap: 16px;
 }
 
 .ptt-box {
@@ -280,35 +379,42 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  gap: 12px;
+  padding: 28px;
+  gap: 14px;
 }
 
 .btn-ptt-large {
   width: 100%;
-  height: 64px;
-  background: #0F2744;
-  border: 2px solid var(--cyan-primary);
+  height: 68px;
+  background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+  border: 1.5px solid rgba(56, 189, 248, 0.4);
   color: var(--cyan-primary);
   font-size: 14px;
-  font-weight: bold;
-  border-radius: 8px;
+  font-weight: 700;
+  border-radius: 12px;
   cursor: pointer;
-  transition: all 0.1s ease;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.btn-ptt-large:hover {
+  border-color: var(--cyan-primary);
+  box-shadow: 0 0 20px var(--cyan-glow);
 }
 
 .btn-ptt-large:active, .btn-ptt-large.transmitting {
-  background: var(--rose-primary);
+  background: var(--rose-gradient);
   border-color: #FFFFFF;
   color: #FFFFFF;
-  box-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+  box-shadow: 0 0 30px rgba(244, 63, 94, 0.6);
+  transform: scale(0.99);
 }
 
 .audio-vu-container {
   width: 100%;
-  height: 20px;
-  background: var(--bg-input);
-  border-radius: 4px;
+  height: 14px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 8px;
   overflow: hidden;
   position: relative;
   border: 1px solid var(--border-color);
@@ -317,77 +423,90 @@ body {
 .audio-vu-bar {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #10B981, #F59E0B, #EF4444);
+  background: linear-gradient(90deg, #10B981, #38BDF8, #F43F5E);
+  border-radius: 8px;
   transition: width 0.05s ease;
 }
 
-/* Terminal BBS Screen */
+/* -------------------------------------------------------------
+   7. Modern Chat BBS
+------------------------------------------------------------- */
 .chat-window {
-  height: 380px;
-  background: var(--bg-input);
+  height: 400px;
+  background: rgba(10, 15, 26, 0.7);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 12px;
+  border-radius: 12px;
+  padding: 16px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
 
 .chat-bubble {
-  padding: 8px 12px;
-  border-radius: 6px;
+  padding: 10px 14px;
+  border-radius: 12px;
   max-width: 75%;
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: 13px;
+  line-height: 1.45;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .chat-bubble.me {
   align-self: flex-end;
-  background: #0F2744;
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%);
+  color: #FFFFFF;
+  border-bottom-right-radius: 4px;
 }
 
 .chat-bubble.peer {
   align-self: flex-start;
-  background: var(--bg-card);
+  background: var(--bg-card-solid);
   border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-bottom-left-radius: 4px;
 }
 
 .chat-sender {
   font-size: 10px;
-  font-weight: bold;
-  margin-bottom: 2px;
+  font-weight: 700;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
-.chat-sender.me { color: var(--cyan-primary); }
-.chat-sender.peer { color: var(--amber-primary); }
+.chat-sender.me { color: rgba(255, 255, 255, 0.85); }
+.chat-sender.peer { color: var(--cyan-primary); }
 
 .chat-input-bar {
   display: flex;
-  gap: 8px;
-  margin-top: 10px;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .chat-input {
   flex: 1;
-  background: var(--bg-input);
+  background: rgba(10, 15, 26, 0.8);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  padding: 10px 14px;
-  font-size: 12px;
-  border-radius: 4px;
+  padding: 12px 16px;
+  font-size: 13px;
+  border-radius: 10px;
   outline: none;
+  transition: all 0.2s ease;
 }
 
 .chat-input:focus {
   border-color: var(--cyan-primary);
+  box-shadow: 0 0 15px var(--cyan-glow);
 }
 
-/* 360 Tactical Radar */
+/* -------------------------------------------------------------
+   8. Modern Radar
+------------------------------------------------------------- */
 .radar-container {
   display: flex;
-  gap: 16px;
+  gap: 20px;
 }
 
 .radar-canvas-box {
@@ -395,83 +514,93 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: var(--bg-input);
+  background: rgba(10, 15, 26, 0.7);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 16px;
+  border-radius: 16px;
+  padding: 20px;
 }
 
 #radarCanvas {
-  background: #020617;
+  background: #060B16;
   border-radius: 50%;
-  border: 2px solid var(--emerald-primary);
-  box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+  border: 2px solid rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 30px rgba(16, 185, 129, 0.2);
 }
 
 .radar-telemetry-box {
-  width: 320px;
+  width: 340px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
-/* Bottom Navigation Dock */
+/* -------------------------------------------------------------
+   9. Modern Floating Dock
+------------------------------------------------------------- */
 .tactical-dock {
   background: var(--bg-header);
-  border-top: 2px solid var(--cyan-primary);
-  padding: 8px 12px;
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-top: 1px solid var(--border-color);
+  padding: 10px 18px;
   display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.5);
+  gap: 8px;
+  box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.4);
 }
 
 .dock-btn {
   flex: 1;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
   color: var(--text-secondary);
-  padding: 10px 6px;
-  font-size: 11px;
-  font-weight: bold;
-  border-radius: 4px;
+  padding: 11px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 10px;
   cursor: pointer;
   white-space: nowrap;
   text-align: center;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dock-btn:hover {
-  background: var(--bg-card-hover);
+  background: rgba(255, 255, 255, 0.08);
   color: var(--text-primary);
+  transform: translateY(-1px);
 }
 
 .dock-btn.active {
-  background: #0F2744;
-  border-color: var(--cyan-primary);
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.15) 0%, rgba(2, 132, 199, 0.2) 100%);
+  border-color: rgba(56, 189, 248, 0.4);
   color: var(--cyan-primary);
-  box-shadow: 0 0 10px var(--cyan-glow);
+  box-shadow: 0 0 16px var(--cyan-glow);
 }
 
-/* System Logs Screen */
+/* -------------------------------------------------------------
+   10. Terminal Logs
+------------------------------------------------------------- */
 .logs-terminal {
   height: 400px;
-  background: var(--bg-input);
+  background: #060B16;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 12px;
-  font-size: 11px;
+  border-radius: 12px;
+  padding: 16px;
+  font-size: 12px;
   color: var(--emerald-primary);
   overflow-y: auto;
-  line-height: 1.5;
+  line-height: 1.6;
+  font-family: 'JetBrains Mono', monospace;
   white-space: pre-wrap;
 }
 
-/* Modals */
+/* -------------------------------------------------------------
+   11. Modals
+------------------------------------------------------------- */
 .tactical-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(8px);
   display: none;
   justify-content: center;
   align-items: center;
@@ -483,11 +612,17 @@ body {
 }
 
 .tactical-modal {
-  background: var(--bg-card);
-  border: 2px solid var(--cyan-primary);
-  border-radius: 8px;
-  padding: 20px;
-  width: 460px;
+  background: #0F172A;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  border-radius: 20px;
+  padding: 28px;
+  width: 440px;
   max-width: 90vw;
-  box-shadow: 0 0 30px rgba(56, 189, 248, 0.2);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 30px var(--cyan-glow);
+  animation: modalPop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalPop {
+  from { transform: scale(0.94); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
