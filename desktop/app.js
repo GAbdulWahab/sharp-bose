@@ -491,7 +491,7 @@ class TacticalMeshDesktop {
   renderPeers(peers) {
     this.connectedPeers = (peers || []).filter(p => p.id !== this.localNodeId);
     const badge = document.getElementById('rosterCountBadge');
-    if (badge) badge.innerText = `[ ${this.connectedPeers.length} ACTIVE // 0 STANDBY ]`;
+    if (badge) badge.innerText = `${this.connectedPeers.length} Connected`;
 
     const container = document.getElementById('rosterPeerList');
     if (!container) return;
@@ -501,8 +501,8 @@ class TacticalMeshDesktop {
       container.innerHTML = `
         <div class="peer-row">
           <div class="peer-info">
-            <div class="peer-name">📱 No companion peers connected yet.</div>
-            <div class="peer-meta">Turn Bluetooth on Android or connect to same network — auto-connects in seconds.</div>
+            <div class="peer-name">📱 No connected people yet</div>
+            <div class="peer-meta">Bluetooth &amp; Wi-Fi mesh auto-sync is scanning in background.</div>
           </div>
         </div>
       `;

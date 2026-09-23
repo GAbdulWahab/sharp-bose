@@ -28,49 +28,48 @@
   <main class="main-container">
 
     <!-- ========================================================= -->
-    <!-- SCREEN 0: 🏠 NODE ROSTER & RADIOS (HOME)                   -->
+    <!-- SCREEN 0: 🏠 CONNECTED PEOPLE & CONTROLS (HOME)            -->
     <!-- ========================================================= -->
     <section class="screen-view active" id="viewRoster">
-      <!-- 01. Carrier & Hub Telemetry -->
+      <!-- 01. Connected People (Active Online Mesh Members Only) -->
       <div class="tactical-card">
         <div class="card-title">
-          <span>Mesh Radio Carrier Link</span>
-          <span class="status-online" id="carrierStatus">● Carrier Active</span>
-        </div>
-        <div class="card-subtitle" id="carrierDetails">
-          Local Host: 127.0.0.1:3000 • UDP Beacon: Broadcasting (Port 3000)<br>
-          Interfaces: Detecting Wi-Fi, Ethernet &amp; Bluetooth PAN...
-        </div>
-      </div>
-
-      <!-- 02. Connected Peers & Available Nodes -->
-      <div class="tactical-card">
-        <div class="card-title">
-          <span>Active Mesh Links &amp; Radios</span>
-          <span id="rosterCountBadge" style="color: var(--cyan-primary); font-weight: 600;">0 Active Peers</span>
+          <span>Connected People</span>
+          <span id="rosterCountBadge" style="color: var(--emerald-primary); font-weight: 600;">0 Connected</span>
         </div>
         <div class="card-subtitle">
-          Direct P2P duplex voice and multi-hop packets active across all local network interfaces.
+          Online mesh members connected for duplex HD voice, encrypted BBS &amp; tactical radar.
         </div>
 
         <div class="peer-list-container" id="rosterPeerList">
           <div class="peer-row">
             <div class="peer-info">
-              <div class="peer-name">📱 Searching for companion Android phones &amp; mesh radios...</div>
-              <div class="peer-meta">Turn on Bluetooth on Android or connect to the same network to link automatically.</div>
+              <div class="peer-name">📱 No connected people yet</div>
+              <div class="peer-meta">Bluetooth &amp; Wi-Fi auto-discovery is running in background.</div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Quick Action Controls -->
-      <div style="display: flex; gap: 12px; margin-top: 12px;">
-        <button class="btn-tactical-sm" id="btnAutoScan" style="flex: 1; padding: 14px; font-size: 12px; justify-content: center;">
-          🔄 Auto-Discover Mesh Peers
-        </button>
-        <button class="btn-tactical-sm" id="btnConnectManual" style="flex: 1; padding: 14px; font-size: 12px; justify-content: center; color: var(--emerald-primary);">
-          ⚙️ Connect Custom Node IP
-        </button>
+      <!-- 02. Bluetooth & Network Connection Controls (Separate Card) -->
+      <div class="tactical-card" style="margin-top: 14px;">
+        <div class="card-title">
+          <span>📡 Bluetooth &amp; Network Controls</span>
+          <span class="status-online" id="carrierStatus">● Carrier Active</span>
+        </div>
+        <div class="card-subtitle" id="carrierDetails" style="margin-bottom: 14px;">
+          Local Host: 127.0.0.1:3000 • UDP Beacon: Broadcasting (Port 3000)<br>
+          Interfaces: Detecting Wi-Fi, Ethernet &amp; Bluetooth PAN...
+        </div>
+
+        <div style="display: flex; gap: 12px;">
+          <button class="btn-tactical-sm" id="btnAutoScan" style="flex: 1; padding: 14px; font-size: 12px; justify-content: center;">
+            🔄 Auto-Discover Mesh Peers
+          </button>
+          <button class="btn-tactical-sm" id="btnConnectManual" style="flex: 1; padding: 14px; font-size: 12px; justify-content: center; color: var(--emerald-primary);">
+            ⚙️ Connect Custom Node IP
+          </button>
+        </div>
       </div>
     </section>
 
