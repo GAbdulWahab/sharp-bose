@@ -21,7 +21,7 @@
             android:layout_weight="1"
             android:fontFamily="monospace"
             android:text="🔒 [CIPHER // NOISE_XX 256-BIT]"
-            android:textColor="#00F0FF"
+            android:textColor="#38BDF8"
             android:textSize="15sp"
             android:textStyle="bold" />
 
@@ -40,7 +40,7 @@
         android:layout_marginTop="2dp"
         android:fontFamily="monospace"
         android:text="256-BIT AES-GCM • CURVE25519 DH KEY EXCHANGE • NOISE_XX"
-        android:textColor="#7DD3FC"
+        android:textColor="#94A3B8"
         android:textSize="10sp" />
 
     <!-- Safety Number Box -->
@@ -48,7 +48,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:background="#0A0E17"
+        android:background="#131D31"
         android:orientation="vertical"
         android:padding="14dp">
 
@@ -57,7 +57,7 @@
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
             android:text="🛡️ [CRYPTOGRAPHIC SAFETY NUMBER]"
-            android:textColor="#00FF66"
+            android:textColor="#10B981"
             android:textSize="10sp"
             android:textStyle="bold" />
 
@@ -68,7 +68,7 @@
             android:layout_marginTop="6dp"
             android:fontFamily="monospace"
             android:text="[ 4829 - 1047 - 8831 ]"
-            android:textColor="#00F0FF"
+            android:textColor="#38BDF8"
             android:textSize="18sp"
             android:textStyle="bold" />
 
@@ -78,7 +78,7 @@
             android:layout_marginTop="4dp"
             android:fontFamily="monospace"
             android:text="Compare on peer device to confirm zero MITM tampering."
-            android:textColor="#7DD3FC"
+            android:textColor="#94A3B8"
             android:textSize="10sp" />
     </LinearLayout>
 
@@ -87,7 +87,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
-        android:background="#0A0E17"
+        android:background="#131D31"
         android:orientation="vertical"
         android:padding="14dp">
 
@@ -96,7 +96,7 @@
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
             android:text="📡 [MULTI-HOP MESH ROUTING]"
-            android:textColor="#FFB000"
+            android:textColor="#F59E0B"
             android:textSize="10sp"
             android:textStyle="bold" />
 
@@ -107,7 +107,7 @@
             android:layout_marginTop="4dp"
             android:fontFamily="monospace"
             android:text="HOP RANGE: [MAX 15 HOPS // REPEATER ACTIVE]"
-            android:textColor="#00FF66"
+            android:textColor="#10B981"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -118,7 +118,7 @@
             android:layout_marginTop="2dp"
             android:fontFamily="monospace"
             android:text="RANGE: UP TO 1.5km VIA INTERMEDIATE MESH RELAY NODES"
-            android:textColor="#7DD3FC"
+            android:textColor="#94A3B8"
             android:textSize="10sp" />
     </LinearLayout>
 

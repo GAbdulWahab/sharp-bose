@@ -1089,7 +1089,7 @@
                 android:textStyle="bold"
                 android:fontFamily="monospace"
                 android:background="@drawable/retro_card_bg"
-                app:backgroundTint="#0E3B68"
+                app:backgroundTint="#0F2744"
                 android:layout_marginEnd="4dp" />
 
             <Button
@@ -1101,7 +1101,7 @@
                 android:textSize="11sp"
                 android:fontFamily="monospace"
                 android:background="@drawable/retro_card_bg"
-                app:backgroundTint="#0A0E17"
+                app:backgroundTint="#131D31"
                 android:layout_marginEnd="4dp" />
 
             <Button
@@ -1113,7 +1113,7 @@
                 android:textSize="11sp"
                 android:fontFamily="monospace"
                 android:background="@drawable/retro_card_bg"
-                app:backgroundTint="#0A0E17"
+                app:backgroundTint="#131D31"
                 android:layout_marginEnd="4dp" />
 
             <Button
@@ -1125,7 +1125,7 @@
                 android:textSize="11sp"
                 android:fontFamily="monospace"
                 android:background="@drawable/retro_card_bg"
-                app:backgroundTint="#0A0E17"
+                app:backgroundTint="#131D31"
                 android:layout_marginEnd="4dp" />
 
             <Button
@@ -1137,7 +1137,7 @@
                 android:textSize="11sp"
                 android:fontFamily="monospace"
                 android:background="@drawable/retro_card_bg"
-                app:backgroundTint="#0A0E17"
+                app:backgroundTint="#131D31"
                 android:layout_marginEnd="4dp" />
 
             <Button
@@ -1149,7 +1149,7 @@
                 android:textSize="11sp"
                 android:fontFamily="monospace"
                 android:background="@drawable/retro_card_bg"
-                app:backgroundTint="#0A0E17" />
+                app:backgroundTint="#131D31" />
         </LinearLayout>
     </HorizontalScrollView>
 </LinearLayout>

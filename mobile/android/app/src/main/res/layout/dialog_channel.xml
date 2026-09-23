@@ -65,10 +65,10 @@
             android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_weight="1"
-            android:backgroundTint="#0A0E17"
+            android:backgroundTint="#131D31"
             android:fontFamily="monospace"
             android:text="[INDIA]"
-            android:textColor="#00FF66"
+            android:textColor="#10B981"
             android:textSize="10sp"
             android:textStyle="bold" />
 
@@ -78,10 +78,10 @@
             android:layout_height="40dp"
             android:layout_marginStart="4dp"
             android:layout_weight="1"
-            android:backgroundTint="#0A0E17"
+            android:backgroundTint="#131D31"
             android:fontFamily="monospace"
             android:text="[DELHI]"
-            android:textColor="#00F0FF"
+            android:textColor="#38BDF8"
             android:textSize="10sp"
             android:textStyle="bold" />
 
@@ -91,10 +91,10 @@
             android:layout_height="40dp"
             android:layout_marginStart="4dp"
             android:layout_weight="1"
-            android:backgroundTint="#0A0E17"
+            android:backgroundTint="#131D31"
             android:fontFamily="monospace"
             android:text="[MUMBAI]"
-            android:textColor="#00F0FF"
+            android:textColor="#38BDF8"
             android:textSize="10sp"
             android:textStyle="bold" />
     </LinearLayout>
@@ -110,10 +110,10 @@
             android:layout_width="0dp"
             android:layout_height="40dp"
             android:layout_weight="1"
-            android:backgroundTint="#0A0E17"
+            android:backgroundTint="#131D31"
             android:fontFamily="monospace"
             android:text="[BLR]"
-            android:textColor="#00F0FF"
+            android:textColor="#38BDF8"
             android:textSize="10sp"
             android:textStyle="bold" />
 
@@ -123,10 +123,10 @@
             android:layout_height="40dp"
             android:layout_marginStart="4dp"
             android:layout_weight="1"
-            android:backgroundTint="#0A0E17"
+            android:backgroundTint="#131D31"
             android:fontFamily="monospace"
             android:text="[CHENNAI]"
-            android:textColor="#00F0FF"
+            android:textColor="#38BDF8"
             android:textSize="10sp"
             android:textStyle="bold" />
 
@@ -136,10 +136,10 @@
             android:layout_height="40dp"
             android:layout_marginStart="4dp"
             android:layout_weight="1"
-            android:backgroundTint="#0A0E17"
+            android:backgroundTint="#131D31"
             android:fontFamily="monospace"
             android:text="[HYD]"
-            android:textColor="#00F0FF"
+            android:textColor="#38BDF8"
             android:textSize="10sp"
             android:textStyle="bold" />
     </LinearLayout>
@@ -151,7 +151,7 @@
         android:layout_marginTop="12dp"
         android:fontFamily="monospace"
         android:text="=== [CUSTOM PRIVATE FREQUENCY] ==="
-        android:textColor="#FFB000"
+        android:textColor="#F59E0B"
         android:textSize="11sp"
         android:textStyle="bold" />
 
@@ -160,13 +160,13 @@
         android:layout_width="match_parent"
         android:layout_height="44dp"
         android:layout_marginTop="4dp"
-        android:background="#0A0E17"
+        android:background="#131D31"
         android:fontFamily="monospace"
         android:hint="e.g. TACTICAL-INDIA-1"
         android:paddingStart="10dp"
         android:paddingEnd="10dp"
-        android:textColor="#00FF66"
-        android:textColorHint="#7DD3FC"
+        android:textColor="#F8FAFC"
+        android:textColorHint="#94A3B8"
         android:textSize="12sp" />
 
     <Button
@@ -174,10 +174,10 @@
         android:layout_width="match_parent"
         android:layout_height="44dp"
         android:layout_marginTop="12dp"
-        android:backgroundTint="#FFB000"
+        android:backgroundTint="#F59E0B"
         android:fontFamily="monospace"
         android:text="[ 📻 LOCK FREQUENCY CHANNEL ]"
-        android:textColor="#05080F"
+        android:textColor="#0F172A"
         android:textSize="11sp"
         android:textStyle="bold" />
 

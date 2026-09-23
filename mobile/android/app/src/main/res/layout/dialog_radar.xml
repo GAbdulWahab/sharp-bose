@@ -49,7 +49,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
-        android:background="#0A0E17"
+        android:background="#131D31"
         android:orientation="vertical"
         android:padding="10dp">
 
@@ -59,7 +59,7 @@
             android:layout_height="wrap_content"
             android:fontFamily="monospace"
             android:text="YOUR GPS: LAT [--.------] // LON [--.------]"
-            android:textColor="#00FF66"
+            android:textColor="#10B981"
             android:textSize="11sp"
             android:textStyle="bold" />
 
@@ -70,7 +70,7 @@
             android:layout_marginTop="2dp"
             android:fontFamily="monospace"
             android:text="HARDWARE SENSOR LOCK • 0% PACKET LOSS"
-            android:textColor="#7DD3FC"
+            android:textColor="#94A3B8"
             android:textSize="10sp" />
     </LinearLayout>
 
@@ -81,7 +81,7 @@
         android:layout_marginTop="12dp"
         android:fontFamily="monospace"
         android:text="=== [PEER DISTANCE MATRIX &amp; COMPASS] ==="
-        android:textColor="#00F0FF"
+        android:textColor="#38BDF8"
         android:textSize="11sp"
         android:textStyle="bold" />
 
@@ -89,7 +89,7 @@
         android:layout_width="match_parent"
         android:layout_height="200dp"
         android:layout_marginTop="6dp"
-        android:background="#020617"
+        android:background="#070A13"
         android:padding="6dp">
 
         <LinearLayout

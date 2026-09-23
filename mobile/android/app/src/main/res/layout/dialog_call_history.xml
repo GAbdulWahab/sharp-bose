@@ -21,7 +21,7 @@
             android:layout_weight="1"
             android:fontFamily="monospace"
             android:text="📋 [COMMUNICATION CDR LOGS]"
-            android:textColor="#00F0FF"
+            android:textColor="#38BDF8"
             android:textSize="15sp"
             android:textStyle="bold" />
 
@@ -29,10 +29,10 @@
             android:id="@+id/btnClearHistory"
             android:layout_width="wrap_content"
             android:layout_height="36dp"
-            android:backgroundTint="#0F172A"
+            android:backgroundTint="#1E293B"
             android:fontFamily="monospace"
             android:text="[CLEAR]"
-            android:textColor="#FF0055"
+            android:textColor="#EF4444"
             android:textSize="10sp"
             android:textStyle="bold" />
 
@@ -52,7 +52,7 @@
         android:layout_marginTop="2dp"
         android:fontFamily="monospace"
         android:text="PERSISTENT CALL RECORDS • INCOMING / OUTGOING / MISSED MATRIX"
-        android:textColor="#7DD3FC"
+        android:textColor="#94A3B8"
         android:textSize="10sp" />
 
     <!-- History List Container -->
@@ -60,7 +60,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
-        android:background="#020617"
+        android:background="#070A13"
         android:maxHeight="360dp"
         android:padding="6dp">
 
@@ -79,7 +79,7 @@
                 android:gravity="center"
                 android:padding="24dp"
                 android:text=">>> NO CDR LOGS RECORDED &lt;&lt;&lt;\nMake or receive calls to populate matrix."
-                android:textColor="#7DD3FC"
+                android:textColor="#94A3B8"
                 android:textSize="11sp" />
         </LinearLayout>
     </ScrollView>
