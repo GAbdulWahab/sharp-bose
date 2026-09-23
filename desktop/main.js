@@ -409,8 +409,10 @@ function startEmbeddedHub() {
 }
 
 // -------------------------------------------------------------
-// 2. UDP Mesh Auto-Discovery Beacon
+// 2. UDP Mesh Auto-Discovery Beacon (Port 8988)
 // -------------------------------------------------------------
+const UDP_BEACON_PORT = 8988;
+
 function startUdpBeacon() {
   try {
     udpSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
@@ -422,39 +424,80 @@ function startUdpBeacon() {
     udpSocket.on('message', (msg, rinfo) => {
       try {
         const str = msg.toString();
-        if (str.startsWith('MESH_BEACON:')) {
+        let peerId = '';
+        let peerName = 'Mesh Peer';
+        let port = 3000;
+
+        if (str.startsWith('{')) {
+          const json = JSON.parse(str);
+          if (json.type === 'MESH_BEACON') {
+            peerId = json.id || '';
+            peerName = json.name || 'Android Phone';
+            port = json.port || 3000;
+          }
+        } else if (str.startsWith('MESH_BEACON:')) {
           const parts = str.substring(12).split('|');
           if (parts.length >= 3) {
-            const peerId = parts[0];
-            const peerName = parts[1];
-            const port = parseInt(parts[2], 10);
-            if (peerId !== LOCAL_NODE_ID && mainWindow && !mainWindow.isDestroyed()) {
-              mainWindow.webContents.send('hub:udp-peer-discovered', {
-                peerId,
-                peerName,
-                ip: rinfo.address,
-                port
-              });
-            }
+            peerId = parts[0];
+            peerName = parts[1];
+            port = parseInt(parts[2], 10) || 3000;
+          }
+        }
+
+        if (peerId && peerId !== LOCAL_NODE_ID) {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('hub:udp-peer-discovered', {
+              peerId,
+              peerName,
+              ip: rinfo.address,
+              port
+            });
           }
         }
       } catch (e) {}
     });
 
-    udpSocket.bind(UDP_PORT, '0.0.0.0', () => {
+    udpSocket.bind(UDP_BEACON_PORT, '0.0.0.0', () => {
       try {
         udpSocket.setBroadcast(true);
       } catch (e) {}
     });
 
     udpBeaconTimer = setInterval(() => {
-      const beaconMsg = Buffer.from(`MESH_BEACON:${LOCAL_NODE_ID}|Desktop Hub (${os.hostname()})|${HTTP_PORT}`);
+      const beaconJson = Buffer.from(JSON.stringify({
+        type: 'MESH_BEACON',
+        id: LOCAL_NODE_ID,
+        name: `Desktop Hub (${os.hostname()})`,
+        port: HTTP_PORT,
+        timestamp: Date.now()
+      }));
+      const beaconText = Buffer.from(`MESH_BEACON:${LOCAL_NODE_ID}|Desktop Hub (${os.hostname()})|${HTTP_PORT}`);
+
+      const broadcastAddrs = ['255.255.255.255', '192.168.43.255', '192.168.137.255', '172.27.180.255', '10.19.238.255'];
       try {
-        if (udpSocket) {
-          udpSocket.send(beaconMsg, 0, beaconMsg.length, UDP_PORT, '255.255.255.255', () => {});
+        const ifaces = os.networkInterfaces();
+        for (const name of Object.keys(ifaces)) {
+          for (const iface of ifaces[name]) {
+            if (iface.family === 'IPv4' && !iface.internal) {
+              const lastDot = iface.address.lastIndexOf('.');
+              if (lastDot > 0) {
+                const bcast = iface.address.substring(0, lastDot + 1) + '255';
+                if (!broadcastAddrs.includes(bcast)) broadcastAddrs.push(bcast);
+              }
+            }
+          }
         }
       } catch (e) {}
-    }, 2500);
+
+      for (const addr of broadcastAddrs) {
+        try {
+          if (udpSocket) {
+            udpSocket.send(beaconJson, 0, beaconJson.length, UDP_BEACON_PORT, addr, () => {});
+            udpSocket.send(beaconText, 0, beaconText.length, UDP_BEACON_PORT, addr, () => {});
+          }
+        } catch (e) {}
+      }
+    }, 1500);
   } catch (e) {
     console.warn('[UDP Beacon Note]', e.message);
   }

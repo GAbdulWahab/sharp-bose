@@ -52,10 +52,11 @@ class TacticalMeshDesktop {
   startAutoDiscoveryLoop() {
     if (this.autoScanTimer) clearInterval(this.autoScanTimer);
     this.autoScanTimer = setInterval(() => {
-      if (!this.isConnected) {
+      // Continue auto-discovering if not connected or if connected only to local loopback with 0 remote peers
+      if (!this.isConnected || this.connectedPeers.length === 0) {
         this.autoDiscoverLocalHub();
       }
-    }, 3000);
+    }, 2500);
   }
 
   async autoDiscoverLocalHub() {
@@ -64,15 +65,18 @@ class TacticalMeshDesktop {
       '172.27.180.170:3000',
       '172.27.180.37:3000',
       '172.27.180.1:3000',
-      '192.168.44.1:3000',
+      '192.168.43.1:3000',
       '192.168.137.1:3000',
+      '192.168.44.1:3000',
       '10.19.238.166:3000',
       '10.19.238.104:3000'
     ];
 
     for (const host of candidates) {
-      if (this.isConnected) break;
+      if (this.isConnected && this.connectedPeers.length > 0) break;
       const [h, p] = host.split(':');
+      if (h === this.currentHost && this.isConnected) continue;
+
       const reachable = await new Promise(resolve => {
         try {
           const testWs = new WebSocket(`ws://${host}`);
@@ -92,8 +96,8 @@ class TacticalMeshDesktop {
         } catch(e) { resolve(false); }
       });
 
-      if (reachable && !this.isConnected) {
-        this.log(`[Auto-Discovery] Connected to mesh node at ${host}`);
+      if (reachable && (!this.isConnected || this.connectedPeers.length === 0)) {
+        this.log(`[Auto-Discovery] Discovered mesh companion node at ${host}`);
         this.connectMesh(h, parseInt(p, 10));
         break;
       }
@@ -543,6 +547,9 @@ class TacticalMeshDesktop {
         window.electronAPI.onControlPacket((pkt) => this.handleIncomingControl(pkt));
         window.electronAPI.onUdpPeerDiscovered((peer) => {
           this.log(`[UDP Beacon] Discovered nearby peer: ${peer.peerName} at ${peer.ip}:${peer.port}`);
+          if (peer.ip && peer.ip !== '127.0.0.1' && this.connectedPeers.length === 0) {
+            this.connectMesh(peer.ip, peer.port || 3000);
+          }
         });
       } catch (e) {
         console.warn('System info lookup:', e.message);
@@ -1246,6 +1253,10 @@ class TacticalMeshDesktop {
       if (alertBanner) alertBanner.style.display = 'none';
       if (btnScan) btnScan.disabled = false;
       this.log('● Windows Bluetooth Radio is ON and ready.');
+      // Automatically start background Bluetooth scan
+      if (window.bluetoothAPI && !this.isBtScanning) {
+        window.bluetoothAPI.startScan();
+      }
     } else if (state === 'OFF') {
       if (badge) {
         badge.innerText = '○ BT: OFF';
@@ -1307,6 +1318,15 @@ class TacticalMeshDesktop {
     const scanStatus = document.getElementById('btScanStatusText');
     if (scanStatus && this.isBtScanning) {
       scanStatus.innerText = `🔄 Scanning (${this.btDevices.size} found)...`;
+    }
+
+    // Auto-connect to nearby companion Android phone / mesh node
+    if (this.btAutoReconnect && !this.btConnectedAddress && dev.isConnectable) {
+      const name = (dev.name || '').toLowerCase();
+      if (name.includes('android') || name.includes('phone') || name.includes('offline') || name.includes('mesh') || name.includes('sharp')) {
+        this.log(`[Bluetooth Auto-Connect] Connecting to companion device: ${dev.name || dev.address}...`);
+        this.connectBtDevice(dev.address);
+      }
     }
   }
 
