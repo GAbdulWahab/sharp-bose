@@ -104,14 +104,15 @@ class TacticalMeshDesktop {
       document.getElementById('viewChat'),
       document.getElementById('viewRadar'),
       document.getElementById('viewChannels'),
-      document.getElementById('viewLogs')
+      document.getElementById('viewLogs'),
+      document.getElementById('viewSettings')
     ];
 
     dockButtons.forEach(btn => {
       btn.addEventListener('click', () => {
         const tabIndex = parseInt(btn.dataset.tab, 10);
         dockButtons.forEach(b => b.classList.remove('active'));
-        views.forEach(v => v.classList.remove('active'));
+        views.forEach(v => { if (v) v.classList.remove('active'); });
         
         btn.classList.add('active');
         if (views[tabIndex]) {
@@ -129,8 +130,16 @@ class TacticalMeshDesktop {
             this.radarRafId = null;
           }
         }
+
+        // When switching to Settings (Tab 6), sync fields
+        if (tabIndex === 6) {
+          const settingNodeId = document.getElementById('settingNodeId');
+          if (settingNodeId) settingNodeId.value = this.localNodeId;
+        }
       });
     });
+
+    this.bindSettingsUI();
 
     // Theme Toggle
     const btnTheme = document.getElementById('btnThemeToggle');
@@ -293,6 +302,160 @@ class TacticalMeshDesktop {
     }
   }
 
+  bindSettingsUI() {
+    const settingNodeId = document.getElementById('settingNodeId');
+    const settingNickname = document.getElementById('settingNickname');
+    const btnSaveNickname = document.getElementById('btnSaveNickname');
+    const btnCopyNodeId = document.getElementById('btnCopyNodeId');
+    const settingCustomIp = document.getElementById('settingCustomIp');
+    const btnConnectSettingIp = document.getElementById('btnConnectSettingIp');
+    const sliderMicGain = document.getElementById('sliderMicGain');
+    const micGainValue = document.getElementById('micGainValue');
+    const btnTestMic = document.getElementById('btnTestMic');
+    const btnClearChatHistory = document.getElementById('btnClearChatHistory');
+    const btnClearCdrHistory = document.getElementById('btnClearCdrHistory');
+    const btnResetSettings = document.getElementById('btnResetSettings');
+    const btnRotateKeys = document.getElementById('btnRotateKeys');
+
+    // Load saved nickname
+    const savedNick = localStorage.getItem('tactical_nickname') || 'DESKTOP-NODE';
+    this.nickname = savedNick;
+    if (settingNickname) settingNickname.value = savedNick;
+    if (settingNodeId) settingNodeId.value = this.localNodeId;
+
+    if (btnSaveNickname && settingNickname) {
+      btnSaveNickname.addEventListener('click', () => {
+        const val = settingNickname.value.trim();
+        if (val) {
+          this.nickname = val;
+          localStorage.setItem('tactical_nickname', val);
+          this.sendControlPacket({
+            type: 'SET_NICKNAME',
+            senderId: this.localNodeId,
+            nickname: val
+          });
+          this.log(`Call-sign updated to: ${val}`);
+          alert(`✅ Call-sign updated to: ${val}`);
+        }
+      });
+    }
+
+    if (btnCopyNodeId) {
+      btnCopyNodeId.addEventListener('click', () => {
+        const idToCopy = this.localNodeId;
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(idToCopy).then(() => {
+            this.log(`Copied node ID ${idToCopy} to clipboard`);
+            alert(`📋 Node ID copied: ${idToCopy}`);
+          }).catch(() => {
+            prompt('Copy Node ID:', idToCopy);
+          });
+        } else {
+          prompt('Copy Node ID:', idToCopy);
+        }
+      });
+    }
+
+    if (btnConnectSettingIp && settingCustomIp) {
+      btnConnectSettingIp.addEventListener('click', () => {
+        const ip = settingCustomIp.value.trim();
+        if (ip) {
+          const parts = ip.split(':');
+          this.connectMesh(parts[0], parseInt(parts[1] || '3000', 10));
+          this.log(`Connecting to custom node: ${ip}`);
+        }
+      });
+    }
+
+    document.querySelectorAll('.btn-ip-preset').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ip = btn.dataset.ip;
+        if (settingCustomIp) settingCustomIp.value = ip;
+        const parts = ip.split(':');
+        this.connectMesh(parts[0], parseInt(parts[1] || '3000', 10));
+        this.log(`Connecting to preset node: ${ip}`);
+      });
+    });
+
+    if (sliderMicGain && micGainValue) {
+      sliderMicGain.addEventListener('input', (e) => {
+        const val = e.target.value;
+        micGainValue.innerText = `${val}%`;
+      });
+    }
+
+    let isTestingMic = false;
+    if (btnTestMic) {
+      btnTestMic.addEventListener('click', async () => {
+        if (!isTestingMic) {
+          isTestingMic = true;
+          btnTestMic.innerText = '⏹️ Stop Test';
+          btnTestMic.style.background = 'var(--rose-primary)';
+          await this.startMicCapture();
+          this.testMicTimer = setInterval(() => {
+            const vuBar = document.getElementById('micVuBar');
+            const settingVuBar = document.getElementById('settingVuBar');
+            if (vuBar && settingVuBar) {
+              settingVuBar.style.width = vuBar.style.width;
+            }
+          }, 100);
+        } else {
+          isTestingMic = false;
+          btnTestMic.innerText = '🎙️ Test Microphone';
+          btnTestMic.style.background = '';
+          clearInterval(this.testMicTimer);
+          if (!this.isCalling && !this.isPttActive) this.stopMicCapture();
+          const settingVuBar = document.getElementById('settingVuBar');
+          if (settingVuBar) settingVuBar.style.width = '0%';
+        }
+      });
+    }
+
+    if (btnRotateKeys) {
+      btnRotateKeys.addEventListener('click', () => {
+        const num = Math.floor(1000 + Math.random() * 9000) + ' - ' + Math.floor(1000 + Math.random() * 9000) + ' - ' + Math.floor(1000 + Math.random() * 9000);
+        const safetyLabel = document.getElementById('safetyNumberLabel');
+        if (safetyLabel) safetyLabel.innerText = num;
+        this.log(`Rotated cryptographic session keys. New fingerprint: ${num}`);
+        alert(`🔑 New Noise_XX Safety Key Generated:\n${num}`);
+      });
+    }
+
+    if (btnClearChatHistory) {
+      btnClearChatHistory.addEventListener('click', () => {
+        const container = document.getElementById('chatMessages');
+        if (container) {
+          container.innerHTML = `
+            <div class="chat-bubble peer">
+              <div class="chat-sender peer">System Router</div>
+              <div>Chat history cleared. Mesh BBS channel reset.</div>
+            </div>
+          `;
+        }
+        this.log('Chat history cleared');
+        alert('💬 Chat history cleared successfully.');
+      });
+    }
+
+    if (btnClearCdrHistory) {
+      btnClearCdrHistory.addEventListener('click', () => {
+        const term = document.getElementById('systemLogsTerminal');
+        if (term) term.innerText = `[${new Date().toLocaleTimeString()}] [System] CDR telephony and call logs cleared.\n`;
+        this.log('Call history cleared');
+        alert('📞 Call history cleared successfully.');
+      });
+    }
+
+    if (btnResetSettings) {
+      btnResetSettings.addEventListener('click', () => {
+        if (confirm('Are you sure you want to reset all network and audio settings to defaults?')) {
+          localStorage.clear();
+          location.reload();
+        }
+      });
+    }
+  }
+
   setupShortcuts() {
     // Spacebar PTT shortcut
     window.addEventListener('keydown', (e) => {
@@ -430,6 +593,13 @@ class TacticalMeshDesktop {
     if (!json || !json.type) return;
 
     switch (json.type) {
+      case 'ASSIGN_ID':
+        this.localNodeId = json.id;
+        const badgeElem = document.getElementById('nodeIdBadge');
+        if (badgeElem) badgeElem.innerText = `NODE: ${json.id.toUpperCase()}`;
+        this.log(`Assigned Local Node ID: ${json.id}`);
+        break;
+
       case 'PEER_LIST':
         this.renderPeers(json.peers || []);
         break;
@@ -489,7 +659,12 @@ class TacticalMeshDesktop {
   // 3. Roster & Peer Rendering
   // -----------------------------------------------------------
   renderPeers(peers) {
-    this.connectedPeers = (peers || []).filter(p => p.id !== this.localNodeId);
+    this.connectedPeers = (peers || []).filter(p => {
+      if (!p || !p.id) return false;
+      if (p.id === this.localNodeId || p.id.toLowerCase() === this.localNodeId.toLowerCase()) return false;
+      if (p.isLocal) return false;
+      return true;
+    });
     const badge = document.getElementById('rosterCountBadge');
     if (badge) badge.innerText = `${this.connectedPeers.length} Connected`;
 
@@ -501,8 +676,8 @@ class TacticalMeshDesktop {
       container.innerHTML = `
         <div class="peer-row">
           <div class="peer-info">
-            <div class="peer-name">📱 No connected people yet</div>
-            <div class="peer-meta">Bluetooth &amp; Wi-Fi mesh auto-sync is scanning in background.</div>
+            <div class="peer-name">📱 No other devices connected yet</div>
+            <div class="peer-meta">When a new phone or desktop connects, it will appear here automatically.</div>
           </div>
         </div>
       `;

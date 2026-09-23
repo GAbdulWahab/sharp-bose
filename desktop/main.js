@@ -131,27 +131,43 @@ function startEmbeddedHub() {
 
   try {
     wss = new WebSocketServer({ server: httpServer });
+    wss.on('error', (err) => {
+      // Handled cleanly when port is occupied
+    });
 
     function broadcastPeerList() {
-      const peerList = Array.from(clients.values()).map(c => ({
-        id: c.id,
-        nickname: c.nickname,
-        deviceType: c.deviceType,
-        location: c.location || null,
-        status: c.status || 'Online',
-        room: c.room || 'INDIA-MAIN',
-        isLocal: false
-      }));
+      const allClients = Array.from(clients.values());
 
-      const msg = JSON.stringify({ type: 'PEER_LIST', peers: peerList });
       for (const client of allWebSockets) {
         if (client.readyState === 1) { // OPEN
-          client.send(msg);
+          const currentInfo = clients.get(client);
+          const currentId = currentInfo ? currentInfo.id : null;
+
+          // Exclude the recipient's own device from the peer list
+          const peerList = allClients
+            .filter(c => c.id !== currentId)
+            .map(c => ({
+              id: c.id,
+              nickname: c.nickname,
+              deviceType: c.deviceType,
+              location: c.location || null,
+              status: c.status || 'Online',
+              room: c.room || 'INDIA-MAIN'
+            }));
+
+          client.send(JSON.stringify({ type: 'PEER_LIST', peers: peerList }));
         }
       }
 
       if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('hub:peer-list-updated', peerList);
+        mainWindow.webContents.send('hub:peer-list-updated', Array.from(clients.values()).map(c => ({
+          id: c.id,
+          nickname: c.nickname,
+          deviceType: c.deviceType,
+          location: c.location || null,
+          status: c.status || 'Online',
+          room: c.room || 'INDIA-MAIN'
+        })));
       }
     }
 

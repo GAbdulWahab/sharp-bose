@@ -312,20 +312,9 @@ class AndroidMeshServer(
     }
 
     fun broadcastPeerList() {
-        val peersArray = JSONArray()
-        val peerNodesList = mutableListOf<PeerNode>()
+        val remotePeerNodesList = mutableListOf<PeerNode>()
 
-        // Include local host phone in list
-        val localNode = PeerNode(localNodeId, "$localNodeName (Host)", "Android", "Online")
-        peerNodesList.add(localNode)
-        peersArray.put(JSONObject().apply {
-            put("id", localNodeId)
-            put("nickname", "$localNodeName (Host)")
-            put("deviceType", "Android")
-            put("status", "Online")
-            put("room", "INDIA-MAIN")
-        })
-
+        // 1. Build list of actual connected remote clients for the local device
         for (client in connectedClients) {
             val pNode = PeerNode(
                 id = client.info.id,
@@ -334,36 +323,53 @@ class AndroidMeshServer(
                 status = client.info.status,
                 location = client.info.location
             )
-            peerNodesList.add(pNode)
+            remotePeerNodesList.add(pNode)
+        }
 
-            peersArray.put(JSONObject().apply {
-                put("id", client.info.id)
-                put("nickname", client.info.nickname)
-                put("deviceType", client.info.deviceType)
-                put("status", client.info.status)
-                put("room", client.info.room)
-                client.info.location?.let { loc ->
-                    put("location", JSONObject().apply {
-                        put("lat", loc.lat)
-                        put("lng", loc.lng)
-                        put("alt", loc.alt)
-                        put("accuracy", loc.accuracy.toDouble())
+        // Notify local phone app of remote peers only (NEVER own device)
+        onPeerListUpdated?.invoke(remotePeerNodesList)
+
+        // 2. Broadcast to each remote connected client (excluding themselves, including host)
+        for (recipient in connectedClients) {
+            val recipientPeersArray = JSONArray()
+
+            // Include local host phone for remote peers
+            recipientPeersArray.put(JSONObject().apply {
+                put("id", localNodeId)
+                put("nickname", localNodeName)
+                put("deviceType", "Android")
+                put("status", "Online")
+                put("room", "INDIA-MAIN")
+            })
+
+            // Include all other remote clients
+            for (otherClient in connectedClients) {
+                if (otherClient != recipient) {
+                    recipientPeersArray.put(JSONObject().apply {
+                        put("id", otherClient.info.id)
+                        put("nickname", otherClient.info.nickname)
+                        put("deviceType", otherClient.info.deviceType)
+                        put("status", otherClient.info.status)
+                        put("room", otherClient.info.room)
+                        otherClient.info.location?.let { loc ->
+                            put("location", JSONObject().apply {
+                                put("lat", loc.lat)
+                                put("lng", loc.lng)
+                                put("alt", loc.alt)
+                                put("accuracy", loc.accuracy.toDouble())
+                            })
+                        }
                     })
                 }
-            })
+            }
+
+            val peerListMsg = JSONObject().apply {
+                put("type", "PEER_LIST")
+                put("peers", recipientPeersArray)
+            }.toString()
+
+            sendWsText(recipient, peerListMsg)
         }
-
-        val peerListMsg = JSONObject().apply {
-            put("type", "PEER_LIST")
-            put("peers", peersArray)
-        }.toString()
-
-        for (client in connectedClients) {
-            sendWsText(client, peerListMsg)
-        }
-
-        // Also update local UI peer list!
-        onPeerListUpdated?.invoke(peerNodesList)
     }
 
     private fun sendWsText(client: ClientSession, text: String) {

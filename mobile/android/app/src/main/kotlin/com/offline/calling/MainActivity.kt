@@ -654,7 +654,13 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private fun renderConnectedPeopleList(peers: List<PeerNode>) {
         llConnectedPeople.removeAllViews()
 
-        val otherPeers = peers.filter { it.id != localPeerId }
+        val otherPeers = peers.filter { 
+            it.id != localPeerId && 
+            !it.id.equals(localPeerId, true) && 
+            !it.id.equals(bridge.localNodeId, true) &&
+            !it.id.equals("node-local", true) &&
+            !it.nickname.contains("(Host)", true)
+        }
         tvPeopleCount.text = "${otherPeers.size} Connected"
 
         if (otherPeers.isEmpty()) {
@@ -672,9 +678,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
             val tvNotice = TextView(this).apply {
                 text = if (bridge.isConnected) {
-                    "● Mesh Link Active (${bridge.currentHost}:3000)\nAwaiting companion peer handshake..."
+                    "● Mesh Link Active (${bridge.currentHost}:3000)\nWaiting for companion device to connect..."
                 } else {
-                    "○ No connected people in range.\nAuto-discovery is scanning Bluetooth & Wi-Fi in the background."
+                    "○ No other devices connected.\nAuto-discovery is scanning Bluetooth & Wi-Fi in the background."
                 }
                 setTextColor(if (isDarkMode) Color.parseColor("#38BDF8") else Color.parseColor("#64748B"))
                 textSize = 12f
@@ -1135,29 +1141,103 @@ class MainActivity : AppCompatActivity(), LocationListener {
         val dialog = Dialog(this)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
 
+        val scrollView = ScrollView(this).apply {
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            isFillViewport = true
+        }
+
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(28, 24, 28, 24)
+            setPadding(24, 20, 24, 24)
             val bg = if (isDarkMode) Color.parseColor("#0F172A") else Color.parseColor("#FFFFFF")
             setBackgroundColor(bg)
         }
 
+        // Header Title
         val tvTitle = TextView(this).apply {
-            text = "📡 [ MESH RADIO & CARRIER CONFIG ]"
+            text = "⚙️ [ SYSTEM SETTINGS & CONTROLS ]"
             textSize = 14f
             typeface = android.graphics.Typeface.MONOSPACE
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(if (isDarkMode) Color.parseColor("#38BDF8") else Color.parseColor("#0284C7"))
-            setPadding(0, 0, 0, 10)
+            setPadding(0, 0, 0, 8)
         }
         layout.addView(tvTitle)
 
-        val tvCurrent = TextView(this).apply {
-            text = "CARRIER: ${bridge.currentHost}:3000 // STATUS: ${tvStatus.text}"
+        // Section 1: Node Identity
+        val tvIdentityHeader = TextView(this).apply {
+            text = "🪪 [ NODE IDENTITY & CALL-SIGN ]"
             textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(Color.parseColor("#10B981"))
+            setPadding(0, 8, 0, 4)
+        }
+        layout.addView(tvIdentityHeader)
+
+        val inputNickname = EditText(this).apply {
+            val savedNick = prefs.getString("tactical_nickname", "Android Phone (${Build.MODEL})")
+            setText(savedNick)
+            hint = "Tactical Call-Sign / Nickname"
+            typeface = android.graphics.Typeface.MONOSPACE
+            setHintTextColor(Color.parseColor("#64748B"))
+            setTextColor(if (isDarkMode) Color.parseColor("#F8FAFC") else Color.BLACK)
+            textSize = 12f
+        }
+        layout.addView(inputNickname)
+
+        val btnSaveNick = Button(this).apply {
+            text = "[ SAVE CALL-SIGN ]"
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
+            setTextColor(Color.WHITE)
+            setOnClickListener {
+                val newNick = inputNickname.text.toString().trim()
+                if (newNick.isNotEmpty()) {
+                    prefs.edit().putString("tactical_nickname", newNick).apply()
+                    Toast.makeText(this@MainActivity, "✅ Call-sign saved: $newNick", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+        layout.addView(btnSaveNick)
+
+        val btnCopyId = Button(this).apply {
+            text = "[ 📋 COPY NODE ID: ${bridge.localNodeId} ]"
+            textSize = 10f
+            typeface = android.graphics.Typeface.MONOSPACE
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+            setTextColor(Color.parseColor("#38BDF8"))
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 6, 0, 10)
+            }
+            layoutParams = lp
+            setOnClickListener {
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val clip = android.content.ClipData.newPlainText("Node ID", bridge.localNodeId)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this@MainActivity, "📋 Node ID copied to clipboard!", Toast.LENGTH_SHORT).show()
+            }
+        }
+        layout.addView(btnCopyId)
+
+        // Section 2: Network & Mesh Connection
+        val tvNetHeader = TextView(this).apply {
+            text = "📡 [ MESH NETWORK & CARRIER LINK ]"
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(Color.parseColor("#38BDF8"))
+            setPadding(0, 10, 0, 4)
+        }
+        layout.addView(tvNetHeader)
+
+        val tvCurrent = TextView(this).apply {
+            text = "CARRIER: ${bridge.currentHost}:3000 // STATUS: ${tvStatus.text}"
+            textSize = 10f
+            typeface = android.graphics.Typeface.MONOSPACE
             setTextColor(if (isDarkMode) Color.parseColor("#10B981") else Color.parseColor("#475569"))
-            setPadding(0, 0, 0, 14)
+            setPadding(0, 0, 0, 8)
         }
         layout.addView(tvCurrent)
 
@@ -1182,7 +1262,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
             setTextColor(Color.WHITE)
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(0, 8, 0, 0)
+                setMargins(0, 6, 0, 0)
             }
             layoutParams = lp
             setOnClickListener {
@@ -1194,13 +1274,13 @@ class MainActivity : AppCompatActivity(), LocationListener {
         layout.addView(btnBt)
 
         val btnScan = Button(this).apply {
-            text = "[ 🔄 AUTO-SCAN ALL MESH INTERFACES ]"
+            text = "[ 🔄 AUTO-SCAN ALL INTERFACES ]"
             textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
             setTextColor(Color.parseColor("#38BDF8"))
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(0, 8, 0, 0)
+                setMargins(0, 6, 0, 0)
             }
             layoutParams = lp
             setOnClickListener {
@@ -1212,20 +1292,20 @@ class MainActivity : AppCompatActivity(), LocationListener {
         layout.addView(btnScan)
 
         val inputIp = EditText(this).apply {
-            hint = "Or type custom IP (e.g. 10.19.238.166)"
+            hint = "Custom Node IP (e.g. 172.27.180.170)"
             typeface = android.graphics.Typeface.MONOSPACE
             setHintTextColor(Color.parseColor("#64748B"))
             setTextColor(if (isDarkMode) Color.parseColor("#F8FAFC") else Color.BLACK)
             textSize = 12f
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(0, 14, 0, 6)
+                setMargins(0, 10, 0, 6)
             }
             layoutParams = lp
         }
         layout.addView(inputIp)
 
         val btnCustom = Button(this).apply {
-            text = "[ LINK CUSTOM IP ]"
+            text = "[ LINK CUSTOM NODE IP ]"
             textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#7C3AED"))
@@ -1241,8 +1321,52 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
         layout.addView(btnCustom)
 
-        dialog.setContentView(layout)
-        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.92).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
+        // Section 3: Audio & Telephony Reset
+        val tvAudioHeader = TextView(this).apply {
+            text = "🧹 [ STORAGE, CACHE & SYSTEM RESET ]"
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(Color.parseColor("#F59E0B"))
+            setPadding(0, 14, 0, 4)
+        }
+        layout.addView(tvAudioHeader)
+
+        val btnClearChat = Button(this).apply {
+            text = "[ 💬 CLEAR CHAT BBS HISTORY ]"
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+            setTextColor(Color.parseColor("#38BDF8"))
+            setOnClickListener {
+                chatMessageList.clear()
+                chatMessagesContainer.removeAllViews()
+                Toast.makeText(this@MainActivity, "Chat history cleared", Toast.LENGTH_SHORT).show()
+            }
+        }
+        layout.addView(btnClearChat)
+
+        val btnClearCalls = Button(this).apply {
+            text = "[ 📞 CLEAR CALL HISTORY ]"
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+            setTextColor(Color.parseColor("#F43F5E"))
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 6, 0, 0)
+            }
+            layoutParams = lp
+            setOnClickListener {
+                callHistoryManager.clearHistory()
+                renderCallHistoryView()
+                Toast.makeText(this@MainActivity, "Call records cleared", Toast.LENGTH_SHORT).show()
+            }
+        }
+        layout.addView(btnClearCalls)
+
+        scrollView.addView(layout)
+        dialog.setContentView(scrollView)
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.94).toInt(), (resources.displayMetrics.heightPixels * 0.82).toInt())
         dialog.show()
     }
 

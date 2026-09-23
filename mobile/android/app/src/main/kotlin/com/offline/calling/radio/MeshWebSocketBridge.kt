@@ -44,7 +44,7 @@ data class PeerNode(
  * Automatically connects Phone-to-Phone over Bluetooth (RFCOMM/BLE) and Local Wi-Fi/Hotspot
  * with ZERO manual IP address entry, while simultaneously supporting Laptop Web Preview.
  */
-class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.randomUUID().toString().substring(0, 8)) {
+class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.randomUUID().toString().substring(0, 8)) {
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .connectTimeout(3000, TimeUnit.MILLISECONDS)
@@ -183,6 +183,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
 
     private fun mergeAndNotifyPeers(newPeers: List<PeerNode>) {
         for (p in newPeers) {
+            if (p.id == localNodeId || p.id.equals(localNodeId, true) || p.id == "node-local" || p.nickname.contains("(Host)", true)) continue
             val existing = allDiscoveredPeers.find { it.id == p.id }
             if (existing != null) {
                 val idx = allDiscoveredPeers.indexOf(existing)
@@ -191,7 +192,13 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                 allDiscoveredPeers.add(p)
             }
         }
-        publishPeers(allDiscoveredPeers.toList())
+        val filtered = allDiscoveredPeers.filter { 
+            it.id != localNodeId && 
+            !it.id.equals(localNodeId, true) && 
+            it.id != "node-local" && 
+            !it.nickname.contains("(Host)", true) 
+        }
+        publishPeers(filtered)
     }
 
     var currentHost: String = "172.27.180.170"
@@ -472,6 +479,12 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
             val json = JSONObject(text)
             val type = json.optString("type")
             when (type) {
+                "ASSIGN_ID" -> {
+                    val assignedId = json.optString("id")
+                    if (assignedId.isNotEmpty()) {
+                        localNodeId = assignedId
+                    }
+                }
                 "CALL_INVITE" -> {
                     val senderName = json.optString("senderName", "Mesh Peer")
                     val senderId = json.optString("senderId", "node-peer")

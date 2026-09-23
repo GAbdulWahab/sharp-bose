@@ -249,6 +249,209 @@
 [00:00:00] [UDP] Mesh auto-discovery beacon broadcasting on 255.255.255.255:3000
         </div>
       </div>
+    <!-- ========================================================= -->
+    <!-- SCREEN 6: ⚙️ COMPREHENSIVE SETTINGS & SYSTEM CONTROLS      -->
+    <!-- ========================================================= -->
+    <section class="screen-view" id="viewSettings">
+      <!-- 01. Node Profile & Tactical Identity -->
+      <div class="tactical-card">
+        <div class="card-title">
+          <span>🪪 Node Identity &amp; Profile</span>
+          <span style="color: var(--cyan-primary); font-weight: 600;">Noise_XX ID</span>
+        </div>
+        <div class="card-subtitle">
+          Configure your tactical call-sign, local mesh identity, and broadcast properties.
+        </div>
+
+        <div class="settings-grid">
+          <div class="settings-field">
+            <label class="settings-label">TACTICAL CALL-SIGN / NICKNAME</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" class="chat-input" id="settingNickname" placeholder="e.g. ALPHA-OPERATOR-01" style="flex: 1;">
+              <button class="btn-tactical-sm" id="btnSaveNickname" style="padding: 0 16px; background: var(--cyan-primary); color: #000; font-weight: 700;">Save</button>
+            </div>
+          </div>
+
+          <div class="settings-field">
+            <label class="settings-label">LOCAL NODE ID (CRYPTOGRAPHIC HASH)</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" class="chat-input" id="settingNodeId" readonly style="flex: 1; opacity: 0.8; font-family: monospace;">
+              <button class="btn-tactical-sm" id="btnCopyNodeId" style="padding: 0 16px;">📋 Copy</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 02. Mesh Radio & Network Interface Settings -->
+      <div class="tactical-card" style="margin-top: 16px;">
+        <div class="card-title">
+          <span>📡 Network Interfaces &amp; Mesh Link</span>
+          <span class="status-online" id="settingCarrierBadge">● Carrier Active</span>
+        </div>
+        <div class="card-subtitle">
+          Configure custom node connections, auto-discovery parameters, and multi-hop routing.
+        </div>
+
+        <div class="settings-grid">
+          <div class="settings-field">
+            <label class="settings-label">CONNECT CUSTOM NODE IP / HOST</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" class="chat-input" id="settingCustomIp" placeholder="e.g. 172.27.180.170:3000" style="flex: 1;">
+              <button class="btn-tactical-sm" id="btnConnectSettingIp" style="padding: 0 16px; background: var(--emerald-primary); color: #000; font-weight: 700;">Connect</button>
+            </div>
+          </div>
+
+          <div class="settings-field">
+            <label class="settings-label">QUICK PRESET NODES</label>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <button class="btn-tactical-sm btn-ip-preset" data-ip="172.27.180.170:3000">🔵 BT PAN (172.27.180.170)</button>
+              <button class="btn-tactical-sm btn-ip-preset" data-ip="10.19.238.166:3000">💻 Wi-Fi LAN (10.19.238.166)</button>
+              <button class="btn-tactical-sm btn-ip-preset" data-ip="127.0.0.1:3000">🏠 Localhost (127.0.0.1)</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-toggles-row" style="margin-top: 16px;">
+          <div class="settings-toggle-item">
+            <div>
+              <div class="toggle-title">🔄 Background Auto-Discovery</div>
+              <div class="toggle-desc">Automatically scans Bluetooth PAN, Wi-Fi Direct and LAN for companion nodes.</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggleAutoScan" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="settings-toggle-item">
+            <div>
+              <div class="toggle-title">🔀 Multi-Hop Packet Relay</div>
+              <div class="toggle-desc">Forward encrypted packets for out-of-range mesh peers (up to 15 hops).</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggleMultiHop" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- 03. Audio & Voice DSP Engine Settings -->
+      <div class="tactical-card" style="margin-top: 16px;">
+        <div class="card-title">
+          <span>🎙️ HD Voice DSP &amp; Audio Tuning</span>
+          <span style="color: var(--emerald-primary); font-weight: 600;">16 kHz Tactical PCM</span>
+        </div>
+        <div class="card-subtitle">
+          Hardware audio filtering, echo cancellation, noise reduction, and mic gain control.
+        </div>
+
+        <div class="settings-toggles-row">
+          <div class="settings-toggle-item">
+            <div>
+              <div class="toggle-title">Acoustic Echo Cancellation (AEC)</div>
+              <div class="toggle-desc">Suppresses speaker feedback and acoustic echo during duplex calls.</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggleAEC" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="settings-toggle-item">
+            <div>
+              <div class="toggle-title">Dynamic Noise Suppression</div>
+              <div class="toggle-desc">Filters background environmental noise and hiss.</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggleNoiseSuppression" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="settings-toggle-item">
+            <div>
+              <div class="toggle-title">Automatic Gain Control (AGC)</div>
+              <div class="toggle-desc">Normalizes microphone loudness for clear tactical voice.</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggleAGC" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div style="margin-top: 16px;">
+          <div style="display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 6px; font-weight: 600;">
+            <span style="color: var(--text-secondary);">MICROPHONE INPUT SENSITIVITY:</span>
+            <span id="micGainValue" style="color: var(--cyan-primary);">100%</span>
+          </div>
+          <input type="range" min="20" max="200" value="100" class="range-slider" id="sliderMicGain">
+          <div style="display: flex; gap: 8px; margin-top: 12px; align-items: center;">
+            <button class="btn-tactical-sm" id="btnTestMic" style="padding: 8px 16px;">🎙️ Test Microphone</button>
+            <div style="flex: 1;">
+              <div class="audio-vu-container" style="height: 10px;">
+                <div class="audio-vu-bar" id="settingVuBar"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 04. Cryptographic Security & Safety -->
+      <div class="tactical-card" style="margin-top: 16px;">
+        <div class="card-title">
+          <span>🔒 Cryptographic Security &amp; Safety</span>
+          <span style="color: var(--emerald-primary); font-weight: 600;">Noise_XX E2EE</span>
+        </div>
+        <div class="card-subtitle">
+          End-to-end cryptographic status and key validation.
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 10px;">
+          <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-glass); border-radius: 8px; padding: 12px;">
+            <div style="font-size: 10px; color: var(--text-muted); font-weight: 700;">CIPHER SUITE</div>
+            <div style="font-size: 12px; color: var(--cyan-primary); font-weight: 700; margin-top: 4px;">ChaCha20-Poly1305 + Curve25519</div>
+          </div>
+          <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-glass); border-radius: 8px; padding: 12px;">
+            <div style="font-size: 10px; color: var(--text-muted); font-weight: 700;">CLOUD TELEMETRY</div>
+            <div style="font-size: 12px; color: var(--emerald-primary); font-weight: 700; margin-top: 4px;">● 100% Zero-Cloud / Air-Gapped</div>
+          </div>
+        </div>
+
+        <div style="margin-top: 12px; display: flex; gap: 8px;">
+          <button class="btn-tactical-sm" id="btnRotateKeys" style="flex: 1; justify-content: center; color: var(--amber-primary);">
+            🔑 Rotate Session Keys
+          </button>
+        </div>
+      </div>
+
+      <!-- 05. Maintenance, History & System Reset -->
+      <div class="tactical-card" style="margin-top: 16px; margin-bottom: 20px;">
+        <div class="card-title">
+          <span>🧹 Storage, Cache &amp; Reset</span>
+          <span style="color: var(--rose-primary); font-weight: 600;">Diagnostic</span>
+        </div>
+        <div class="card-subtitle">
+          Manage local memory buffers, clear message history, and restore default configurations.
+        </div>
+
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
+          <button class="btn-tactical-sm" id="btnClearChatHistory" style="flex: 1; min-width: 160px; justify-content: center;">
+            💬 Clear Chat BBS
+          </button>
+          <button class="btn-tactical-sm" id="btnClearCdrHistory" style="flex: 1; min-width: 160px; justify-content: center;">
+            📞 Clear Call History
+          </button>
+          <button class="btn-tactical-sm" id="btnResetSettings" style="flex: 1; min-width: 160px; justify-content: center; color: var(--rose-primary);">
+            ⚠️ Reset All Settings
+          </button>
+        </div>
+
+        <div style="margin-top: 16px; font-size: 11px; color: var(--text-muted); text-align: center;">
+          Sharp-Bose Tactical Mesh v2.0.0 • 100% Offline Standalone P2P Engine
+        </div>
+      </div>
     </section>
 
   </main>
@@ -261,6 +464,7 @@
     <button class="dock-btn" data-tab="3">🎯 Radar</button>
     <button class="dock-btn" data-tab="4">📻 Channels</button>
     <button class="dock-btn" data-tab="5">📋 Logs</button>
+    <button class="dock-btn" data-tab="6">⚙️ Settings</button>
   </footer>
 
   <!-- Incoming Call Modal -->
