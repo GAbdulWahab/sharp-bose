@@ -50,57 +50,88 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private var activeCallPeerId: String = ""
     private var incomingCallDialog: Dialog? = null
 
-    // UI Elements
-    private lateinit var mainScrollView: ScrollView
+    // UI Root & Header
+    private lateinit var mainRootLayout: LinearLayout
+    private lateinit var headerLayout: LinearLayout
     private lateinit var tvAppTitle: TextView
     private lateinit var tvAppSubtitle: TextView
     private lateinit var btnThemeToggle: Button
-    private lateinit var btnCallHistory: Button
+
+    // 6 Dedicated Screens
+    private lateinit var screenRoster: ScrollView
+    private lateinit var screenComms: ScrollView
+    private lateinit var screenChat: LinearLayout
+    private lateinit var screenRadar: ScrollView
+    private lateinit var screenChannels: ScrollView
+    private lateinit var screenLogsSecurity: ScrollView
+
+    // 6 Navigation Dock Tabs
+    private lateinit var tabRoster: Button
+    private lateinit var tabComms: Button
+    private lateinit var tabChat: Button
+    private lateinit var tabRadar: Button
+    private lateinit var tabChannels: Button
+    private lateinit var tabLogs: Button
+    private var currentTabIndex: Int = 0
+
+    // Screen 1: Roster UI
+    private lateinit var cardStatus: CardView
     private lateinit var tvStatus: TextView
     private lateinit var tvPeerId: TextView
     private lateinit var tvMeshStats: TextView
-    private lateinit var tvLogs: TextView
-    private lateinit var tvLogsHeader: TextView
-    private lateinit var tvPttChannel: TextView
-    private lateinit var btnCall: Button
-    private lateinit var btnReceiveCall: Button
-    private lateinit var btnSpeaker: Button
-    private lateinit var btnSos: Button
-    private lateinit var btnPtt: Button
-    private lateinit var btnOpenChat: Button
-
-    // Connected People Roster UI
     private lateinit var cardPeople: CardView
     private lateinit var tvPeopleTitle: TextView
     private lateinit var tvPeopleSubtitle: TextView
     private lateinit var tvPeopleCount: TextView
     private lateinit var llConnectedPeople: LinearLayout
 
-    // Location UI
-    private lateinit var cardLocation: CardView
-    private lateinit var tvLocationTitle: TextView
-    private lateinit var tvGpsFixBadge: TextView
-    private lateinit var tvLocationCoords: TextView
-    private lateinit var tvLocationMeta: TextView
-    private lateinit var btnShareLocation: Button
-    private lateinit var btnRadarMap: Button
+    // Screen 2: Comms UI
+    private lateinit var cardCall: CardView
+    private lateinit var btnCall: Button
+    private lateinit var btnSpeaker: Button
+    private lateinit var btnReceiveCall: Button
+    private lateinit var cardPtt: CardView
+    private lateinit var tvPttChannel: TextView
+    private lateinit var btnPtt: Button
+    private lateinit var cardSos: CardView
+    private lateinit var btnSos: Button
 
-    // All-India Nationwide HD Network UI
+    // Screen 3: Chat BBS UI
+    private lateinit var chatScrollView: ScrollView
+    private lateinit var chatMessagesContainer: LinearLayout
+    private lateinit var etChatMessage: EditText
+    private lateinit var btnSendChatMessage: Button
+    private val chatMessageList = mutableListOf<Pair<String, String>>() // (sender, text)
+
+    // Screen 4: Radar UI
+    private lateinit var tvRadarSelfCoords: TextView
+    private lateinit var tvRadarSelfMeta: TextView
+    private lateinit var btnRadarBroadcastNow: Button
+    private lateinit var llRadarPeerList: LinearLayout
+
+    // Screen 5: Channels UI
     private lateinit var cardNationwide: CardView
     private lateinit var tvNationwideTitle: TextView
-    private lateinit var tvHdQualityBadge: TextView
     private lateinit var tvCurrentRoom: TextView
     private lateinit var tvNationwideMeta: TextView
-    private lateinit var btnSwitchRoom: Button
+    private lateinit var btnHubIndiaMain: Button
+    private lateinit var btnHubDelhi: Button
+    private lateinit var btnHubMumbai: Button
+    private lateinit var btnHubBangalore: Button
+    private lateinit var btnHubChennai: Button
+    private lateinit var btnHubHyderabad: Button
+    private lateinit var etCustomChannel: EditText
+    private lateinit var btnJoinChannel: Button
     private var currentRoom: String = "INDIA-MAIN"
 
-    // Cards for theme updates
-    private lateinit var cardStatus: CardView
-    private lateinit var cardChat: CardView
-    private lateinit var cardReceiveCall: CardView
-    private lateinit var cardPtt: CardView
-    private lateinit var cardCall: CardView
-    private lateinit var cardSos: CardView
+    // Screen 6: Logs & Security UI
+    private lateinit var tvSafetyNumber: TextView
+    private lateinit var tvRoutingHopStatus: TextView
+    private lateinit var tvRoutingPath: TextView
+    private lateinit var btnClearHistory: Button
+    private lateinit var llCallHistoryContainer: LinearLayout
+    private lateinit var tvLogsHeader: TextView
+    private lateinit var tvLogs: TextView
 
     // Location State
     private var locationManager: LocationManager? = null
@@ -113,18 +144,15 @@ class MainActivity : AppCompatActivity(), LocationListener {
     // Peer Roster State
     private var connectedPeersList = mutableListOf<PeerNode>()
 
-    // Chat State
+    // Theme State
     private var isDarkMode = true
     private lateinit var prefs: SharedPreferences
-    private val chatMessageList = mutableListOf<Pair<String, String>>() // (sender, text)
-    private var activeChatMessagesContainer: LinearLayout? = null
-    private var activeChatScrollView: ScrollView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         try {
             Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-                android.util.Log.e("MainActivity", "Uncaught exception on ${thread.name}: ${throwable.message}", throwable)
+                Log.e("MainActivity", "Uncaught exception on ${thread.name}: ${throwable.message}", throwable)
             }
         } catch (e: Exception) {}
 
@@ -142,6 +170,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         bindViews()
         applyTheme(isDarkMode)
+        switchScreen(0)
         checkAndRequestPermissions()
         startMeshService()
         initLocationEngine()
@@ -150,53 +179,116 @@ class MainActivity : AppCompatActivity(), LocationListener {
     }
 
     private fun bindViews() {
-        mainScrollView = findViewById(R.id.mainScrollView)
+        mainRootLayout = findViewById(R.id.mainRootLayout)
+        headerLayout = findViewById(R.id.headerLayout)
         tvAppTitle = findViewById(R.id.tvAppTitle)
         tvAppSubtitle = findViewById(R.id.tvAppSubtitle)
         btnThemeToggle = findViewById(R.id.btnThemeToggle)
-        btnCallHistory = findViewById(R.id.btnCallHistory)
+
+        // 6 Dedicated Screen Containers
+        screenRoster = findViewById(R.id.screenRoster)
+        screenComms = findViewById(R.id.screenComms)
+        screenChat = findViewById(R.id.screenChat)
+        screenRadar = findViewById(R.id.screenRadar)
+        screenChannels = findViewById(R.id.screenChannels)
+        screenLogsSecurity = findViewById(R.id.screenLogsSecurity)
+
+        // 6 Navigation Dock Tabs
+        tabRoster = findViewById(R.id.tabRoster)
+        tabComms = findViewById(R.id.tabComms)
+        tabChat = findViewById(R.id.tabChat)
+        tabRadar = findViewById(R.id.tabRadar)
+        tabChannels = findViewById(R.id.tabChannels)
+        tabLogs = findViewById(R.id.tabLogs)
+
+        // Screen 1: Roster
+        cardStatus = findViewById(R.id.cardStatus)
         tvStatus = findViewById(R.id.tvStatus)
         tvPeerId = findViewById(R.id.tvPeerId)
         tvMeshStats = findViewById(R.id.tvMeshStats)
-        tvLogs = findViewById(R.id.tvLogs)
-        tvLogsHeader = findViewById(R.id.tvLogsHeader)
-        tvPttChannel = findViewById(R.id.tvPttChannel)
-        btnCall = findViewById(R.id.btnCall)
-        btnReceiveCall = findViewById(R.id.btnReceiveCall)
-        btnSpeaker = findViewById(R.id.btnSpeaker)
-        btnSos = findViewById(R.id.btnSos)
-        btnPtt = findViewById(R.id.btnPtt)
-        btnOpenChat = findViewById(R.id.btnOpenChat)
-
-        cardStatus = findViewById(R.id.cardStatus)
         cardPeople = findViewById(R.id.cardPeople)
         tvPeopleTitle = findViewById(R.id.tvPeopleTitle)
         tvPeopleSubtitle = findViewById(R.id.tvPeopleSubtitle)
         tvPeopleCount = findViewById(R.id.tvPeopleCount)
         llConnectedPeople = findViewById(R.id.llConnectedPeople)
 
-        cardLocation = findViewById(R.id.cardLocation)
-        tvLocationTitle = findViewById(R.id.tvLocationTitle)
-        tvGpsFixBadge = findViewById(R.id.tvGpsFixBadge)
-        tvLocationCoords = findViewById(R.id.tvLocationCoords)
-        tvLocationMeta = findViewById(R.id.tvLocationMeta)
-        btnShareLocation = findViewById(R.id.btnShareLocation)
-        btnRadarMap = findViewById(R.id.btnRadarMap)
-
-        cardChat = findViewById(R.id.cardChat)
-        cardReceiveCall = findViewById(R.id.cardReceiveCall)
-        cardPtt = findViewById(R.id.cardPtt)
+        // Screen 2: Comms
         cardCall = findViewById(R.id.cardCall)
+        btnCall = findViewById(R.id.btnCall)
+        btnSpeaker = findViewById(R.id.btnSpeaker)
+        btnReceiveCall = findViewById(R.id.btnReceiveCall)
+        cardPtt = findViewById(R.id.cardPtt)
+        tvPttChannel = findViewById(R.id.tvPttChannel)
+        btnPtt = findViewById(R.id.btnPtt)
         cardSos = findViewById(R.id.cardSos)
+        btnSos = findViewById(R.id.btnSos)
 
+        // Screen 3: Chat BBS
+        chatScrollView = findViewById(R.id.chatScrollView)
+        chatMessagesContainer = findViewById(R.id.chatMessagesContainer)
+        etChatMessage = findViewById(R.id.etChatMessage)
+        btnSendChatMessage = findViewById(R.id.btnSendChatMessage)
+
+        // Screen 4: Radar
+        tvRadarSelfCoords = findViewById(R.id.tvRadarSelfCoords)
+        tvRadarSelfMeta = findViewById(R.id.tvRadarSelfMeta)
+        btnRadarBroadcastNow = findViewById(R.id.btnRadarBroadcastNow)
+        llRadarPeerList = findViewById(R.id.llRadarPeerList)
+
+        // Screen 5: Channels
         cardNationwide = findViewById(R.id.cardNationwide)
         tvNationwideTitle = findViewById(R.id.tvNationwideTitle)
-        tvHdQualityBadge = findViewById(R.id.tvHdQualityBadge)
         tvCurrentRoom = findViewById(R.id.tvCurrentRoom)
         tvNationwideMeta = findViewById(R.id.tvNationwideMeta)
-        btnSwitchRoom = findViewById(R.id.btnSwitchRoom)
+        btnHubIndiaMain = findViewById(R.id.btnHubIndiaMain)
+        btnHubDelhi = findViewById(R.id.btnHubDelhi)
+        btnHubMumbai = findViewById(R.id.btnHubMumbai)
+        btnHubBangalore = findViewById(R.id.btnHubBangalore)
+        btnHubChennai = findViewById(R.id.btnHubChennai)
+        btnHubHyderabad = findViewById(R.id.btnHubHyderabad)
+        etCustomChannel = findViewById(R.id.etCustomChannel)
+        btnJoinChannel = findViewById(R.id.btnJoinChannel)
 
-        tvPeerId.text = "Local Peer ID: $localPeerId • Noise_XX E2EE"
+        // Screen 6: Logs & Security
+        tvSafetyNumber = findViewById(R.id.tvSafetyNumber)
+        tvRoutingHopStatus = findViewById(R.id.tvRoutingHopStatus)
+        tvRoutingPath = findViewById(R.id.tvRoutingPath)
+        btnClearHistory = findViewById(R.id.btnClearHistory)
+        llCallHistoryContainer = findViewById(R.id.llCallHistoryContainer)
+        tvLogsHeader = findViewById(R.id.tvLogsHeader)
+        tvLogs = findViewById(R.id.tvLogs)
+
+        tvPeerId.text = "NODE ID: $localPeerId • CIPHER: NOISE_XX"
+    }
+
+    private fun switchScreen(tabIndex: Int) {
+        currentTabIndex = tabIndex
+
+        val screens = listOf(screenRoster, screenComms, screenChat, screenRadar, screenChannels, screenLogsSecurity)
+        val tabs = listOf(tabRoster, tabComms, tabChat, tabRadar, tabChannels, tabLogs)
+
+        for (i in screens.indices) {
+            screens[i].visibility = if (i == tabIndex) View.VISIBLE else View.GONE
+        }
+
+        for (i in tabs.indices) {
+            if (i == tabIndex) {
+                tabs[i].setTextColor(Color.parseColor("#00F0FF"))
+                tabs[i].backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0E3B68"))
+            } else {
+                tabs[i].setTextColor(Color.parseColor("#64748B"))
+                tabs[i].backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0A0E17"))
+            }
+        }
+
+        when (tabIndex) {
+            0 -> renderConnectedPeopleList(connectedPeersList)
+            3 -> updateRadarView()
+            5 -> {
+                updateSecurityView()
+                renderCallHistoryView()
+            }
+        }
     }
 
     private fun applyTheme(dark: Boolean) {
@@ -209,22 +301,18 @@ class MainActivity : AppCompatActivity(), LocationListener {
         val textSecondary = if (dark) Color.parseColor("#00FF66") else Color.parseColor("#475569")
         val logBg = if (dark) Color.parseColor("#020617") else Color.parseColor("#CBD5E1")
 
-        mainScrollView.setBackgroundColor(bgMain)
+        mainRootLayout.setBackgroundColor(bgMain)
         tvAppTitle.setTextColor(textPrimary)
         tvAppSubtitle.setTextColor(textSecondary)
         tvLogsHeader.setTextColor(textPrimary)
         tvLogs.setBackgroundColor(logBg)
-
-        tvPeopleSubtitle.setTextColor(textSecondary)
-        tvLocationMeta.setTextColor(textSecondary)
-        tvNationwideMeta.setTextColor(textSecondary)
 
         btnThemeToggle.typeface = android.graphics.Typeface.MONOSPACE
         btnThemeToggle.text = if (dark) "[ 🌙 CRT DARK ]" else "[ ☀️ RETRO AMIGA ]"
         btnThemeToggle.backgroundTintList = android.content.res.ColorStateList.valueOf(bgCard)
         btnThemeToggle.setTextColor(if (dark) Color.parseColor("#00F0FF") else Color.parseColor("#0284C7"))
 
-        val cards = listOf(cardStatus, cardNationwide, cardPeople, cardLocation, cardChat, cardReceiveCall, cardPtt, cardCall, cardSos)
+        val cards = listOf(cardStatus, cardNationwide, cardPeople, cardCall, cardPtt, cardSos)
         for (card in cards) {
             card.setCardBackgroundColor(bgCard)
         }
@@ -249,103 +337,228 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
     }
 
-    override fun onLocationChanged(loc: Location) {
-        currentLatitude = loc.latitude
-        currentLongitude = loc.longitude
-        currentAltitude = loc.altitude
-        currentAccuracy = loc.accuracy
+    override fun onLocationChanged(location: Location) {
+        currentLatitude = location.latitude
+        currentLongitude = location.longitude
+        currentAltitude = location.altitude
+        currentAccuracy = location.accuracy
         hasGpsFix = true
-
-        runOnUiThread {
-            tvGpsFixBadge.text = "● GPS Fix (±${currentAccuracy.toInt()}m)"
-            tvGpsFixBadge.setBackgroundColor(Color.parseColor("#064E3B"))
-            tvGpsFixBadge.setTextColor(Color.parseColor("#34D399"))
-
-            tvLocationCoords.text = String.format(Locale.US, "Lat: %.6f | Lon: %.6f", currentLatitude, currentLongitude)
-            tvLocationMeta.text = String.format(Locale.US, "Accuracy: ±%.0fm • Alt: %.1fm • Hardware Sensor Lock", currentAccuracy, currentAltitude)
-
-            // Re-render peers to update calculated relative distance
-            renderConnectedPeopleList(connectedPeersList)
-        }
+        updateRadarView()
     }
 
     override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
     override fun onProviderEnabled(provider: String) {}
     override fun onProviderDisabled(provider: String) {}
 
-    private fun calculateDistanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Int {
-        val r = 6371e3 // Earth radius in meters
-        val phi1 = Math.toRadians(lat1)
-        val phi2 = Math.toRadians(lat2)
-        val deltaPhi = Math.toRadians(lat2 - lat1)
-        val deltaLambda = Math.toRadians(lon2 - lon1)
+    private fun updateRadarView() {
+        if (hasGpsFix) {
+            tvRadarSelfCoords.typeface = android.graphics.Typeface.MONOSPACE
+            tvRadarSelfCoords.text = String.format(Locale.US, "GPS: LAT %.6f // LON %.6f", currentLatitude, currentLongitude)
+            tvRadarSelfMeta.typeface = android.graphics.Typeface.MONOSPACE
+            tvRadarSelfMeta.text = String.format(Locale.US, "PRECISION: ±%.0fm // ALT: %.1fm // HARDWARE LOCK", currentAccuracy, currentAltitude)
+        } else {
+            tvRadarSelfCoords.typeface = android.graphics.Typeface.MONOSPACE
+            tvRadarSelfCoords.text = "GPS: ACQUIRING SATELLITE FIX..."
+            tvRadarSelfMeta.typeface = android.graphics.Typeface.MONOSPACE
+            tvRadarSelfMeta.text = "Awaiting GNSS/GPS constellation lock"
+        }
 
-        val a = sin(deltaPhi / 2).pow(2) + cos(phi1) * cos(phi2) * sin(deltaLambda / 2).pow(2)
-        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
-        return (r * c).roundToInt()
+        llRadarPeerList.removeAllViews()
+        val otherPeers = connectedPeersList.filter { it.id != localPeerId }
+        if (otherPeers.isEmpty()) {
+            val tvEmpty = TextView(this).apply {
+                text = "NO MESH PEERS IN RANGE.\nLINK LAPTOP OR COMPANION PHONE VIA WI-FI / BLUETOOTH."
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextColor(Color.parseColor("#94A3B8"))
+                textSize = 11spToFloat()
+                gravity = Gravity.CENTER
+                setPadding(0, 30, 0, 30)
+            }
+            llRadarPeerList.addView(tvEmpty)
+        } else {
+            for (peer in otherPeers) {
+                val item = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    val bg = if (isDarkMode) Color.parseColor("#0A0E17") else Color.parseColor("#F8FAFC")
+                    setBackgroundColor(bg)
+                    setPadding(16, 12, 16, 12)
+                    val lp = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { setMargins(0, 0, 0, 8) }
+                    layoutParams = lp
+                }
+
+                val tvName = TextView(this).apply {
+                    text = "${if (peer.deviceType.contains("Android", true)) "📱" else "💻"} ${peer.nickname.uppercase(Locale.ROOT)} [${peer.id}]"
+                    setTextColor(if (isDarkMode) Color.parseColor("#00F0FF") else Color.parseColor("#0F172A"))
+                    textSize = 12spToFloat()
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                }
+
+                var distStr = "DIRECT LOCAL MESH LINK"
+                var coordsStr = "NO GPS TELEMETRY BROADCASTED"
+                if (hasGpsFix && peer.location != null && peer.location.lat != 0.0) {
+                    val dist = calculateDistanceMeters(currentLatitude, currentLongitude, peer.location.lat, peer.location.lng)
+                    val bearing = calculateBearingDegrees(currentLatitude, currentLongitude, peer.location.lat, peer.location.lng)
+                    val heading = getCompassHeading(bearing)
+                    distStr = "📍 RANGE: ${formatDistance(dist)} ${heading.second} ${heading.first} (${bearing.toInt()}°)"
+                    coordsStr = String.format(Locale.US, "COORDS: %.6f, %.6f (±%.0fm)", peer.location.lat, peer.location.lng, peer.location.accuracy)
+                }
+
+                val tvDist = TextView(this).apply {
+                    text = distStr
+                    setTextColor(Color.parseColor("#00FF66"))
+                    textSize = 11spToFloat()
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                }
+
+                val tvCoords = TextView(this).apply {
+                    text = coordsStr
+                    setTextColor(Color.parseColor("#94A3B8"))
+                    textSize = 10spToFloat()
+                    typeface = android.graphics.Typeface.MONOSPACE
+                }
+
+                item.addView(tvName)
+                item.addView(tvDist)
+                item.addView(tvCoords)
+                llRadarPeerList.addView(item)
+            }
+        }
     }
 
-    private fun calculateBearingDegrees(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
-        val phi1 = Math.toRadians(lat1)
-        val phi2 = Math.toRadians(lat2)
-        val deltaLambda = Math.toRadians(lon2 - lon1)
-
-        val y = sin(deltaLambda) * cos(phi2)
-        val x = cos(phi1) * sin(phi2) - sin(phi1) * cos(phi2) * cos(deltaLambda)
-        val theta = atan2(y, x)
-        return (Math.toDegrees(theta) + 360.0) % 360.0
+    private fun updateSecurityView(targetPeerId: String = "node-peer") {
+        val fingerprint = bridge.crypto.getSafetyFingerprint(localPeerId, targetPeerId)
+        tvSafetyNumber.typeface = android.graphics.Typeface.MONOSPACE
+        tvSafetyNumber.text = "[ $fingerprint ]"
+        tvRoutingHopStatus.typeface = android.graphics.Typeface.MONOSPACE
+        tvRoutingHopStatus.text = "HOP LIMIT: 15 MAX // MULTI-HOP RELAY ACTIVE"
+        tvRoutingPath.typeface = android.graphics.Typeface.MONOSPACE
+        tvRoutingPath.text = "TARGET: $targetPeerId // CIPHER: NOISE_XX + AES-256-GCM"
     }
 
-    private fun getCompassHeading(degrees: Double): Pair<String, String> {
-        val directions = arrayOf("N", "NE", "E", "SE", "S", "SW", "W", "NW")
-        val arrows = arrayOf("↑", "↗", "→", "↘", "↓", "↙", "←", "↖")
-        val index = ((degrees / 45.0).roundToInt()) % 8
-        return Pair(directions[index], arrows[index])
-    }
+    private fun renderCallHistoryView() {
+        llCallHistoryContainer.removeAllViews()
+        val records = callHistoryManager.getCallHistory()
+        if (records.isEmpty()) {
+            val tvEmpty = TextView(this).apply {
+                text = "NO CDR TELEPHONY LOGS RECORDED.\nMAKE OR RECEIVE CALLS TO POPULATE AUDIT TRAIL."
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextColor(Color.parseColor("#64748B"))
+                textSize = 11spToFloat()
+                gravity = Gravity.CENTER
+                setPadding(0, 30, 0, 30)
+            }
+            llCallHistoryContainer.addView(tvEmpty)
+            return
+        }
 
-    private fun formatDistance(meters: Int): String {
-        return if (meters < 1000) "${meters}m" else String.format(Locale.US, "%.1fkm", meters / 1000.0)
+        val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
+        for (record in records) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                val bg = if (isDarkMode) Color.parseColor("#0A0E17") else Color.parseColor("#F1F5F9")
+                setBackgroundColor(bg)
+                setPadding(16, 12, 16, 12)
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(0, 0, 0, 8) }
+                layoutParams = lp
+            }
+
+            val (icon, typeColor, typeLabel) = when (record.type) {
+                "INCOMING" -> Triple("↙", "#00FF66", "INCOMING")
+                "OUTGOING" -> Triple("↗", "#00F0FF", "OUTGOING")
+                "MISSED" -> Triple("✕", "#FF0055", "MISSED")
+                "DECLINED" -> Triple("🚫", "#FFB000", "DECLINED")
+                else -> Triple("📞", "#94A3B8", record.type)
+            }
+
+            val tvIcon = TextView(this).apply {
+                text = icon
+                textSize = 16spToFloat()
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextColor(Color.parseColor(typeColor))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setPadding(0, 0, 12, 0)
+            }
+
+            val centerLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val tvName = TextView(this).apply {
+                text = record.peerName.uppercase(Locale.ROOT)
+                textSize = 13spToFloat()
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextColor(if (isDarkMode) Color.parseColor("#00F0FF") else Color.parseColor("#0F172A"))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+
+            val durationStr = if (record.durationSeconds > 0) {
+                val m = record.durationSeconds / 60
+                val s = record.durationSeconds % 60
+                String.format(Locale.US, "%02d:%02d", m, s)
+            } else {
+                typeLabel
+            }
+
+            val tvMeta = TextView(this).apply {
+                val dateStr = dateFormat.format(Date(record.timestamp))
+                text = "$typeLabel // $durationStr // $dateStr"
+                textSize = 10spToFloat()
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextColor(Color.parseColor("#94A3B8"))
+            }
+
+            centerLayout.addView(tvName)
+            centerLayout.addView(tvMeta)
+
+            val btnCallAgain = Button(this).apply {
+                text = "[ 📞 CALL ]"
+                textSize = 11spToFloat()
+                typeface = android.graphics.Typeface.MONOSPACE
+                backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
+                setTextColor(Color.WHITE)
+                layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 90)
+                setOnClickListener {
+                    switchScreen(1)
+                    startVoiceCall(record.peerId, record.peerName)
+                }
+            }
+
+            row.addView(tvIcon)
+            row.addView(centerLayout)
+            row.addView(btnCallAgain)
+            llCallHistoryContainer.addView(row)
+        }
     }
 
     private fun setupMeshBridge() {
-        bridge.onStatusChanged = { status, isConnected ->
+        bridge.onMeshStatusChanged = { status ->
             runOnUiThread {
                 tvStatus.text = status
-                if (isConnected) {
-                    tvStatus.setTextColor(ContextCompat.getColor(this, R.color.accent_emerald))
-                    logEvent("[Bridge] $status")
-                    bridge.sendSetNickname("Android Phone (${Build.MODEL})", "Android")
+                if (status.contains("Online", true) || status.contains("Connected", true)) {
+                    tvStatus.setTextColor(ContextCompat.getColor(this, R.color.neon_emerald))
                 } else {
-                    tvStatus.setTextColor(ContextCompat.getColor(this, R.color.accent_cyan))
+                    tvStatus.setTextColor(ContextCompat.getColor(this, R.color.accent_rose))
                 }
                 renderConnectedPeopleList(connectedPeersList)
             }
         }
 
-        bridge.onPeerListUpdated = { peers ->
+        bridge.onPeersUpdated = { peers ->
             runOnUiThread {
-                connectedPeersList.clear()
-                connectedPeersList.addAll(peers)
-                renderConnectedPeopleList(peers)
-            }
-        }
-
-        bridge.onLocationReceived = { senderId, senderName, location ->
-            runOnUiThread {
-                logEvent("[Location] 📍 Received GPS from $senderName (${location.lat}, ${location.lng})")
-                val existing = connectedPeersList.find { it.id == senderId }
-                if (existing != null) {
-                    val idx = connectedPeersList.indexOf(existing)
-                    connectedPeersList[idx] = existing.copy(location = location)
-                } else {
-                    connectedPeersList.add(PeerNode(senderId, senderName, "Peer", "Online", location))
-                }
+                connectedPeersList = peers.toMutableList()
                 renderConnectedPeopleList(connectedPeersList)
+                updateRadarView()
             }
-        }
-
-        bridge.onAudioFrameReceived = { frame ->
-            audioEngine.playAudioFrame(frame)
         }
 
         bridge.onIncomingCall = { callerName, callerId ->
@@ -354,63 +567,48 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
         }
 
-        bridge.onCallAccepted = { peerName ->
+        bridge.onCallAccepted = { peerId ->
             runOnUiThread {
-                activeCallPeerName = peerName
-                logEvent("[Live Call] 📞 $peerName accepted call! 2-way voice connected.")
-                Toast.makeText(this, "Call Connected with $peerName", Toast.LENGTH_SHORT).show()
+                isCalling = true
+                callStartTime = System.currentTimeMillis()
+                btnCall.text = "[ 🔴 END CALL ]"
+                btnCall.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_rose))
+                try {
+                    audioEngine.startVoice()
+                    logEvent("[Live Call] Call connected with peer ($peerId)")
+                    Toast.makeText(this, "Call Connected", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    logEvent("[Error] Failed to start audio: ${e.message}")
+                }
             }
         }
 
-        bridge.onCallEnded = {
+        bridge.onCallDeclined = { peerId ->
             runOnUiThread {
-                if (incomingCallDialog != null && incomingCallDialog?.isShowing == true) {
-                    incomingCallDialog?.dismiss()
-                    incomingCallDialog = null
-                    callHistoryManager.addCallRecord(
-                        CallRecord(
-                            id = UUID.randomUUID().toString(),
-                            peerName = activeCallPeerName,
-                            peerId = activeCallPeerId,
-                            type = "MISSED",
-                            timestamp = System.currentTimeMillis(),
-                            durationSeconds = 0
-                        )
-                    )
-                    Toast.makeText(this, "Missed Call from $activeCallPeerName", Toast.LENGTH_SHORT).show()
-                } else if (isCalling) {
-                    val duration = maxOf(1, ((System.currentTimeMillis() - callStartTime) / 1000).toInt())
-                    callHistoryManager.addCallRecord(
-                        CallRecord(
-                            id = UUID.randomUUID().toString(),
-                            peerName = activeCallPeerName,
-                            peerId = activeCallPeerId,
-                            type = "INCOMING",
-                            timestamp = callStartTime,
-                            durationSeconds = duration
-                        )
-                    )
-                    audioEngine.stopVoice()
-                    isCalling = false
-                    btnCall.text = "Start Voice Call"
-                    btnCall.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_emerald))
-                    Toast.makeText(this, "Call Ended", Toast.LENGTH_SHORT).show()
-                }
-                logEvent("[Live Call] Remote peer ended the call.")
+                stopVoiceCall(recordHistory = true)
+                logEvent("[Live Call] Call was declined by $peerId")
+                Toast.makeText(this, "Call Declined", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        bridge.onCallTerminated = {
+            runOnUiThread {
+                stopVoiceCall(recordHistory = true)
+                logEvent("[Live Call] Remote peer ended the call")
             }
         }
 
         bridge.onPttStarted = { speakerName ->
             runOnUiThread {
-                tvPttChannel.text = "Channel 1 • Floor: $speakerName (Speaking...)"
+                tvPttChannel.text = "FREQ 01 • FLOOR: $speakerName (SPEAKING...)"
                 tvPttChannel.setTextColor(ContextCompat.getColor(this, R.color.accent_rose))
             }
         }
 
         bridge.onPttStopped = {
             runOnUiThread {
-                tvPttChannel.text = "Channel 1: Emergency & Tactical • Floor: Clear"
-                tvPttChannel.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+                tvPttChannel.text = "FREQ 01: EMERGENCY & TACTICAL • FLOOR: CLEAR"
+                tvPttChannel.setTextColor(ContextCompat.getColor(this, R.color.neon_emerald))
             }
         }
 
@@ -418,12 +616,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             runOnUiThread {
                 chatMessageList.add(Pair(senderName, text))
                 logEvent("[Chat] 💬 $senderName: $text")
-
-                if (activeChatMessagesContainer != null) {
-                    appendChatBubble(activeChatMessagesContainer!!, activeChatScrollView, senderName, text, false)
-                } else {
-                    Toast.makeText(this, "💬 $senderName: $text", Toast.LENGTH_SHORT).show()
-                }
+                appendChatBubble(chatMessagesContainer, chatScrollView, senderName, text, false)
             }
         }
 
@@ -437,10 +630,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val otherPeers = peers.filter { it.id != localPeerId }
 
-        // Dynamic list of available network and bluetooth targets
-        // Tuple: (Title, Subtitle/Type, TargetAddress/IP)
         val availableList = mutableListOf<Triple<String, String, String>>()
-
         val isConnectedToWifi = bridge.isConnected && bridge.currentHost == "10.19.238.166"
         val isConnectedToBtPan = bridge.isConnected && bridge.currentHost == "172.27.180.170"
 
@@ -451,7 +641,6 @@ class MainActivity : AppCompatActivity(), LocationListener {
             availableList.add(Triple("🔵 Laptop Node (Bluetooth PAN)", "Bluetooth PAN // 172.27.180.170:3000", "172.27.180.170"))
         }
 
-        // Discover Paired / Bonded Bluetooth Devices safely
         try {
             val btAdapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
             if (btAdapter != null && btAdapter.isEnabled) {
@@ -469,16 +658,12 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
         } catch (e: Exception) {}
 
-        // Update People Count Header Badge
         tvPeopleCount.typeface = android.graphics.Typeface.MONOSPACE
         tvPeopleCount.text = "[ ${otherPeers.size} ACTIVE // ${availableList.size} STANDBY ]"
 
-        // ==========================================
-        // SECTION 1: 🟢 CONNECTED DEVICES / ACTIVE NODES
-        // ==========================================
         val tvConnectedHeader = TextView(this).apply {
             text = "🟢 [ ACTIVE MESH LINKS // ${otherPeers.size} ]"
-            textSize = 12f
+            textSize = 12spToFloat()
             typeface = android.graphics.Typeface.MONOSPACE
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(Color.parseColor("#00FF66"))
@@ -509,7 +694,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 }
                 typeface = android.graphics.Typeface.MONOSPACE
                 setTextColor(if (isDarkMode) Color.parseColor("#00F0FF") else Color.parseColor("#64748B"))
-                textSize = 11f
+                textSize = 11spToFloat()
             }
             emptyCard.addView(tvNotice)
             llConnectedPeople.addView(emptyCard)
@@ -530,7 +715,6 @@ class MainActivity : AppCompatActivity(), LocationListener {
                     layoutParams = params
                 }
 
-                // Left Icon & Info
                 val leftInfo = LinearLayout(this).apply {
                     orientation = LinearLayout.VERTICAL
                     layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
@@ -540,7 +724,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 val tvName = TextView(this).apply {
                     text = "$iconStr ${peer.nickname.uppercase(Locale.ROOT)}"
                     setTextColor(if (isDarkMode) Color.parseColor("#00F0FF") else Color.parseColor("#0F172A"))
-                    textSize = 13f
+                    textSize = 13spToFloat()
                     typeface = android.graphics.Typeface.MONOSPACE
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                 }
@@ -559,46 +743,45 @@ class MainActivity : AppCompatActivity(), LocationListener {
                     text = "LINK: ONLINE • E2EE // ${peer.status.uppercase(Locale.ROOT)} // $distStr"
                     setTextColor(Color.parseColor("#00FF66"))
                     typeface = android.graphics.Typeface.MONOSPACE
-                    textSize = 10f
+                    textSize = 10spToFloat()
                 }
 
                 leftInfo.addView(tvName)
                 leftInfo.addView(tvMeta)
                 peerRow.addView(leftInfo)
 
-                // Security Fingerprint Button
                 val btnSecurity = Button(this).apply {
                     text = "[ 🔒 ]"
-                    textSize = 11f
+                    textSize = 11spToFloat()
                     typeface = android.graphics.Typeface.MONOSPACE
                     backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
                     setTextColor(Color.parseColor("#00F0FF"))
                     setOnClickListener {
-                        showSecurityDialog(peer.id)
+                        switchScreen(5)
+                        updateSecurityView(peer.id)
                     }
                 }
 
-                // Quick Call Button
                 val btnQuickCall = Button(this).apply {
                     text = "[ 📞 CALL ]"
-                    textSize = 11f
+                    textSize = 11spToFloat()
                     typeface = android.graphics.Typeface.MONOSPACE
                     backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
                     setTextColor(Color.WHITE)
                     setOnClickListener {
+                        switchScreen(1)
                         startVoiceCall(peer.id, peer.nickname)
                     }
                 }
 
-                // Quick Message Button
                 val btnQuickChat = Button(this).apply {
                     text = "[ 💬 BBS ]"
-                    textSize = 11f
+                    textSize = 11spToFloat()
                     typeface = android.graphics.Typeface.MONOSPACE
                     backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
                     setTextColor(Color.WHITE)
                     setOnClickListener {
-                        showChatDialog()
+                        switchScreen(2)
                     }
                 }
 
@@ -617,12 +800,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
         }
 
-        // ==========================================
-        // SECTION 2: 📡 AVAILABLE DEVICES & RADIOS (Tap to Link)
-        // ==========================================
         val tvAvailableHeader = TextView(this).apply {
             text = "📡 [ AVAILABLE RADIOS & HUBS // ${availableList.size} ]"
-            textSize = 12f
+            textSize = 12spToFloat()
             typeface = android.graphics.Typeface.MONOSPACE
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(Color.parseColor("#00F0FF"))
@@ -654,7 +834,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             val tvTitle = TextView(this).apply {
                 text = devTitle.uppercase(Locale.ROOT)
                 setTextColor(if (isDarkMode) Color.parseColor("#00F0FF") else Color.parseColor("#0F172A"))
-                textSize = 12f
+                textSize = 12spToFloat()
                 typeface = android.graphics.Typeface.MONOSPACE
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
             }
@@ -663,7 +843,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 text = ">>> $devSubtitle"
                 setTextColor(if (isDarkMode) Color.parseColor("#94A3B8") else Color.parseColor("#64748B"))
                 typeface = android.graphics.Typeface.MONOSPACE
-                textSize = 10f
+                textSize = 10spToFloat()
             }
 
             leftInfo.addView(tvTitle)
@@ -672,7 +852,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
             val btnConnect = Button(this).apply {
                 text = "[ 🔗 LINK ]"
-                textSize = 11f
+                textSize = 11spToFloat()
                 typeface = android.graphics.Typeface.MONOSPACE
                 backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
                 setTextColor(Color.WHITE)
@@ -700,7 +880,6 @@ class MainActivity : AppCompatActivity(), LocationListener {
             llConnectedPeople.addView(availRow)
         }
 
-        // Quick Scan & Config Action Buttons at bottom of list
         val actionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, 8, 0, 4)
@@ -708,7 +887,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val btnQuickScan = Button(this).apply {
             text = "[ 🔄 AUTO-SCAN ALL ]"
-            textSize = 11f
+            textSize = 11spToFloat()
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
             setTextColor(Color.parseColor("#00F0FF"))
@@ -720,7 +899,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val btnCustomSettings = Button(this).apply {
             text = "[ ⚙️ CONFIG IP ]"
-            textSize = 11f
+            textSize = 11spToFloat()
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
             setTextColor(Color.parseColor("#00FF66"))
@@ -734,64 +913,72 @@ class MainActivity : AppCompatActivity(), LocationListener {
         llConnectedPeople.addView(actionRow)
     }
 
-    private fun showSecurityDialog(targetPeerId: String = "node-peer") {
-        val dialog = Dialog(this)
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.setContentView(R.layout.dialog_security)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.94).toInt(),
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
+    private fun appendChatBubble(
+        container: LinearLayout,
+        scrollView: ScrollView?,
+        sender: String,
+        text: String,
+        isMe: Boolean
+    ) {
+        val bubbleLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val params = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = if (isMe) Gravity.END else Gravity.START
+                setMargins(4, 6, 4, 6)
+            }
+            layoutParams = params
+            setPadding(24, 14, 24, 14)
 
-        val secRoot = dialog.findViewById<LinearLayout>(R.id.securityDialogRoot)
-        val tvHeader = dialog.findViewById<TextView>(R.id.tvSecurityHeaderTitle)
-        val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseSecurity)
-        val tvSafety = dialog.findViewById<TextView>(R.id.tvSafetyNumber)
-        val tvHopStatus = dialog.findViewById<TextView>(R.id.tvRoutingHopStatus)
-        val tvPath = dialog.findViewById<TextView>(R.id.tvRoutingPath)
-        val btnDone = dialog.findViewById<Button>(R.id.btnVerifySecurityDone)
-
-        if (isDarkMode) {
-            secRoot.setBackgroundResource(R.drawable.dialog_background)
-            tvHeader.setTextColor(Color.parseColor("#00F0FF"))
-        } else {
-            secRoot.setBackgroundColor(Color.parseColor("#FFFFFF"))
-            tvHeader.setTextColor(Color.parseColor("#0284C7"))
+            if (isMe) {
+                setBackgroundColor(Color.parseColor("#0E3B68"))
+            } else {
+                setBackgroundColor(if (isDarkMode) Color.parseColor("#0A0E17") else Color.parseColor("#E2E8F0"))
+            }
         }
 
-        val fingerprint = bridge.crypto.getSafetyFingerprint(localPeerId, targetPeerId)
-        tvSafety.typeface = android.graphics.Typeface.MONOSPACE
-        tvSafety.text = "[ $fingerprint ]"
-        tvHopStatus.typeface = android.graphics.Typeface.MONOSPACE
-        tvHopStatus.text = "HOP LIMIT: 15 MAX // MULTI-HOP RELAY ACTIVE"
-        tvPath.typeface = android.graphics.Typeface.MONOSPACE
-        tvPath.text = "TARGET: $targetPeerId // CIPHER: NOISE_XX + AES-256-GCM"
-
-        btnDone.typeface = android.graphics.Typeface.MONOSPACE
-        btnDone.text = "[ ✓ VERIFY CIPHER SPEC ]"
-
-        btnClose.setOnClickListener { dialog.dismiss() }
-        btnDone.setOnClickListener {
-            Toast.makeText(this, "✓ E2EE Safety Number Verified", Toast.LENGTH_SHORT).show()
-            dialog.dismiss()
+        val tvSender = TextView(this).apply {
+            this.text = if (isMe) "[ LOCAL_NODE // YOU ]" else "[ PEER // ${sender.uppercase(Locale.ROOT)} ]"
+            textSize = 10spToFloat()
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTextColor(if (isMe) Color.parseColor("#00F0FF") else Color.parseColor("#FFB000"))
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
         }
 
-        dialog.show()
+        val tvMsg = TextView(this).apply {
+            this.text = text
+            textSize = 12spToFloat()
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTextColor(if (isMe || isDarkMode) Color.parseColor("#00FF66") else Color.parseColor("#0F172A"))
+        }
+
+        bubbleLayout.addView(tvSender)
+        bubbleLayout.addView(tvMsg)
+        container.addView(bubbleLayout)
+
+        scrollView?.post {
+            scrollView.fullScroll(ScrollView.FOCUS_DOWN)
+        }
     }
 
     @SuppressLint("ClickableViewAccessibility")
     private fun setupUIListeners() {
+        // Navigation Dock Tab Listeners
+        tabRoster.setOnClickListener { switchScreen(0) }
+        tabComms.setOnClickListener { switchScreen(1) }
+        tabChat.setOnClickListener { switchScreen(2) }
+        tabRadar.setOnClickListener { switchScreen(3) }
+        tabChannels.setOnClickListener { switchScreen(4) }
+        tabLogs.setOnClickListener { switchScreen(5) }
+
         btnThemeToggle.setOnClickListener {
             applyTheme(!isDarkMode)
         }
 
-        btnCallHistory.setOnClickListener {
-            showCallHistoryDialog()
-        }
-
         tvPeerId.setOnClickListener {
-            showSecurityDialog()
+            switchScreen(5)
         }
 
         tvStatus.setOnClickListener {
@@ -802,29 +989,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             showIpSettingsDialog()
         }
 
-        btnOpenChat.setOnClickListener {
-            showChatDialog()
-        }
-
-        btnShareLocation.setOnClickListener {
-            if (hasGpsFix) {
-                bridge.sendLocationUpdate(currentLatitude, currentLongitude, currentAltitude, currentAccuracy)
-                logEvent("[Location] 📍 Broadcasted GPS ($currentLatitude, $currentLongitude) to mesh")
-                Toast.makeText(this, "📍 Broadcasted GPS Location to Mesh", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "Acquiring GPS fix... Please ensure Location is enabled", Toast.LENGTH_SHORT).show()
-                initLocationEngine()
-            }
-        }
-
-        btnSwitchRoom.setOnClickListener {
-            showChannelDialog()
-        }
-
-        btnRadarMap.setOnClickListener {
-            showRadarDialog()
-        }
-
+        // Comms Screen Actions
         btnCall.setOnClickListener {
             if (!isCalling) {
                 val targetPeer = connectedPeersList.firstOrNull { it.id != localPeerId }
@@ -867,52 +1032,37 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
         }
 
-        audioEngine.onAudioFrameCaptured = { frame ->
-            bridge.sendAudioFrame(frame)
-        }
-    }
-
-    private fun showChannelDialog() {
-        val dialog = Dialog(this)
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.setContentView(R.layout.dialog_channel)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.94).toInt(),
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val channelRoot = dialog.findViewById<LinearLayout>(R.id.channelDialogRoot)
-        val tvHeader = dialog.findViewById<TextView>(R.id.tvChannelHeaderTitle)
-        val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseChannel)
-        val btnHubIndiaMain = dialog.findViewById<Button>(R.id.btnHubIndiaMain)
-        val btnHubDelhi = dialog.findViewById<Button>(R.id.btnHubDelhi)
-        val btnHubMumbai = dialog.findViewById<Button>(R.id.btnHubMumbai)
-        val btnHubBangalore = dialog.findViewById<Button>(R.id.btnHubBangalore)
-        val btnHubChennai = dialog.findViewById<Button>(R.id.btnHubChennai)
-        val btnHubHyderabad = dialog.findViewById<Button>(R.id.btnHubHyderabad)
-        val etCustomChannel = dialog.findViewById<EditText>(R.id.etCustomChannel)
-        val btnJoinChannel = dialog.findViewById<Button>(R.id.btnJoinChannel)
-
-        if (isDarkMode) {
-            channelRoot.setBackgroundResource(R.drawable.dialog_background)
-            tvHeader.setTextColor(Color.parseColor("#FFB000"))
-            etCustomChannel.setBackgroundColor(Color.parseColor("#0A0E17"))
-            etCustomChannel.setTextColor(Color.parseColor("#00F0FF"))
-        } else {
-            channelRoot.setBackgroundColor(Color.parseColor("#FFFFFF"))
-            tvHeader.setTextColor(Color.parseColor("#D97706"))
-            etCustomChannel.setBackgroundColor(Color.parseColor("#F1F5F9"))
-            etCustomChannel.setTextColor(Color.parseColor("#0F172A"))
+        // Chat Screen Actions
+        btnSendChatMessage.setOnClickListener {
+            val text = etChatMessage.text.toString().trim()
+            if (text.isNotEmpty()) {
+                bridge.sendChatMessage(text, "Android Phone (${Build.MODEL})")
+                chatMessageList.add(Pair("You", text))
+                appendChatBubble(chatMessagesContainer, chatScrollView, "You", text, true)
+                logEvent("[Chat Sent] $text")
+                etChatMessage.setText("")
+            }
         }
 
+        // Radar Screen Actions
+        btnRadarBroadcastNow.setOnClickListener {
+            if (hasGpsFix) {
+                bridge.sendLocationUpdate(currentLatitude, currentLongitude, currentAltitude, currentAccuracy)
+                logEvent("[Location] 📍 Broadcasted GPS ($currentLatitude, $currentLongitude) to mesh")
+                Toast.makeText(this, "📍 Location Broadcasted to Mesh!", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Acquiring GPS fix... Please ensure Location is enabled", Toast.LENGTH_SHORT).show()
+                initLocationEngine()
+            }
+        }
+
+        // Channel Screen Actions
         val selectRoom: (String) -> Unit = { roomName ->
             currentRoom = roomName.uppercase(Locale.ROOT).trim()
             tvCurrentRoom.text = "🇮🇳 [ FREQ: $currentRoom ]"
             bridge.sendJoinRoom(currentRoom)
             logEvent("[Nationwide HD] Switched to All-India Hub: $currentRoom")
             Toast.makeText(this, "Joined Hub: $currentRoom", Toast.LENGTH_SHORT).show()
-            dialog.dismiss()
         }
 
         btnHubIndiaMain.setOnClickListener { selectRoom("INDIA-MAIN") }
@@ -931,246 +1081,15 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
         }
 
-        btnClose.setOnClickListener { dialog.dismiss() }
-        dialog.show()
-    }
-
-    private fun showRadarDialog() {
-        val dialog = Dialog(this)
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.setContentView(R.layout.dialog_radar)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.94).toInt(),
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val radarRoot = dialog.findViewById<LinearLayout>(R.id.radarDialogRoot)
-        val tvHeader = dialog.findViewById<TextView>(R.id.tvRadarHeaderTitle)
-        val tvSub = dialog.findViewById<TextView>(R.id.tvRadarDialogSub)
-        val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseRadar)
-        val tvSelfCoords = dialog.findViewById<TextView>(R.id.tvRadarSelfCoords)
-        val tvSelfMeta = dialog.findViewById<TextView>(R.id.tvRadarSelfMeta)
-        val llPeerList = dialog.findViewById<LinearLayout>(R.id.llRadarPeerList)
-        val btnBroadcast = dialog.findViewById<Button>(R.id.btnRadarBroadcastNow)
-
-        if (isDarkMode) {
-            radarRoot.setBackgroundResource(R.drawable.dialog_background)
-            tvHeader.setTextColor(Color.parseColor("#00FF66"))
-            tvSub.setTextColor(Color.parseColor("#94A3B8"))
-        } else {
-            radarRoot.setBackgroundColor(Color.parseColor("#FFFFFF"))
-            tvHeader.setTextColor(Color.parseColor("#0284C7"))
-            tvSub.setTextColor(Color.parseColor("#475569"))
+        // Logs Screen Actions
+        btnClearHistory.setOnClickListener {
+            callHistoryManager.clearHistory()
+            renderCallHistoryView()
+            Toast.makeText(this, "Call history cleared", Toast.LENGTH_SHORT).show()
         }
 
-        if (hasGpsFix) {
-            tvSelfCoords.typeface = android.graphics.Typeface.MONOSPACE
-            tvSelfCoords.text = String.format(Locale.US, "GPS: LAT %.6f // LON %.6f", currentLatitude, currentLongitude)
-            tvSelfMeta.typeface = android.graphics.Typeface.MONOSPACE
-            tvSelfMeta.text = String.format(Locale.US, "PRECISION: ±%.0fm // ALT: %.1fm // HARDWARE LOCK", currentAccuracy, currentAltitude)
-        } else {
-            tvSelfCoords.typeface = android.graphics.Typeface.MONOSPACE
-            tvSelfCoords.text = "GPS: ACQUIRING SATELLITE FIX..."
-            tvSelfMeta.typeface = android.graphics.Typeface.MONOSPACE
-            tvSelfMeta.text = "Awaiting GNSS/GPS constellation Lock"
-        }
-
-        llPeerList.removeAllViews()
-        val otherPeers = connectedPeersList.filter { it.id != localPeerId }
-        if (otherPeers.isEmpty()) {
-            val tvEmpty = TextView(this).apply {
-                text = "NO MESH PEERS DETECTED IN RANGE.\nLINK LAPTOP OR COMPANION PHONE VIA WI-FI / BLUETOOTH."
-                typeface = android.graphics.Typeface.MONOSPACE
-                setTextColor(Color.parseColor("#94A3B8"))
-                textSize = 11f
-                gravity = Gravity.CENTER
-                setPadding(0, 30, 0, 30)
-            }
-            llPeerList.addView(tvEmpty)
-        } else {
-            for (peer in otherPeers) {
-                val item = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    val bg = if (isDarkMode) Color.parseColor("#0A0E17") else Color.parseColor("#F8FAFC")
-                    setBackgroundColor(bg)
-                    setPadding(16, 12, 16, 12)
-                    val lp = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).apply { setMargins(0, 0, 0, 8) }
-                    layoutParams = lp
-                }
-
-                val tvName = TextView(this).apply {
-                    text = "${if (peer.deviceType.contains("Android", true)) "📱" else "💻"} ${peer.nickname.uppercase(Locale.ROOT)} [${peer.id}]"
-                    setTextColor(if (isDarkMode) Color.parseColor("#00F0FF") else Color.parseColor("#0F172A"))
-                    textSize = 12f
-                    typeface = android.graphics.Typeface.MONOSPACE
-                    setTypeface(typeface, android.graphics.Typeface.BOLD)
-                }
-
-                var distStr = "DIRECT LOCAL MESH LINK"
-                var coordsStr = "NO GPS TELEMETRY BROADCASTED"
-                if (hasGpsFix && peer.location != null && peer.location.lat != 0.0) {
-                    val dist = calculateDistanceMeters(currentLatitude, currentLongitude, peer.location.lat, peer.location.lng)
-                    val bearing = calculateBearingDegrees(currentLatitude, currentLongitude, peer.location.lat, peer.location.lng)
-                    val heading = getCompassHeading(bearing)
-                    distStr = "📍 RANGE: ${formatDistance(dist)} ${heading.second} ${heading.first} (${bearing.toInt()}°)"
-                    coordsStr = String.format(Locale.US, "COORDS: %.6f, %.6f (±%.0fm)", peer.location.lat, peer.location.lng, peer.location.accuracy)
-                }
-
-                val tvDist = TextView(this).apply {
-                    text = distStr
-                    setTextColor(Color.parseColor("#00FF66"))
-                    textSize = 11f
-                    typeface = android.graphics.Typeface.MONOSPACE
-                    setTypeface(typeface, android.graphics.Typeface.BOLD)
-                }
-
-                val tvCoords = TextView(this).apply {
-                    text = coordsStr
-                    setTextColor(Color.parseColor("#94A3B8"))
-                    textSize = 10f
-                    typeface = android.graphics.Typeface.MONOSPACE
-                }
-
-                item.addView(tvName)
-                item.addView(tvDist)
-                item.addView(tvCoords)
-                llPeerList.addView(item)
-            }
-        }
-
-        btnBroadcast.typeface = android.graphics.Typeface.MONOSPACE
-        btnBroadcast.text = "[ 📍 BROADCAST GPS FIX TO MESH ]"
-        btnBroadcast.setOnClickListener {
-            if (hasGpsFix) {
-                bridge.sendLocationUpdate(currentLatitude, currentLongitude, currentAltitude, currentAccuracy)
-                Toast.makeText(this, "📍 Location broadcasted to mesh!", Toast.LENGTH_SHORT).show()
-                dialog.dismiss()
-            } else {
-                Toast.makeText(this, "Acquiring GPS fix... Please wait", Toast.LENGTH_SHORT).show()
-            }
-        }
-
-        btnClose.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        dialog.show()
-    }
-
-    private fun showChatDialog() {
-        val dialog = Dialog(this)
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.setContentView(R.layout.dialog_chat)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.92).toInt(),
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val chatRoot = dialog.findViewById<LinearLayout>(R.id.chatDialogRoot)
-        val tvHeader = dialog.findViewById<TextView>(R.id.tvChatHeaderTitle)
-        val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseChat)
-        val msgContainer = dialog.findViewById<LinearLayout>(R.id.chatMessagesContainer)
-        val scrollView = dialog.findViewById<ScrollView>(R.id.chatScrollView)
-        val etInput = dialog.findViewById<EditText>(R.id.etChatMessage)
-        val btnSend = dialog.findViewById<Button>(R.id.btnSendChatMessage)
-
-        activeChatMessagesContainer = msgContainer
-        activeChatScrollView = scrollView
-
-        if (isDarkMode) {
-            chatRoot.setBackgroundResource(R.drawable.dialog_background)
-            tvHeader.setTextColor(Color.parseColor("#00F0FF"))
-            etInput.setBackgroundColor(Color.parseColor("#0A0E17"))
-            etInput.setTextColor(Color.parseColor("#00FF66"))
-        } else {
-            chatRoot.setBackgroundColor(Color.parseColor("#FFFFFF"))
-            tvHeader.setTextColor(Color.parseColor("#0F172A"))
-            etInput.setBackgroundColor(Color.parseColor("#F1F5F9"))
-            etInput.setTextColor(Color.parseColor("#0F172A"))
-        }
-
-        for ((sender, text) in chatMessageList) {
-            val isMe = sender == "You" || sender.contains("Android", true)
-            appendChatBubble(msgContainer, scrollView, sender, text, isMe)
-        }
-
-        btnSend.typeface = android.graphics.Typeface.MONOSPACE
-        btnSend.text = "[ ↵ SEND ]"
-        btnSend.setOnClickListener {
-            val text = etInput.text.toString().trim()
-            if (text.isNotEmpty()) {
-                bridge.sendChatMessage(text, "Android Phone (${Build.MODEL})")
-                chatMessageList.add(Pair("You", text))
-                appendChatBubble(msgContainer, scrollView, "You", text, true)
-                logEvent("[Chat Sent] $text")
-                etInput.setText("")
-            }
-        }
-
-        btnClose.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        dialog.setOnDismissListener {
-            activeChatMessagesContainer = null
-            activeChatScrollView = null
-        }
-
-        dialog.show()
-    }
-
-    private fun appendChatBubble(
-        container: LinearLayout,
-        scrollView: ScrollView?,
-        sender: String,
-        text: String,
-        isMe: Boolean
-    ) {
-        val bubbleLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            val params = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = if (isMe) Gravity.END else Gravity.START
-                setMargins(4, 6, 4, 6)
-            }
-            layoutParams = params
-            setPadding(24, 14, 24, 14)
-
-            if (isMe) {
-                setBackgroundColor(Color.parseColor("#0E3B68"))
-            } else {
-                setBackgroundColor(if (isDarkMode) Color.parseColor("#0A0E17") else Color.parseColor("#E2E8F0"))
-            }
-        }
-
-        val tvSender = TextView(this).apply {
-            this.text = if (isMe) "[ LOCAL_NODE // YOU ]" else "[ PEER // ${sender.uppercase(Locale.ROOT)} ]"
-            textSize = 10f
-            typeface = android.graphics.Typeface.MONOSPACE
-            setTextColor(if (isMe) Color.parseColor("#00F0FF") else Color.parseColor("#FFB000"))
-            setTypeface(typeface, android.graphics.Typeface.BOLD)
-        }
-
-        val tvMsg = TextView(this).apply {
-            this.text = text
-            textSize = 12f
-            typeface = android.graphics.Typeface.MONOSPACE
-            setTextColor(if (isMe || isDarkMode) Color.parseColor("#00FF66") else Color.parseColor("#0F172A"))
-        }
-
-        bubbleLayout.addView(tvSender)
-        bubbleLayout.addView(tvMsg)
-        container.addView(bubbleLayout)
-
-        scrollView?.post {
-            scrollView.fullScroll(ScrollView.FOCUS_DOWN)
+        audioEngine.onAudioFrameCaptured = { frame ->
+            bridge.sendAudioFrame(frame)
         }
     }
 
@@ -1217,6 +1136,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             activeCallPeerId = callerId
             callStartTime = System.currentTimeMillis()
             isCalling = true
+            switchScreen(1)
             try {
                 audioEngine.startVoice()
                 btnCall.text = "[ 🔴 END CALL ]"
@@ -1272,7 +1192,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         try {
             audioEngine.stopVoice()
             btnPtt.text = "[ 🎙️ HOLD TO TALK (PTT) ]"
-            btnPtt.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_cyan))
+            btnPtt.setBackgroundColor(ContextCompat.getColor(this, R.color.neon_cyan))
             bridge.sendPttStop()
             logEvent("[PTT Radio] Transmission released")
         } catch (e: Exception) {
@@ -1324,149 +1244,6 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
     }
 
-    private fun showCallHistoryDialog() {
-        val dialog = Dialog(this)
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
-        dialog.setContentView(R.layout.dialog_call_history)
-        dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
-        dialog.window?.setLayout(
-            (resources.displayMetrics.widthPixels * 0.94).toInt(),
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
-
-        val root = dialog.findViewById<LinearLayout>(R.id.callHistoryDialogRoot)
-        val tvHeader = dialog.findViewById<TextView>(R.id.tvHistoryHeaderTitle)
-        val btnClear = dialog.findViewById<Button>(R.id.btnClearHistory)
-        val btnClose = dialog.findViewById<ImageButton>(R.id.btnCloseHistory)
-        val container = dialog.findViewById<LinearLayout>(R.id.llCallHistoryContainer)
-
-        if (isDarkMode) {
-            root.setBackgroundResource(R.drawable.dialog_background)
-            tvHeader.setTextColor(Color.parseColor("#00F0FF"))
-        } else {
-            root.setBackgroundColor(Color.parseColor("#FFFFFF"))
-            tvHeader.setTextColor(Color.parseColor("#0284C7"))
-        }
-
-        fun populateList() {
-            container.removeAllViews()
-            val records = callHistoryManager.getCallHistory()
-            if (records.isEmpty()) {
-                val tvEmpty = TextView(this).apply {
-                    text = "NO CDR TELEPHONY LOGS RECORDED.\nMAKE OR RECEIVE CALLS TO POPULATE AUDIT TRAIL."
-                    typeface = android.graphics.Typeface.MONOSPACE
-                    setTextColor(Color.parseColor("#64748B"))
-                    textSize = 11f
-                    gravity = Gravity.CENTER
-                    setPadding(0, 50, 0, 50)
-                }
-                container.addView(tvEmpty)
-                return
-            }
-
-            val dateFormat = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault())
-            for (record in records) {
-                val row = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                    val bg = if (isDarkMode) Color.parseColor("#0A0E17") else Color.parseColor("#F1F5F9")
-                    setBackgroundColor(bg)
-                    setPadding(16, 12, 16, 12)
-                    val lp = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT
-                    ).apply { setMargins(0, 0, 0, 8) }
-                    layoutParams = lp
-                }
-
-                val (icon, typeColor, typeLabel) = when (record.type) {
-                    "INCOMING" -> Triple("↙", "#00FF66", "INCOMING")
-                    "OUTGOING" -> Triple("↗", "#00F0FF", "OUTGOING")
-                    "MISSED" -> Triple("✕", "#FF0055", "MISSED")
-                    "DECLINED" -> Triple("🚫", "#FFB000", "DECLINED")
-                    else -> Triple("📞", "#94A3B8", record.type)
-                }
-
-                // Left Type Icon
-                val tvIcon = TextView(this).apply {
-                    text = icon
-                    textSize = 16f
-                    typeface = android.graphics.Typeface.MONOSPACE
-                    setTextColor(Color.parseColor(typeColor))
-                    setTypeface(typeface, android.graphics.Typeface.BOLD)
-                    setPadding(0, 0, 12, 0)
-                }
-
-                // Center Info
-                val centerLayout = LinearLayout(this).apply {
-                    orientation = LinearLayout.VERTICAL
-                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                }
-
-                val tvName = TextView(this).apply {
-                    text = record.peerName.uppercase(Locale.ROOT)
-                    textSize = 13f
-                    typeface = android.graphics.Typeface.MONOSPACE
-                    setTextColor(if (isDarkMode) Color.parseColor("#00F0FF") else Color.parseColor("#0F172A"))
-                    setTypeface(typeface, android.graphics.Typeface.BOLD)
-                }
-
-                val durationStr = if (record.durationSeconds > 0) {
-                    val m = record.durationSeconds / 60
-                    val s = record.durationSeconds % 60
-                    String.format(Locale.US, "%02d:%02d", m, s)
-                } else {
-                    typeLabel
-                }
-
-                val tvMeta = TextView(this).apply {
-                    val dateStr = dateFormat.format(Date(record.timestamp))
-                    text = "$typeLabel // $durationStr // $dateStr"
-                    textSize = 10f
-                    typeface = android.graphics.Typeface.MONOSPACE
-                    setTextColor(Color.parseColor("#94A3B8"))
-                }
-
-                centerLayout.addView(tvName)
-                centerLayout.addView(tvMeta)
-
-                // Right Callback button
-                val btnCallAgain = Button(this).apply {
-                    text = "[ 📞 CALL ]"
-                    textSize = 11f
-                    typeface = android.graphics.Typeface.MONOSPACE
-                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
-                    setTextColor(Color.WHITE)
-                    layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 90)
-                    setOnClickListener {
-                        dialog.dismiss()
-                        startVoiceCall(record.peerId, record.peerName)
-                    }
-                }
-
-                row.addView(tvIcon)
-                row.addView(centerLayout)
-                row.addView(btnCallAgain)
-                container.addView(row)
-            }
-        }
-
-        btnClear.typeface = android.graphics.Typeface.MONOSPACE
-        btnClear.text = "[ 🗑️ CLEAR CDR ]"
-        btnClear.setOnClickListener {
-            callHistoryManager.clearHistory()
-            populateList()
-            Toast.makeText(this, "Call history cleared", Toast.LENGTH_SHORT).show()
-        }
-
-        btnClose.setOnClickListener {
-            dialog.dismiss()
-        }
-
-        populateList()
-        dialog.show()
-    }
-
     private fun showIpSettingsDialog() {
         val dialog = Dialog(this)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -1480,7 +1257,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val tvTitle = TextView(this).apply {
             text = "📡 [ MESH RADIO & CARRIER CONFIG ]"
-            textSize = 14f
+            textSize = 14spToFloat()
             typeface = android.graphics.Typeface.MONOSPACE
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(if (isDarkMode) Color.parseColor("#00F0FF") else Color.parseColor("#0284C7"))
@@ -1490,7 +1267,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val tvCurrent = TextView(this).apply {
             text = "CARRIER: ${bridge.currentHost}:3000 // STATUS: ${tvStatus.text}"
-            textSize = 11f
+            textSize = 11spToFloat()
             typeface = android.graphics.Typeface.MONOSPACE
             setTextColor(if (isDarkMode) Color.parseColor("#00FF66") else Color.parseColor("#475569"))
             setPadding(0, 0, 0, 14)
@@ -1499,7 +1276,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val btnWifi = Button(this).apply {
             text = "[ 💻 CONNECT LAPTOP WI-FI (10.19.238.166) ]"
-            textSize = 11f
+            textSize = 11spToFloat()
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
             setTextColor(Color.WHITE)
@@ -1513,7 +1290,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val btnBt = Button(this).apply {
             text = "[ 📱 CONNECT LAPTOP BLUETOOTH (172.27.180.170) ]"
-            textSize = 11f
+            textSize = 11spToFloat()
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
             setTextColor(Color.WHITE)
@@ -1531,7 +1308,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val btnScan = Button(this).apply {
             text = "[ 🔄 AUTO-SCAN ALL MESH INTERFACES ]"
-            textSize = 11f
+            textSize = 11spToFloat()
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
             setTextColor(Color.parseColor("#00F0FF"))
@@ -1552,7 +1329,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             typeface = android.graphics.Typeface.MONOSPACE
             setHintTextColor(Color.parseColor("#64748B"))
             setTextColor(if (isDarkMode) Color.parseColor("#00FF66") else Color.BLACK)
-            textSize = 12f
+            textSize = 12spToFloat()
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0, 14, 0, 6)
             }
@@ -1562,7 +1339,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val btnCustom = Button(this).apply {
             text = "[ LINK CUSTOM IP ]"
-            textSize = 11f
+            textSize = 11spToFloat()
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#7C3AED"))
             setTextColor(Color.WHITE)
@@ -1660,4 +1437,45 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
         } catch (e: Exception) {}
     }
+
+    // Helper functions for GPS calculation
+    private fun calculateDistanceMeters(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val r = 6371000.0 // Earth radius in meters
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = sin(dLat / 2).pow(2.0) + cos(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * sin(dLon / 2).pow(2.0)
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        return r * c
+    }
+
+    private fun calculateBearingDegrees(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val dLon = Math.toRadians(lon2 - lon1)
+        val y = sin(dLon) * cos(Math.toRadians(lat2))
+        val x = cos(Math.toRadians(lat1)) * sin(Math.toRadians(lat2)) - sin(Math.toRadians(lat1)) * cos(Math.toRadians(lat2)) * cos(dLon)
+        val bearing = Math.toDegrees(atan2(y, x))
+        return (bearing + 360) % 360
+    }
+
+    private fun getCompassHeading(bearing: Double): Pair<String, String> {
+        return when {
+            bearing >= 337.5 || bearing < 22.5 -> Pair("N", "⬆️")
+            bearing >= 22.5 && bearing < 67.5 -> Pair("NE", "↗️")
+            bearing >= 67.5 && bearing < 112.5 -> Pair("E", "➡️")
+            bearing >= 112.5 && bearing < 157.5 -> Pair("SE", "↘️")
+            bearing >= 157.5 && bearing < 202.5 -> Pair("S", "⬇️")
+            bearing >= 202.5 && bearing < 247.5 -> Pair("SW", "↙️")
+            bearing >= 247.5 && bearing < 292.5 -> Pair("W", "⬅️")
+            else -> Pair("NW", "↖️")
+        }
+    }
+
+    private fun formatDistance(distMeters: Double): String {
+        return if (distMeters >= 1000) {
+            String.format(Locale.US, "%.2f km", distMeters / 1000)
+        } else {
+            String.format(Locale.US, "%.0f m", distMeters)
+        }
+    }
+
+    private fun Int.spToFloat(): Float = this.toFloat()
 }

@@ -1,705 +1,1155 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:id="@+id/mainScrollView"
+    android:id="@+id/mainRootLayout"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#05080F"
-    android:fillViewport="true">
+    android:orientation="vertical"
+    android:background="@color/bg_main">
 
+    <!-- ============================================================= -->
+    <!-- 📟 90s RETRO CYBER HEADER                                      -->
+    <!-- ============================================================= -->
     <LinearLayout
-        android:id="@+id/mainContentContainer"
+        android:id="@+id/headerLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="10dp"
+        android:background="#020617">
 
-        <!-- 90s Retro Console Header -->
         <LinearLayout
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:background="#0A0E17"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:padding="12dp">
+            android:layout_weight="1"
+            android:orientation="vertical">
 
-            <LinearLayout
-                android:layout_width="0dp"
+            <TextView
+                android:id="@+id/tvAppTitle"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:orientation="vertical">
+                android:text="📟 [ SHARP-BOSE TACTICAL MESH v2.0 ]"
+                android:textColor="@color/neon_cyan"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace" />
 
-                <TextView
-                    android:id="@+id/tvAppTitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="monospace"
-                    android:text="■ [OFFLINE MESH v90] ■"
-                    android:textColor="#00F0FF"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvAppSubtitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:fontFamily="monospace"
-                    android:text=">>> P2P HD VOICE // NO INTERNET &lt;&lt;&lt;"
-                    android:textColor="#00FF66"
-                    android:textSize="11sp" />
-            </LinearLayout>
-
-            <Button
-                android:id="@+id/btnCallHistory"
+            <TextView
+                android:id="@+id/tvAppSubtitle"
                 android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:layout_marginEnd="6dp"
-                android:backgroundTint="#0F172A"
+                android:layout_height="wrap_content"
+                android:text=">>> SYSTEM: ONLINE • E2EE NOISE_XX"
+                android:textColor="@color/neon_emerald"
+                android:textSize="10sp"
                 android:fontFamily="monospace"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:text="[LOGS]"
-                android:textColor="#00F0FF"
-                android:textSize="11sp"
-                android:textStyle="bold" />
-
-            <Button
-                android:id="@+id/btnThemeToggle"
-                android:layout_width="wrap_content"
-                android:layout_height="38dp"
-                android:backgroundTint="#0F172A"
-                android:fontFamily="monospace"
-                android:paddingStart="8dp"
-                android:paddingEnd="8dp"
-                android:text="[🌙 CRT]"
-                android:textColor="#FFB000"
-                android:textSize="11sp"
-                android:textStyle="bold" />
+                android:layout_marginTop="2dp" />
         </LinearLayout>
 
-        <!-- 01. Status Card -->
-        <androidx.cardview.widget.CardView
-            android:id="@+id/cardStatus"
+        <Button
+            android:id="@+id/btnThemeToggle"
+            android:layout_width="wrap_content"
+            android:layout_height="36dp"
+            android:text="[ 🌙 CRT ]"
+            android:textColor="@color/neon_cyan"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:fontFamily="monospace"
+            android:background="@drawable/retro_card_bg"
+            app:backgroundTint="@null" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="2dp"
+        android:background="@color/neon_cyan" />
+
+    <!-- ============================================================= -->
+    <!-- 🖥️ MAIN CONTAINER FOR 6 DEDICATED SCREENS                     -->
+    <!-- ============================================================= -->
+    <FrameLayout
+        android:id="@+id/screenContainer"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+
+        <!-- ========================================================= -->
+        <!-- SCREEN 1: 🏠 NODE ROSTER & RADIOS                         -->
+        <!-- ========================================================= -->
+        <ScrollView
+            android:id="@+id/screenRoster"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            app:cardBackgroundColor="#0A0E17"
-            app:cardCornerRadius="6dp"
-            app:cardElevation="2dp">
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:visibility="visible">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="14dp">
+                android:padding="12dp">
 
-                <LinearLayout
+                <!-- 01. MESH CARRIER STATUS -->
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardStatus"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
+                    android:layout_marginBottom="10dp"
+                    app:cardCornerRadius="6dp"
+                    app:cardElevation="4dp"
+                    app:cardBackgroundColor="@color/bg_card">
 
-                    <View
-                        android:id="@+id/statusIndicator"
-                        android:layout_width="10dp"
-                        android:layout_height="10dp"
-                        android:background="@drawable/ic_launcher_background"
-                        android:backgroundTint="#00FF66" />
-
-                    <TextView
-                        android:id="@+id/tvStatus"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="8dp"
-                        android:fontFamily="monospace"
-                        android:text="● [RADIO: BLE L2CAP // WI-FI DIRECT]"
-                        android:textColor="#00FF66"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tvPeerId"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:fontFamily="monospace"
-                    android:text="NODE ID: [node-7f39a4] • [E2EE NOISE_XX]"
-                    android:textColor="#7DD3FC"
-                    android:textSize="11sp" />
-
-                <TextView
-                    android:id="@+id/tvMeshStats"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:fontFamily="monospace"
-                    android:text="STATUS: [DIRECT P2P LINK ACTIVE // 0 HOPS]"
-                    android:textColor="#00F0FF"
-                    android:textSize="11sp" />
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- 02. All-India Nationwide HD Network Card -->
-        <androidx.cardview.widget.CardView
-            android:id="@+id/cardNationwide"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            app:cardBackgroundColor="#0A0E17"
-            app:cardCornerRadius="6dp"
-            app:cardElevation="2dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/tvNationwideTitle"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:fontFamily="monospace"
-                        android:text="🇮🇳 [02. ALL-INDIA MESH BAND]"
-                        android:textColor="#FFB000"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvHdQualityBadge"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="#064E3B"
-                        android:fontFamily="monospace"
-                        android:paddingStart="6dp"
-                        android:paddingTop="2dp"
-                        android:paddingEnd="6dp"
-                        android:paddingBottom="2dp"
-                        android:text="[HD 100%]"
-                        android:textColor="#00FF66"
-                        android:textSize="10sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tvCurrentRoom"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:fontFamily="monospace"
-                    android:text="CHANNEL: [INDIA-MAIN // ALL-INDIA RELAY]"
-                    android:textColor="#00F0FF"
-                    android:textSize="12sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvNationwideMeta"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:fontFamily="monospace"
-                    android:text="FREQ: 144.800 MHz • CONTINUOUS 16kHz PCM • HARDWARE AEC/NS"
-                    android:textColor="#7DD3FC"
-                    android:textSize="10sp" />
-
-                <Button
-                    android:id="@+id/btnSwitchRoom"
-                    android:layout_width="match_parent"
-                    android:layout_height="44dp"
-                    android:layout_marginTop="10dp"
-                    android:backgroundTint="#FFB000"
-                    android:fontFamily="monospace"
-                    android:text="[ 📻 TUNE CHANNEL / FREQUENCY ]"
-                    android:textColor="#05080F"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- 03. Connected People & Nodes Card -->
-        <androidx.cardview.widget.CardView
-            android:id="@+id/cardPeople"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            app:cardBackgroundColor="#0A0E17"
-            app:cardCornerRadius="6dp"
-            app:cardElevation="2dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:id="@+id/tvPeopleTitle"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:fontFamily="monospace"
-                        android:text="👥 [03. NODE ROSTER &amp; RADIOS]"
-                        android:textColor="#00F0FF"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:id="@+id/tvPeopleCount"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="#064E3B"
-                        android:fontFamily="monospace"
-                        android:paddingStart="6dp"
-                        android:paddingTop="2dp"
-                        android:paddingEnd="6dp"
-                        android:paddingBottom="2dp"
-                        android:text="[0 ONLINE]"
-                        android:textColor="#00FF66"
-                        android:textSize="10sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tvPeopleSubtitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:fontFamily="monospace"
-                    android:text="ACTIVE HARDWARE MESH PEERS &amp; DISCOVERABLE RADIOS"
-                    android:textColor="#7DD3FC"
-                    android:textSize="10sp" />
-
-                <LinearLayout
-                    android:id="@+id/llConnectedPeople"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:id="@+id/tvNoPeersConnected"
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:fontFamily="monospace"
-                        android:gravity="center"
-                        android:padding="12dp"
-                        android:text=">>> SCANNING RADIO FREQUENCIES... &lt;&lt;&lt;"
-                        android:textColor="#7DD3FC"
-                        android:textSize="11sp" />
-                </LinearLayout>
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:background="@drawable/retro_card_bg">
 
-        <!-- 04. Tactical GPS & Sensor Grid Card -->
-        <androidx.cardview.widget.CardView
-            android:id="@+id/cardLocation"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            app:cardBackgroundColor="#0A0E17"
-            app:cardCornerRadius="6dp"
-            app:cardElevation="2dp">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="[ 01. MESH RADIO CARRIER LINK ]"
+                            android:textColor="@color/neon_cyan"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace" />
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
+                        <TextView
+                            android:id="@+id/tvStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="CARRIER: DISCONNECTED (TAP TO CONFIG)"
+                            android:textColor="@color/accent_rose"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace"
+                            android:layout_marginTop="6dp" />
 
-                <LinearLayout
+                        <TextView
+                            android:id="@+id/tvPeerId"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="NODE ID: LOCAL • CIPHER: NOISE_XX (TAP FOR KEY)"
+                            android:textColor="@color/neon_amber"
+                            android:textSize="10sp"
+                            android:fontFamily="monospace"
+                            android:layout_marginTop="4dp" />
+
+                        <TextView
+                            android:id="@+id/tvMeshStats"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="TELEMETRY: TX: 0 KB/s // RX: 0 KB/s // LATENCY: 0ms"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp"
+                            android:fontFamily="monospace"
+                            android:layout_marginTop="4dp" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 02. ACTIVE MESH NODES & AVAILABLE RADIOS -->
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardPeople"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
+                    android:layout_marginBottom="10dp"
+                    app:cardCornerRadius="6dp"
+                    app:cardElevation="4dp"
+                    app:cardBackgroundColor="@color/bg_card">
 
-                    <TextView
-                        android:id="@+id/tvLocationTitle"
-                        android:layout_width="0dp"
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:fontFamily="monospace"
-                        android:text="📍 [04. GPS TACTICAL GRID]"
-                        android:textColor="#00FF66"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:background="@drawable/retro_card_bg">
 
-                    <TextView
-                        android:id="@+id/tvGpsFixBadge"
-                        android:layout_width="wrap_content"
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:id="@+id/tvPeopleTitle"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="[ 02. NODE ROSTER & RADIOS ]"
+                                android:textColor="@color/neon_cyan"
+                                android:textSize="12sp"
+                                android:textStyle="bold"
+                                android:fontFamily="monospace" />
+
+                            <TextView
+                                android:id="@+id/tvPeopleCount"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="[ 0 ACTIVE // 0 STANDBY ]"
+                                android:textColor="@color/neon_emerald"
+                                android:textSize="10sp"
+                                android:fontFamily="monospace" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/tvPeopleSubtitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Direct peer-to-peer Wi-Fi LAN, Bluetooth PAN & BLE mesh devices."
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp"
+                            android:fontFamily="monospace"
+                            android:layout_marginTop="4dp"
+                            android:layout_marginBottom="8dp" />
+
+                        <!-- Dynamic Connected & Available List -->
+                        <LinearLayout
+                            android:id="@+id/llConnectedPeople"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ========================================================= -->
+        <!-- SCREEN 2: 📞 COMMS (CALL & WALKIE-TALKIE PTT)              -->
+        <!-- ========================================================= -->
+        <ScrollView
+            android:id="@+id/screenComms"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <!-- 01. 2-WAY DUPLEX COMM -->
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardCall"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="10dp"
+                    app:cardCornerRadius="6dp"
+                    app:cardElevation="4dp"
+                    app:cardBackgroundColor="@color/bg_card">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:background="#064E3B"
-                        android:fontFamily="monospace"
-                        android:paddingStart="6dp"
-                        android:paddingTop="2dp"
-                        android:paddingEnd="6dp"
-                        android:paddingBottom="2dp"
-                        android:text="[ACQUIRING]"
-                        android:textColor="#00FF66"
-                        android:textSize="10sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:background="@drawable/retro_card_bg">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="[ 01. 2-WAY FULL DUPLEX AUDIO CALL ]"
+                            android:textColor="@color/neon_cyan"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Opus HD 16kHz low-latency duplex mesh communication."
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp"
+                            android:fontFamily="monospace"
+                            android:layout_marginTop="2dp"
+                            android:layout_marginBottom="12dp" />
+
+                        <Button
+                            android:id="@+id/btnCall"
+                            android:layout_width="match_parent"
+                            android:layout_height="52dp"
+                            android:text="[ 📞 START 2-WAY DUPLEX CALL ]"
+                            android:textColor="#FFFFFF"
+                            android:textSize="13sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace"
+                            android:background="@drawable/retro_card_bg"
+                            app:backgroundTint="@color/accent_emerald" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginTop="8dp">
+
+                            <Button
+                                android:id="@+id/btnSpeaker"
+                                android:layout_width="0dp"
+                                android:layout_height="44dp"
+                                android:layout_weight="1"
+                                android:layout_marginEnd="4dp"
+                                android:text="[ 🔊 SPKR: ON ]"
+                                android:textColor="@color/neon_cyan"
+                                android:textSize="11sp"
+                                android:fontFamily="monospace"
+                                android:background="@drawable/retro_card_bg"
+                                app:backgroundTint="#1E293B" />
+
+                            <Button
+                                android:id="@+id/btnReceiveCall"
+                                android:layout_width="0dp"
+                                android:layout_height="44dp"
+                                android:layout_weight="1"
+                                android:layout_marginStart="4dp"
+                                android:text="[ 📞 SIMULATE RING ]"
+                                android:textColor="@color/neon_amber"
+                                android:textSize="11sp"
+                                android:fontFamily="monospace"
+                                android:background="@drawable/retro_card_bg"
+                                app:backgroundTint="#1E293B" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 02. WALKIE-TALKIE PTT -->
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardPtt"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="10dp"
+                    app:cardCornerRadius="6dp"
+                    app:cardElevation="4dp"
+                    app:cardBackgroundColor="@color/bg_card">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:background="@drawable/retro_card_bg">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="[ 02. WALKIE-TALKIE PUSH-TO-TALK ]"
+                            android:textColor="@color/neon_cyan"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace" />
+
+                        <TextView
+                            android:id="@+id/tvPttChannel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="FREQ 01: EMERGENCY &amp; TACTICAL • FLOOR: CLEAR"
+                            android:textColor="@color/neon_emerald"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:layout_marginTop="2dp"
+                            android:layout_marginBottom="12dp" />
+
+                        <Button
+                            android:id="@+id/btnPtt"
+                            android:layout_width="match_parent"
+                            android:layout_height="72dp"
+                            android:text="[ 🎙️ HOLD TO TALK (PTT) ]"
+                            android:textColor="#FFFFFF"
+                            android:textSize="15sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace"
+                            android:background="@drawable/retro_card_bg"
+                            app:backgroundTint="@color/neon_cyan" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 03. EMERGENCY SOS DISTRESS -->
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardSos"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="10dp"
+                    app:cardCornerRadius="6dp"
+                    app:cardElevation="4dp"
+                    app:cardBackgroundColor="@color/bg_card">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:background="@drawable/retro_card_bg">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="[ 03. EMERGENCY SOS BROADCAST ]"
+                            android:textColor="@color/accent_rose"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Broadcasts high-priority distress beacon &amp; GPS coordinates."
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp"
+                            android:fontFamily="monospace"
+                            android:layout_marginTop="2dp"
+                            android:layout_marginBottom="12dp" />
+
+                        <Button
+                            android:id="@+id/btnSos"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:text="[ 🚨 BROADCAST SOS DISTRESS BEACON ]"
+                            android:textColor="#FFFFFF"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace"
+                            android:background="@drawable/retro_card_bg"
+                            app:backgroundTint="@color/accent_rose" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ========================================================= -->
+        <!-- SCREEN 3: 💬 ENCRYPTED MESH BBS TERMINAL                  -->
+        <!-- ========================================================= -->
+        <LinearLayout
+            android:id="@+id/screenChat"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:padding="10dp"
+            android:visibility="gone">
+
+            <!-- BBS Terminal Header -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:padding="8dp"
+                android:background="#020617">
 
                 <TextView
-                    android:id="@+id/tvLocationCoords"
-                    android:layout_width="wrap_content"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:fontFamily="monospace"
-                    android:text="GRID: LAT [--.------] // LON [--.------]"
-                    android:textColor="#00F0FF"
+                    android:layout_weight="1"
+                    android:text="📟 [ ENCRYPTED MESH BBS // NOISE_XX ]"
+                    android:textColor="@color/neon_cyan"
                     android:textSize="12sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    android:fontFamily="monospace" />
 
                 <TextView
-                    android:id="@+id/tvLocationMeta"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:fontFamily="monospace"
-                    android:text="SENSOR: ACCURACY ±--m • ALT: --m • SATELLITE FIX"
-                    android:textColor="#7DD3FC"
-                    android:textSize="10sp" />
+                    android:text="[ OFFLINE LINK ]"
+                    android:textColor="@color/neon_emerald"
+                    android:textSize="10sp"
+                    android:fontFamily="monospace" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="@color/neon_cyan"
+                android:layout_marginBottom="6dp" />
+
+            <!-- Messages Stream -->
+            <ScrollView
+                android:id="@+id/chatScrollView"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:fillViewport="true"
+                android:background="#05080F">
 
                 <LinearLayout
+                    android:id="@+id/chatMessagesContainer"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:orientation="horizontal">
+                    android:orientation="vertical"
+                    android:padding="8dp" />
+            </ScrollView>
 
-                    <Button
-                        android:id="@+id/btnShareLocation"
-                        android:layout_width="0dp"
-                        android:layout_height="44dp"
-                        android:layout_weight="1"
-                        android:backgroundTint="#0284C7"
-                        android:fontFamily="monospace"
-                        android:text="[ 📍 BROADCAST GPS ]"
-                        android:textColor="#FFFFFF"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#1E293B"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="6dp" />
 
-                    <Button
-                        android:id="@+id/btnRadarMap"
-                        android:layout_width="wrap_content"
-                        android:layout_height="44dp"
-                        android:layout_marginStart="8dp"
-                        android:backgroundTint="#0F172A"
-                        android:fontFamily="monospace"
-                        android:text="[ 🎯 RADAR ]"
-                        android:textColor="#00FF66"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- 05. Offline Messages (BBS Chat) Card -->
-        <androidx.cardview.widget.CardView
-            android:id="@+id/cardChat"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            app:cardBackgroundColor="#0A0E17"
-            app:cardCornerRadius="6dp"
-            app:cardElevation="2dp">
-
+            <!-- Terminal Input Prompt -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="#020617"
+                android:padding="4dp">
 
                 <TextView
-                    android:id="@+id/tvChatTitle"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:fontFamily="monospace"
-                    android:text="💬 [05. ENCRYPTED MESH BBS]"
-                    android:textColor="#00F0FF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvChatSubtitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:fontFamily="monospace"
-                    android:text="OFFLINE TEXT MESSAGING OVER 256-BIT ENCRYPTED MESH"
-                    android:textColor="#7DD3FC"
-                    android:textSize="10sp" />
-
-                <Button
-                    android:id="@+id/btnOpenChat"
-                    android:layout_width="match_parent"
-                    android:layout_height="46dp"
-                    android:layout_marginTop="10dp"
-                    android:backgroundTint="#0284C7"
-                    android:fontFamily="monospace"
-                    android:text="[ 💬 OPEN BBS TERMINAL ]"
-                    android:textColor="#FFFFFF"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- 06. Receive Call Modal Card -->
-        <androidx.cardview.widget.CardView
-            android:id="@+id/cardReceiveCall"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            app:cardBackgroundColor="#0A0E17"
-            app:cardCornerRadius="6dp"
-            app:cardElevation="2dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
-
-                <TextView
-                    android:id="@+id/tvReceiveCallTitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="monospace"
-                    android:text="📞 [06. INCOMING COMM TEST]"
-                    android:textColor="#00FF66"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvReceiveCallSubtitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:fontFamily="monospace"
-                    android:text="TEST INCOMING ENCRYPTED MODAL &amp; RING ALERT"
-                    android:textColor="#7DD3FC"
-                    android:textSize="10sp" />
-
-                <Button
-                    android:id="@+id/btnReceiveCall"
-                    android:layout_width="match_parent"
-                    android:layout_height="46dp"
-                    android:layout_marginTop="10dp"
-                    android:backgroundTint="#059669"
-                    android:fontFamily="monospace"
-                    android:text="[ 📞 SIMULATE INCOMING MODAL ]"
-                    android:textColor="#FFFFFF"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- 07. Walkie-Talkie Push-To-Talk Card -->
-        <androidx.cardview.widget.CardView
-            android:id="@+id/cardPtt"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            app:cardBackgroundColor="#0A0E17"
-            app:cardCornerRadius="6dp"
-            app:cardElevation="2dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
-
-                <TextView
-                    android:id="@+id/tvPttTitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="monospace"
-                    android:text="📻 [07. WALKIE-TALKIE PTT]"
-                    android:textColor="#00F0FF"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvPttChannel"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:fontFamily="monospace"
-                    android:text="CH-01: TACTICAL VOICE • FLOOR: [CLEAR]"
-                    android:textColor="#7DD3FC"
-                    android:textSize="10sp" />
-
-                <Button
-                    android:id="@+id/btnPtt"
-                    android:layout_width="match_parent"
-                    android:layout_height="52dp"
-                    android:layout_marginTop="10dp"
-                    android:backgroundTint="#00F0FF"
-                    android:fontFamily="monospace"
-                    android:text="[ ■■ HOLD TO TALK (PTT) ■■ ]"
-                    android:textColor="#05080F"
+                    android:text="usr@mesh:~$ "
+                    android:textColor="@color/neon_cyan"
                     android:textSize="12sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- 08. Voice Call Card -->
-        <androidx.cardview.widget.CardView
-            android:id="@+id/cardCall"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            app:cardBackgroundColor="#0A0E17"
-            app:cardCornerRadius="6dp"
-            app:cardElevation="2dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
-
-                <TextView
-                    android:id="@+id/tvCallTitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
                     android:fontFamily="monospace"
-                    android:text="🎙️ [08. 2-WAY DUPLEX COMM]"
-                    android:textColor="#00FF66"
-                    android:textSize="14sp"
                     android:textStyle="bold" />
 
-                <TextView
-                    android:id="@+id/tvAudioInfo"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
+                <EditText
+                    android:id="@+id/etChatMessage"
+                    android:layout_width="0dp"
+                    android:layout_height="42dp"
+                    android:layout_weight="1"
+                    android:hint="Type encrypted broadcast..."
+                    android:textColorHint="#64748B"
+                    android:textColor="@color/neon_emerald"
+                    android:background="#0A0E17"
+                    android:paddingStart="8dp"
+                    android:paddingEnd="8dp"
+                    android:textSize="12sp"
                     android:fontFamily="monospace"
-                    android:text="STREAM: 16kHz PCM • HARDWARE AEC/NS • HD VOICE"
-                    android:textColor="#7DD3FC"
-                    android:textSize="10sp" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:orientation="horizontal">
-
-                    <Button
-                        android:id="@+id/btnCall"
-                        android:layout_width="0dp"
-                        android:layout_height="48dp"
-                        android:layout_weight="1"
-                        android:backgroundTint="#059669"
-                        android:fontFamily="monospace"
-                        android:text="[ 📞 START VOICE CALL ]"
-                        android:textColor="#FFFFFF"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
-
-                    <Button
-                        android:id="@+id/btnSpeaker"
-                        android:layout_width="wrap_content"
-                        android:layout_height="48dp"
-                        android:layout_marginStart="8dp"
-                        android:backgroundTint="#0F172A"
-                        android:fontFamily="monospace"
-                        android:text="[ 🔊 SPKR ]"
-                        android:textColor="#00F0FF"
-                        android:textSize="11sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-            </LinearLayout>
-        </androidx.cardview.widget.CardView>
-
-        <!-- 09. Distress SOS Card -->
-        <androidx.cardview.widget.CardView
-            android:id="@+id/cardSos"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            app:cardBackgroundColor="#0A0E17"
-            app:cardCornerRadius="6dp"
-            app:cardElevation="2dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
-
-                <TextView
-                    android:id="@+id/tvSosTitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="monospace"
-                    android:text="🚨 [09. EMERGENCY SOS BROADCAST]"
-                    android:textColor="#FF0055"
-                    android:textSize="14sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvSosSubtitle"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:fontFamily="monospace"
-                    android:text="FLOODS DISTRESS BEACON ACROSS ALL 15-HOP MESH RADIOS"
-                    android:textColor="#7DD3FC"
-                    android:textSize="10sp" />
+                    android:singleLine="true" />
 
                 <Button
-                    android:id="@+id/btnSos"
-                    android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:layout_marginTop="10dp"
-                    android:backgroundTint="#DC2626"
-                    android:fontFamily="monospace"
-                    android:text="[ 🚨 BROADCAST DISTRESS SOS 🚨 ]"
+                    android:id="@+id/btnSendChatMessage"
+                    android:layout_width="wrap_content"
+                    android:layout_height="40dp"
+                    android:layout_marginStart="4dp"
+                    android:text="[ ↵ SEND ]"
                     android:textColor="#FFFFFF"
                     android:textSize="11sp"
-                    android:textStyle="bold" />
+                    android:textStyle="bold"
+                    android:fontFamily="monospace"
+                    android:background="@drawable/retro_card_bg"
+                    app:backgroundTint="@color/neon_cyan" />
             </LinearLayout>
-        </androidx.cardview.widget.CardView>
+        </LinearLayout>
 
-        <!-- 10. Live CRT Network Activity Log -->
-        <TextView
-            android:id="@+id/tvLogsHeader"
+        <!-- ========================================================= -->
+        <!-- SCREEN 4: 🎯 GPS TACTICAL RADAR & PROXIMITY MATRIX         -->
+        <!-- ========================================================= -->
+        <ScrollView
+            android:id="@+id/screenRadar"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <!-- 01. RADAR SCOPE -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="10dp"
+                    app:cardCornerRadius="6dp"
+                    app:cardElevation="4dp"
+                    app:cardBackgroundColor="@color/bg_card">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:background="@drawable/retro_card_bg">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🎯 [ 01. 360° RANGEFINDER &amp; CRT GRID ]"
+                            android:textColor="@color/neon_emerald"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace" />
+
+                        <!-- CRT Radar Grid Artwork Box -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="140dp"
+                            android:background="#020617"
+                            android:gravity="center"
+                            android:orientation="vertical"
+                            android:layout_marginTop="8dp"
+                            android:layout_marginBottom="8dp"
+                            android:padding="8dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="   (N: 000°)   "
+                                android:textColor="@color/neon_emerald"
+                                android:textSize="10sp"
+                                android:fontFamily="monospace" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="(W: 270°)  +---[ 📡 YOU ]---+  (E: 090°)"
+                                android:textColor="@color/neon_cyan"
+                                android:textSize="11sp"
+                                android:fontFamily="monospace"
+                                android:textStyle="bold" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="   (S: 180°)   "
+                                android:textColor="@color/neon_emerald"
+                                android:textSize="10sp"
+                                android:fontFamily="monospace" />
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text=">>> [ 360° PULSE ACTIVE // NO GNSS DRIFT ] <<<"
+                                android:textColor="@color/neon_amber"
+                                android:textSize="9sp"
+                                android:fontFamily="monospace"
+                                android:layout_marginTop="6dp" />
+                        </LinearLayout>
+
+                        <!-- Self GPS Telemetry -->
+                        <TextView
+                            android:id="@+id/tvRadarSelfCoords"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="GPS: LAT 0.000000 // LON 0.000000"
+                            android:textColor="@color/neon_cyan"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace" />
+
+                        <TextView
+                            android:id="@+id/tvRadarSelfMeta"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="PRECISION: ±0m // ALT: 0.0m // HARDWARE SENSOR LOCK"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp"
+                            android:fontFamily="monospace"
+                            android:layout_marginTop="2dp"
+                            android:layout_marginBottom="10dp" />
+
+                        <Button
+                            android:id="@+id/btnRadarBroadcastNow"
+                            android:layout_width="match_parent"
+                            android:layout_height="44dp"
+                            android:text="[ 📍 BROADCAST GPS FIX TO MESH ]"
+                            android:textColor="#FFFFFF"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace"
+                            android:background="@drawable/retro_card_bg"
+                            app:backgroundTint="@color/accent_emerald" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 02. PROXIMITY MATRIX -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="10dp"
+                    app:cardCornerRadius="6dp"
+                    app:cardElevation="4dp"
+                    app:cardBackgroundColor="@color/bg_card">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:background="@drawable/retro_card_bg">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="[ 02. PEER DISTANCE &amp; BEARING MATRIX ]"
+                            android:textColor="@color/neon_cyan"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace"
+                            android:layout_marginBottom="8dp" />
+
+                        <LinearLayout
+                            android:id="@+id/llRadarPeerList"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ========================================================= -->
+        <!-- SCREEN 5: 📻 ALL-INDIA FREQUENCY TUNER                    -->
+        <!-- ========================================================= -->
+        <ScrollView
+            android:id="@+id/screenChannels"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <androidx.cardview.widget.CardView
+                    android:id="@+id/cardNationwide"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="10dp"
+                    app:cardCornerRadius="6dp"
+                    app:cardElevation="4dp"
+                    app:cardBackgroundColor="@color/bg_card">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:background="@drawable/retro_card_bg">
+
+                        <TextView
+                            android:id="@+id/tvNationwideTitle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="📻 [ ALL-INDIA MESH BAND FREQUENCY MATRIX ]"
+                            android:textColor="@color/neon_amber"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace" />
+
+                        <TextView
+                            android:id="@+id/tvCurrentRoom"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🇮🇳 [ FREQ: INDIA-MAIN // 144.800 MHz ]"
+                            android:textColor="@color/neon_cyan"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace"
+                            android:layout_marginTop="4dp" />
+
+                        <TextView
+                            android:id="@+id/tvNationwideMeta"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Opus HD 16kHz Nationwide Duplex Voice Grid"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp"
+                            android:fontFamily="monospace"
+                            android:layout_marginTop="2dp"
+                            android:layout_marginBottom="12dp" />
+
+                        <!-- Preset Frequency Channels -->
+                        <Button
+                            android:id="@+id/btnHubIndiaMain"
+                            android:layout_width="match_parent"
+                            android:layout_height="42dp"
+                            android:text="[ 144.800 MHz // INDIA-MAIN (NATIONAL) ]"
+                            android:textColor="#FFFFFF"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:background="@drawable/retro_card_bg"
+                            app:backgroundTint="#0369A1"
+                            android:layout_marginBottom="6dp" />
+
+                        <Button
+                            android:id="@+id/btnHubDelhi"
+                            android:layout_width="match_parent"
+                            android:layout_height="42dp"
+                            android:text="[ 145.500 MHz // DELHI-HUB (NORTH) ]"
+                            android:textColor="#FFFFFF"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:background="@drawable/retro_card_bg"
+                            app:backgroundTint="#1E293B"
+                            android:layout_marginBottom="6dp" />
+
+                        <Button
+                            android:id="@+id/btnHubMumbai"
+                            android:layout_width="match_parent"
+                            android:layout_height="42dp"
+                            android:text="[ 146.200 MHz // MUMBAI-NET (WEST) ]"
+                            android:textColor="#FFFFFF"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:background="@drawable/retro_card_bg"
+                            app:backgroundTint="#1E293B"
+                            android:layout_marginBottom="6dp" />
+
+                        <Button
+                            android:id="@+id/btnHubBangalore"
+                            android:layout_width="match_parent"
+                            android:layout_height="42dp"
+                            android:text="[ 147.100 MHz // BANGALORE-MESH (SOUTH) ]"
+                            android:textColor="#FFFFFF"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:background="@drawable/retro_card_bg"
+                            app:backgroundTint="#1E293B"
+                            android:layout_marginBottom="6dp" />
+
+                        <Button
+                            android:id="@+id/btnHubChennai"
+                            android:layout_width="match_parent"
+                            android:layout_height="42dp"
+                            android:text="[ 147.800 MHz // CHENNAI-RELAY (EAST) ]"
+                            android:textColor="#FFFFFF"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:background="@drawable/retro_card_bg"
+                            app:backgroundTint="#1E293B"
+                            android:layout_marginBottom="6dp" />
+
+                        <Button
+                            android:id="@+id/btnHubHyderabad"
+                            android:layout_width="match_parent"
+                            android:layout_height="42dp"
+                            android:text="[ 148.400 MHz // HYDERABAD-CORE (CENTRAL) ]"
+                            android:textColor="#FFFFFF"
+                            android:textSize="11sp"
+                            android:fontFamily="monospace"
+                            android:background="@drawable/retro_card_bg"
+                            app:backgroundTint="#1E293B"
+                            android:layout_marginBottom="12dp" />
+
+                        <!-- Custom Channel Input -->
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="[ CUSTOM FREQUENCY DIALER ]"
+                            android:textColor="@color/neon_cyan"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace"
+                            android:layout_marginBottom="4dp" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <EditText
+                                android:id="@+id/etCustomChannel"
+                                android:layout_width="0dp"
+                                android:layout_height="42dp"
+                                android:layout_weight="1"
+                                android:hint="e.g. SECTOR-7-TACTICAL"
+                                android:textColorHint="#64748B"
+                                android:textColor="@color/neon_cyan"
+                                android:background="#0A0E17"
+                                android:paddingStart="8dp"
+                                android:paddingEnd="8dp"
+                                android:textSize="11sp"
+                                android:fontFamily="monospace"
+                                android:singleLine="true" />
+
+                            <Button
+                                android:id="@+id/btnJoinChannel"
+                                android:layout_width="wrap_content"
+                                android:layout_height="42dp"
+                                android:layout_marginStart="6dp"
+                                android:text="[ TUNE ]"
+                                android:textColor="#FFFFFF"
+                                android:textSize="11sp"
+                                android:textStyle="bold"
+                                android:fontFamily="monospace"
+                                android:background="@drawable/retro_card_bg"
+                                app:backgroundTint="@color/accent_purple" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+            </LinearLayout>
+        </ScrollView>
+
+        <!-- ========================================================= -->
+        <!-- SCREEN 6: 📋 CDR LOGS, CIPHER & CRT TELEMETRY             -->
+        <!-- ========================================================= -->
+        <ScrollView
+            android:id="@+id/screenLogsSecurity"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:fillViewport="true"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="12dp">
+
+                <!-- 01. E2EE NOISE_XX CIPHER SPEC -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="10dp"
+                    app:cardCornerRadius="6dp"
+                    app:cardElevation="4dp"
+                    app:cardBackgroundColor="@color/bg_card">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:background="@drawable/retro_card_bg">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🔒 [ 01. NOISE_XX CIPHER SUITE AUDIT ]"
+                            android:textColor="@color/neon_cyan"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace" />
+
+                        <TextView
+                            android:id="@+id/tvSafetyNumber"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="[ 4829 - 1047 - 8831 - 9204 - 5518 - 7392 ]"
+                            android:textColor="@color/neon_emerald"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace"
+                            android:background="#020617"
+                            android:padding="8dp"
+                            android:layout_marginTop="8dp"
+                            android:layout_marginBottom="6dp" />
+
+                        <TextView
+                            android:id="@+id/tvRoutingHopStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="HOP LIMIT: 15 MAX // MULTI-HOP RELAY ACTIVE"
+                            android:textColor="@color/neon_cyan"
+                            android:textSize="10sp"
+                            android:fontFamily="monospace" />
+
+                        <TextView
+                            android:id="@+id/tvRoutingPath"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="CIPHER: NOISE_XX + AES-256-GCM + SHA-256"
+                            android:textColor="@color/text_secondary"
+                            android:textSize="10sp"
+                            android:fontFamily="monospace"
+                            android:layout_marginTop="2dp" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 02. CALL DETAIL RECORDS (CDR) -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="10dp"
+                    app:cardCornerRadius="6dp"
+                    app:cardElevation="4dp"
+                    app:cardBackgroundColor="@color/bg_card">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:background="@drawable/retro_card_bg">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginBottom="8dp">
+
+                            <TextView
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="📋 [ 02. COMMUNICATION CDR LOGS ]"
+                                android:textColor="@color/neon_cyan"
+                                android:textSize="12sp"
+                                android:textStyle="bold"
+                                android:fontFamily="monospace" />
+
+                            <Button
+                                android:id="@+id/btnClearHistory"
+                                android:layout_width="wrap_content"
+                                android:layout_height="32dp"
+                                android:text="[ 🗑️ CLEAR ]"
+                                android:textColor="@color/accent_rose"
+                                android:textSize="10sp"
+                                android:fontFamily="monospace"
+                                android:background="@drawable/retro_card_bg"
+                                app:backgroundTint="#020617" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:id="@+id/llCallHistoryContainer"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+
+                <!-- 03. CRT SYSTEM TELEMETRY TERMINAL LOG -->
+                <androidx.cardview.widget.CardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="10dp"
+                    app:cardCornerRadius="6dp"
+                    app:cardElevation="4dp"
+                    app:cardBackgroundColor="@color/bg_card">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="14dp"
+                        android:background="@drawable/retro_card_bg">
+
+                        <TextView
+                            android:id="@+id/tvLogsHeader"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="[ 03. CRT SYSTEM TELEMETRY CONSOLE ]"
+                            android:textColor="@color/neon_cyan"
+                            android:textSize="12sp"
+                            android:textStyle="bold"
+                            android:fontFamily="monospace"
+                            android:layout_marginBottom="6dp" />
+
+                        <TextView
+                            android:id="@+id/tvLogs"
+                            android:layout_width="match_parent"
+                            android:layout_height="180dp"
+                            android:background="#020617"
+                            android:padding="8dp"
+                            android:text="[00:00:00] Initializing Sharp-Bose Tactical Mesh OS...\n[00:00:01] Audio engine initialized."
+                            android:textColor="@color/neon_emerald"
+                            android:textSize="10sp"
+                            android:fontFamily="monospace"
+                            android:scrollbars="vertical" />
+                    </LinearLayout>
+                </androidx.cardview.widget.CardView>
+            </LinearLayout>
+        </ScrollView>
+    </FrameLayout>
+
+    <!-- ============================================================= -->
+    <!-- 🎛️ 90s RETRO CYBER NAVIGATION DOCK (BOTTOM TABS)              -->
+    <!-- ============================================================= -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="2dp"
+        android:background="@color/neon_cyan" />
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#020617"
+        android:scrollbars="none"
+        android:paddingTop="6dp"
+        android:paddingBottom="8dp"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp">
+
+        <LinearLayout
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:fontFamily="monospace"
-            android:text="=== [10. CRT SYSTEM TELEMETRY LOG] ==="
-            android:textColor="#00F0FF"
-            android:textSize="12sp"
-            android:textStyle="bold" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
-        <TextView
-            android:id="@+id/tvLogs"
-            android:layout_width="match_parent"
-            android:layout_height="130dp"
-            android:layout_marginTop="6dp"
-            android:background="#020617"
-            android:fontFamily="monospace"
-            android:padding="10dp"
-            android:text="[SYS] CRT Radio console initialized\n[SYS] SampleRate: 16000 Hz Mono PCM\n[SYS] E2EE Noise_XX protocol active\n[SYS] Scanning all mesh radios..."
-            android:textColor="#00FF66"
-            android:textSize="11sp" />
+            <Button
+                android:id="@+id/tabRoster"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="[ 🏠 ROSTER ]"
+                android:textColor="@color/neon_cyan"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:fontFamily="monospace"
+                android:background="@drawable/retro_card_bg"
+                app:backgroundTint="#0E3B68"
+                android:layout_marginEnd="4dp" />
 
-    </LinearLayout>
-</ScrollView>
+            <Button
+                android:id="@+id/tabComms"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="[ 📞 COMMS ]"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                android:fontFamily="monospace"
+                android:background="@drawable/retro_card_bg"
+                app:backgroundTint="#0A0E17"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/tabChat"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="[ 💬 BBS ]"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                android:fontFamily="monospace"
+                android:background="@drawable/retro_card_bg"
+                app:backgroundTint="#0A0E17"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/tabRadar"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="[ 🎯 RADAR ]"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                android:fontFamily="monospace"
+                android:background="@drawable/retro_card_bg"
+                app:backgroundTint="#0A0E17"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/tabChannels"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="[ 📻 FREQ ]"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                android:fontFamily="monospace"
+                android:background="@drawable/retro_card_bg"
+                app:backgroundTint="#0A0E17"
+                android:layout_marginEnd="4dp" />
+
+            <Button
+                android:id="@+id/tabLogs"
+                android:layout_width="wrap_content"
+                android:layout_height="40dp"
+                android:text="[ 📋 LOGS ]"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                android:fontFamily="monospace"
+                android:background="@drawable/retro_card_bg"
+                app:backgroundTint="#0A0E17" />
+        </LinearLayout>
+    </HorizontalScrollView>
+</LinearLayout>
