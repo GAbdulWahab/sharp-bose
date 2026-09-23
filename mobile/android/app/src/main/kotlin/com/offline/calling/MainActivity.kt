@@ -1120,6 +1120,10 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
     private fun showIncomingCallDialog(callerName: String, callerId: String) {
         if (isCalling) {
+            if (callerId == activeCallPeerId) {
+                // Already in active call with this peer, ignore duplicate invite
+                return
+            }
             bridge.sendCallDecline(callerId)
             callHistoryManager.addCallRecord(
                 CallRecord(

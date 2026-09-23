@@ -280,8 +280,9 @@ class TacticalMeshDesktop {
     const btnDecline = document.getElementById('btnDeclineIncoming');
     if (btnAccept) {
       btnAccept.addEventListener('click', () => {
-        document.getElementById('incomingCallModal').classList.remove('open');
-        this.startVoiceCall(this.activeCallPeer?.id);
+        const modal = document.getElementById('incomingCallModal');
+        if (modal) modal.classList.remove('open');
+        this.acceptIncomingCall(this.activeCallPeer?.id);
       });
     }
     if (btnDecline) {
@@ -448,7 +449,14 @@ class TacticalMeshDesktop {
         break;
 
       case 'CALL_ACCEPT':
-        this.log(`Call accepted by remote peer.`);
+        this.isCalling = true;
+        const btnCall = document.getElementById('btnGlobalCall');
+        if (btnCall) {
+          btnCall.innerText = '[ 🔴 END ACTIVE VOICE CALL ]';
+          btnCall.className = 'btn-end';
+        }
+        this.startMicCapture();
+        this.log(`📞 Call connected with peer (${json.senderName || 'Peer'})`);
         break;
 
       case 'CALL_DECLINE':
@@ -652,6 +660,23 @@ class TacticalMeshDesktop {
       };
       source.start();
     } catch (e) {}
+  }
+
+  acceptIncomingCall(peerId = '') {
+    this.isCalling = true;
+    const btnCall = document.getElementById('btnGlobalCall');
+    if (btnCall) {
+      btnCall.innerText = '[ 🔴 END ACTIVE VOICE CALL ]';
+      btnCall.className = 'btn-end';
+    }
+    this.startMicCapture();
+    this.sendControlPacket({
+      type: 'CALL_ACCEPT',
+      targetId: peerId,
+      senderId: this.localNodeId,
+      senderName: 'Desktop Terminal'
+    });
+    this.log(`📞 Call accepted with peer (${peerId || 'Node'})`);
   }
 
   startVoiceCall(peerId = '') {

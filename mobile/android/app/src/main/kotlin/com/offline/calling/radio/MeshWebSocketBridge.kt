@@ -48,6 +48,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .connectTimeout(3000, TimeUnit.MILLISECONDS)
+        .pingInterval(5, TimeUnit.SECONDS)
         .build()
 
     var appContext: Context? = null
