@@ -370,7 +370,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 text = "NO MESH PEERS IN RANGE.\nLINK LAPTOP OR COMPANION PHONE VIA WI-FI / BLUETOOTH."
                 typeface = android.graphics.Typeface.MONOSPACE
                 setTextColor(Color.parseColor("#94A3B8"))
-                textSize = 11spToFloat()
+                textSize = 11f
                 gravity = Gravity.CENTER
                 setPadding(0, 30, 0, 30)
             }
@@ -392,7 +392,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 val tvName = TextView(this).apply {
                     text = "${if (peer.deviceType.contains("Android", true)) "📱" else "💻"} ${peer.nickname.uppercase(Locale.ROOT)} [${peer.id}]"
                     setTextColor(if (isDarkMode) Color.parseColor("#00F0FF") else Color.parseColor("#0F172A"))
-                    textSize = 12spToFloat()
+                    textSize = 12f
                     typeface = android.graphics.Typeface.MONOSPACE
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                 }
@@ -410,7 +410,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 val tvDist = TextView(this).apply {
                     text = distStr
                     setTextColor(Color.parseColor("#00FF66"))
-                    textSize = 11spToFloat()
+                    textSize = 11f
                     typeface = android.graphics.Typeface.MONOSPACE
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                 }
@@ -418,7 +418,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 val tvCoords = TextView(this).apply {
                     text = coordsStr
                     setTextColor(Color.parseColor("#94A3B8"))
-                    textSize = 10spToFloat()
+                    textSize = 10f
                     typeface = android.graphics.Typeface.MONOSPACE
                 }
 
@@ -448,7 +448,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 text = "NO CDR TELEPHONY LOGS RECORDED.\nMAKE OR RECEIVE CALLS TO POPULATE AUDIT TRAIL."
                 typeface = android.graphics.Typeface.MONOSPACE
                 setTextColor(Color.parseColor("#64748B"))
-                textSize = 11spToFloat()
+                textSize = 11f
                 gravity = Gravity.CENTER
                 setPadding(0, 30, 0, 30)
             }
@@ -481,7 +481,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
             val tvIcon = TextView(this).apply {
                 text = icon
-                textSize = 16spToFloat()
+                textSize = 16f
                 typeface = android.graphics.Typeface.MONOSPACE
                 setTextColor(Color.parseColor(typeColor))
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -495,7 +495,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
             val tvName = TextView(this).apply {
                 text = record.peerName.uppercase(Locale.ROOT)
-                textSize = 13spToFloat()
+                textSize = 13f
                 typeface = android.graphics.Typeface.MONOSPACE
                 setTextColor(if (isDarkMode) Color.parseColor("#00F0FF") else Color.parseColor("#0F172A"))
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -512,7 +512,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             val tvMeta = TextView(this).apply {
                 val dateStr = dateFormat.format(Date(record.timestamp))
                 text = "$typeLabel // $durationStr // $dateStr"
-                textSize = 10spToFloat()
+                textSize = 10f
                 typeface = android.graphics.Typeface.MONOSPACE
                 setTextColor(Color.parseColor("#94A3B8"))
             }
@@ -522,7 +522,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
             val btnCallAgain = Button(this).apply {
                 text = "[ 📞 CALL ]"
-                textSize = 11spToFloat()
+                textSize = 11f
                 typeface = android.graphics.Typeface.MONOSPACE
                 backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
                 setTextColor(Color.WHITE)
@@ -663,7 +663,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val tvConnectedHeader = TextView(this).apply {
             text = "🟢 [ ACTIVE MESH LINKS // ${otherPeers.size} ]"
-            textSize = 12spToFloat()
+            textSize = 12f
             typeface = android.graphics.Typeface.MONOSPACE
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(Color.parseColor("#00FF66"))
@@ -694,7 +694,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 }
                 typeface = android.graphics.Typeface.MONOSPACE
                 setTextColor(if (isDarkMode) Color.parseColor("#00F0FF") else Color.parseColor("#64748B"))
-                textSize = 11spToFloat()
+                textSize = 11f
             }
             emptyCard.addView(tvNotice)
             llConnectedPeople.addView(emptyCard)
@@ -724,7 +724,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 val tvName = TextView(this).apply {
                     text = "$iconStr ${peer.nickname.uppercase(Locale.ROOT)}"
                     setTextColor(if (isDarkMode) Color.parseColor("#00F0FF") else Color.parseColor("#0F172A"))
-                    textSize = 13spToFloat()
+                    textSize = 13f
                     typeface = android.graphics.Typeface.MONOSPACE
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                 }
@@ -743,7 +743,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                     text = "LINK: ONLINE • E2EE // ${peer.status.uppercase(Locale.ROOT)} // $distStr"
                     setTextColor(Color.parseColor("#00FF66"))
                     typeface = android.graphics.Typeface.MONOSPACE
-                    textSize = 10spToFloat()
+                    textSize = 10f
                 }
 
                 leftInfo.addView(tvName)
@@ -752,7 +752,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
                 val btnSecurity = Button(this).apply {
                     text = "[ 🔒 ]"
-                    textSize = 11spToFloat()
+                    textSize = 11f
                     typeface = android.graphics.Typeface.MONOSPACE
                     backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
                     setTextColor(Color.parseColor("#00F0FF"))
@@ -764,7 +764,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
                 val btnQuickCall = Button(this).apply {
                     text = "[ 📞 CALL ]"
-                    textSize = 11spToFloat()
+                    textSize = 11f
                     typeface = android.graphics.Typeface.MONOSPACE
                     backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
                     setTextColor(Color.WHITE)
@@ -776,7 +776,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
                 val btnQuickChat = Button(this).apply {
                     text = "[ 💬 BBS ]"
-                    textSize = 11spToFloat()
+                    textSize = 11f
                     typeface = android.graphics.Typeface.MONOSPACE
                     backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
                     setTextColor(Color.WHITE)
@@ -802,7 +802,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val tvAvailableHeader = TextView(this).apply {
             text = "📡 [ AVAILABLE RADIOS & HUBS // ${availableList.size} ]"
-            textSize = 12spToFloat()
+            textSize = 12f
             typeface = android.graphics.Typeface.MONOSPACE
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(Color.parseColor("#00F0FF"))
@@ -834,7 +834,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             val tvTitle = TextView(this).apply {
                 text = devTitle.uppercase(Locale.ROOT)
                 setTextColor(if (isDarkMode) Color.parseColor("#00F0FF") else Color.parseColor("#0F172A"))
-                textSize = 12spToFloat()
+                textSize = 12f
                 typeface = android.graphics.Typeface.MONOSPACE
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
             }
@@ -843,7 +843,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 text = ">>> $devSubtitle"
                 setTextColor(if (isDarkMode) Color.parseColor("#94A3B8") else Color.parseColor("#64748B"))
                 typeface = android.graphics.Typeface.MONOSPACE
-                textSize = 10spToFloat()
+                textSize = 10f
             }
 
             leftInfo.addView(tvTitle)
@@ -852,7 +852,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
             val btnConnect = Button(this).apply {
                 text = "[ 🔗 LINK ]"
-                textSize = 11spToFloat()
+                textSize = 11f
                 typeface = android.graphics.Typeface.MONOSPACE
                 backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
                 setTextColor(Color.WHITE)
@@ -887,7 +887,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val btnQuickScan = Button(this).apply {
             text = "[ 🔄 AUTO-SCAN ALL ]"
-            textSize = 11spToFloat()
+            textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
             setTextColor(Color.parseColor("#00F0FF"))
@@ -899,7 +899,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val btnCustomSettings = Button(this).apply {
             text = "[ ⚙️ CONFIG IP ]"
-            textSize = 11spToFloat()
+            textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
             setTextColor(Color.parseColor("#00FF66"))
@@ -941,7 +941,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val tvSender = TextView(this).apply {
             this.text = if (isMe) "[ LOCAL_NODE // YOU ]" else "[ PEER // ${sender.uppercase(Locale.ROOT)} ]"
-            textSize = 10spToFloat()
+            textSize = 10f
             typeface = android.graphics.Typeface.MONOSPACE
             setTextColor(if (isMe) Color.parseColor("#00F0FF") else Color.parseColor("#FFB000"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -949,7 +949,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val tvMsg = TextView(this).apply {
             this.text = text
-            textSize = 12spToFloat()
+            textSize = 12f
             typeface = android.graphics.Typeface.MONOSPACE
             setTextColor(if (isMe || isDarkMode) Color.parseColor("#00FF66") else Color.parseColor("#0F172A"))
         }
@@ -1257,7 +1257,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val tvTitle = TextView(this).apply {
             text = "📡 [ MESH RADIO & CARRIER CONFIG ]"
-            textSize = 14spToFloat()
+            textSize = 14f
             typeface = android.graphics.Typeface.MONOSPACE
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             setTextColor(if (isDarkMode) Color.parseColor("#00F0FF") else Color.parseColor("#0284C7"))
@@ -1267,7 +1267,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val tvCurrent = TextView(this).apply {
             text = "CARRIER: ${bridge.currentHost}:3000 // STATUS: ${tvStatus.text}"
-            textSize = 11spToFloat()
+            textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             setTextColor(if (isDarkMode) Color.parseColor("#00FF66") else Color.parseColor("#475569"))
             setPadding(0, 0, 0, 14)
@@ -1276,7 +1276,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val btnWifi = Button(this).apply {
             text = "[ 💻 CONNECT LAPTOP WI-FI (10.19.238.166) ]"
-            textSize = 11spToFloat()
+            textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
             setTextColor(Color.WHITE)
@@ -1290,7 +1290,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val btnBt = Button(this).apply {
             text = "[ 📱 CONNECT LAPTOP BLUETOOTH (172.27.180.170) ]"
-            textSize = 11spToFloat()
+            textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
             setTextColor(Color.WHITE)
@@ -1308,7 +1308,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val btnScan = Button(this).apply {
             text = "[ 🔄 AUTO-SCAN ALL MESH INTERFACES ]"
-            textSize = 11spToFloat()
+            textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
             setTextColor(Color.parseColor("#00F0FF"))
@@ -1329,7 +1329,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             typeface = android.graphics.Typeface.MONOSPACE
             setHintTextColor(Color.parseColor("#64748B"))
             setTextColor(if (isDarkMode) Color.parseColor("#00FF66") else Color.BLACK)
-            textSize = 12spToFloat()
+            textSize = 12f
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                 setMargins(0, 14, 0, 6)
             }
@@ -1339,7 +1339,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         val btnCustom = Button(this).apply {
             text = "[ LINK CUSTOM IP ]"
-            textSize = 11spToFloat()
+            textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#7C3AED"))
             setTextColor(Color.WHITE)
@@ -1476,6 +1476,4 @@ class MainActivity : AppCompatActivity(), LocationListener {
             String.format(Locale.US, "%.0f m", distMeters)
         }
     }
-
-    private fun Int.spToFloat(): Float = this.toFloat()
 }
