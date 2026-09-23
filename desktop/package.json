@@ -5,6 +5,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
+    "start:low-ram": "electron . --js-flags=\"--max-old-space-size=64 --lite-mode\" --disable-gpu",
     "serve": "node main.js --headless",
     "pack": "electron-builder --dir",
     "dist": "electron-builder --win portable"
@@ -13,6 +14,18 @@
     "appId": "com.sharpbose.desktop",
     "productName": "SharpBoseTacticalMesh",
     "forceCodeSigning": false,
+    "compression": "maximum",
+    "asar": true,
+    "files": [
+      "main.js",
+      "preload.js",
+      "app.js",
+      "index.html",
+      "styles.css",
+      "package.json",
+      "node_modules/ws/**",
+      "!dist/**"
+    ],
     "win": {
       "target": "portable",
       "signAndEditExecutable": false

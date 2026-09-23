@@ -1,13 +1,30 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const http = require('http');
+const fs = require('fs');
 const dgram = require('dgram');
 const os = require('os');
 const { WebSocketServer } = require('ws');
 
+// -------------------------------------------------------------
+// Low-RAM / Low-CPU Chromium Engine Flags for Low-End Systems
+// -------------------------------------------------------------
+app.commandLine.appendSwitch('disable-gpu');
+app.commandLine.appendSwitch('disable-software-rasterizer');
+app.commandLine.appendSwitch('disable-gpu-compositing');
+app.commandLine.appendSwitch('disable-extensions');
+app.commandLine.appendSwitch('disable-component-update');
+app.commandLine.appendSwitch('disable-background-networking');
+app.commandLine.appendSwitch('disable-sync');
+app.commandLine.appendSwitch('disable-breakpad');
+app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion,SpareRendererForSitePerProcess');
+app.commandLine.appendSwitch('js-flags', '--max-old-space-size=64 --lite-mode');
+app.commandLine.appendSwitch('renderer-process-limit', '1');
+
 const HTTP_PORT = 3000;
 const UDP_PORT = 3000;
 const LOCAL_NODE_ID = 'node-desktop-' + Math.random().toString(36).substring(2, 6);
+const IS_HEADLESS = process.argv.includes('--headless') || process.argv.includes('-h');
 
 let mainWindow = null;
 let httpServer = null;
@@ -37,18 +54,57 @@ function getLocalIpAddresses() {
 }
 
 // -------------------------------------------------------------
-// 1. Embedded Mesh Hub WebSocket & HTTP Server
+// 1. Embedded Mesh Hub WebSocket & Static HTTP Server
 // -------------------------------------------------------------
 function startEmbeddedHub() {
+  const MIME_TYPES = {
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.ico': 'image/x-icon'
+  };
+
   httpServer = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      system: 'SHARP-BOSE-TACTICAL-MESH-HUB',
-      nodeId: LOCAL_NODE_ID,
-      version: '2.0.0',
-      status: 'ONLINE',
-      interfaces: getLocalIpAddresses()
-    }));
+    let reqPath = req.url.split('?')[0];
+    if (reqPath === '/api/status') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        system: 'SHARP-BOSE-TACTICAL-MESH-HUB',
+        nodeId: LOCAL_NODE_ID,
+        version: '2.0.0',
+        status: 'ONLINE',
+        interfaces: getLocalIpAddresses()
+      }));
+      return;
+    }
+
+    // Serve static frontend files (allows headless browser usage with ~20MB RAM)
+    if (reqPath === '/' || reqPath === '') reqPath = '/index.html';
+    const filePath = path.join(__dirname, reqPath);
+
+    fs.stat(filePath, (err, stats) => {
+      if (!err && stats.isFile()) {
+        const ext = path.extname(filePath).toLowerCase();
+        const contentType = MIME_TYPES[ext] || 'application/octet-stream';
+        res.writeHead(200, { 'Content-Type': contentType });
+        fs.createReadStream(filePath).pipe(res);
+      } else {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          system: 'SHARP-BOSE-TACTICAL-MESH-HUB',
+          nodeId: LOCAL_NODE_ID,
+          version: '2.0.0',
+          status: 'ONLINE',
+          interfaces: getLocalIpAddresses()
+        }));
+      }
+    });
+  });
+
+  httpServer.on('error', (err) => {
+    console.warn('[HTTP Server Warning]', err.message);
   });
 
   wss = new WebSocketServer({ server: httpServer });
@@ -106,16 +162,13 @@ function startEmbeddedHub() {
 
     ws.on('message', (message, isBinary) => {
       ws.isAlive = true;
-      // Audio stream binary forwarder
+      // Audio stream binary forwarder (zero-copy forward to peers)
       const isAudioFrame = isBinary || (Buffer.isBuffer(message) && message.length >= 4 && message[0] === 0xAA && message[1] === 0x55);
       if (isAudioFrame) {
         for (const client of allWebSockets) {
           if (client !== ws && client.readyState === 1) {
             client.send(message, { binary: true });
           }
-        }
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('hub:audio-frame', message);
         }
         return;
       }
@@ -167,25 +220,22 @@ function startEmbeddedHub() {
             break;
         }
       } catch (err) {
-        console.error('[Hub Error]', err.message);
+        // Silently discard malformed packets
       }
     });
 
-    ws.on('close', () => {
+    const cleanup = () => {
       allWebSockets.delete(ws);
       clients.delete(ws);
       broadcastPeerList();
-    });
+    };
 
-    ws.on('error', () => {
-      allWebSockets.delete(ws);
-      clients.delete(ws);
-      broadcastPeerList();
-    });
+    ws.on('close', cleanup);
+    ws.on('error', cleanup);
   });
 
   httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
-    console.log(`[Mesh Hub] Embedded WebSocket Hub active on port ${HTTP_PORT}`);
+    console.log(`[Mesh Hub] Embedded Hub active on port ${HTTP_PORT}`);
   });
 }
 
@@ -195,6 +245,10 @@ function startEmbeddedHub() {
 function startUdpBeacon() {
   try {
     udpSocket = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+
+    udpSocket.on('error', (err) => {
+      console.warn('[UDP Warning]', err.message);
+    });
 
     udpSocket.on('message', (msg, rinfo) => {
       try {
@@ -227,23 +281,30 @@ function startUdpBeacon() {
     udpBeaconTimer = setInterval(() => {
       const beaconMsg = Buffer.from(`MESH_BEACON:${LOCAL_NODE_ID}|Desktop Hub (${os.hostname()})|${HTTP_PORT}`);
       try {
-        udpSocket.send(beaconMsg, 0, beaconMsg.length, UDP_PORT, '255.255.255.255');
+        if (udpSocket) {
+          udpSocket.send(beaconMsg, 0, beaconMsg.length, UDP_PORT, '255.255.255.255', () => {});
+        }
       } catch (e) {}
-    }, 2000);
+    }, 3000);
   } catch (e) {
     console.warn('[UDP Beacon Note]', e.message);
   }
 }
 
 // -------------------------------------------------------------
-// 3. Electron Window Creation
+// 3. Ultra-Lightweight Electron Window Creation
 // -------------------------------------------------------------
 function createWindow() {
+  if (IS_HEADLESS) {
+    console.log('[Headless Mode] Desktop terminal running in background hub mode on port 3000.');
+    return;
+  }
+
   mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 820,
-    minWidth: 960,
-    minHeight: 680,
+    width: 1120,
+    height: 740,
+    minWidth: 860,
+    minHeight: 580,
     backgroundColor: '#0B0F19',
     title: 'SHARP-BOSE TACTICAL MESH // DESKTOP TERMINAL v2.0',
     icon: path.join(__dirname, 'icon.png'),
@@ -251,7 +312,10 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webSecurity: true
+      webSecurity: true,
+      backgroundThrottling: true,
+      spellcheck: false,
+      devTools: false
     }
   });
 
@@ -263,26 +327,39 @@ function createWindow() {
   });
 }
 
-// IPC Handlers
-ipcMain.handle('app:get-interfaces', () => getLocalIpAddresses());
-ipcMain.handle('app:get-node-id', () => LOCAL_NODE_ID);
-ipcMain.handle('app:get-hostname', () => os.hostname());
-
-app.whenReady().then(() => {
-  startEmbeddedHub();
-  startUdpBeacon();
-  createWindow();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+// Single Instance Lock to prevent multiple heavy Electron instances
+const gotSingleLock = app.requestSingleInstanceLock();
+if (!gotSingleLock && !IS_HEADLESS) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
   });
-});
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    if (udpBeaconTimer) clearInterval(udpBeaconTimer);
-    if (udpSocket) try { udpSocket.close(); } catch (e) {}
-    if (httpServer) try { httpServer.close(); } catch (e) {}
-    app.quit();
-  }
-});
+  // IPC Handlers
+  ipcMain.handle('app:get-interfaces', () => getLocalIpAddresses());
+  ipcMain.handle('app:get-node-id', () => LOCAL_NODE_ID);
+  ipcMain.handle('app:get-hostname', () => os.hostname());
+
+  app.whenReady().then(() => {
+    startEmbeddedHub();
+    startUdpBeacon();
+    createWindow();
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0 && !IS_HEADLESS) createWindow();
+    });
+  });
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      if (udpBeaconTimer) clearInterval(udpBeaconTimer);
+      if (udpSocket) try { udpSocket.close(); } catch (e) {}
+      if (httpServer) try { httpServer.close(); } catch (e) {}
+      app.quit();
+    }
+  });
+}
