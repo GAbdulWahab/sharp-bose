@@ -38,8 +38,8 @@ class AndroidAudioEngine(private val context: Context) {
     private var recordingThread: Thread? = null
     private var playbackThread: Thread? = null
 
-    // Smooth jitter queue (holds up to 20 frames, pre-buffers for seamless playback)
-    private val playbackQueue = LinkedBlockingQueue<ByteArray>(25)
+    // Low-latency real-time voice jitter queue (holds max 3 frames ~60ms)
+    private val playbackQueue = LinkedBlockingQueue<ByteArray>(5)
 
     var onAudioFrameCaptured: ((ByteArray) -> Unit)? = null
 
@@ -53,7 +53,7 @@ class AndroidAudioEngine(private val context: Context) {
         startPlaybackOnly()
 
         val inBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfigIn, audioFormat)
-        val actualInBufSize = maxOf(inBufferSize * 2, 4096)
+        val actualInBufSize = maxOf(inBufferSize, 1280) // 40ms audio record buffer
 
         try {
             var rec: AudioRecord? = null
@@ -120,7 +120,7 @@ class AndroidAudioEngine(private val context: Context) {
             isRecording.set(true)
 
             recordingThread = Thread {
-                Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
+                Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
                 // 320 samples = 20ms @ 16kHz 16-bit PCM = 640 bytes
                 val audioBuffer = ByteArray(640)
 
@@ -150,20 +150,19 @@ class AndroidAudioEngine(private val context: Context) {
         if (isPlaying.get() && audioTrack != null) return
 
         val outBufferSize = AudioTrack.getMinBufferSize(sampleRate, channelConfigOut, audioFormat)
-        val actualOutBufSize = maxOf(outBufferSize * 4, 8192)
+        val actualOutBufSize = maxOf(outBufferSize, 1280) // 40ms low-latency buffer
 
         try {
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
             audioManager.isSpeakerphoneOn = true
 
-            audioTrack = AudioTrack.Builder()
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
-                        .build()
-                )
+            val attrBuilder = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+
+            val trackBuilder = AudioTrack.Builder()
+                .setAudioAttributes(attrBuilder.build())
                 .setAudioFormat(
                     AudioFormat.Builder()
                         .setEncoding(audioFormat)
@@ -173,16 +172,20 @@ class AndroidAudioEngine(private val context: Context) {
                 )
                 .setBufferSizeInBytes(actualOutBufSize)
                 .setTransferMode(AudioTrack.MODE_STREAM)
-                .build()
 
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                trackBuilder.setPerformanceMode(AudioTrack.PERFORMANCE_MODE_LOW_LATENCY)
+            }
+
+            audioTrack = trackBuilder.build()
             audioTrack?.play()
             isPlaying.set(true)
 
             playbackThread = Thread {
-                Process.setThreadPriority(Process.THREAD_PRIORITY_AUDIO)
+                Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
                 while (isPlaying.get()) {
                     try {
-                        val chunk = playbackQueue.poll(20, java.util.concurrent.TimeUnit.MILLISECONDS)
+                        val chunk = playbackQueue.poll(5, java.util.concurrent.TimeUnit.MILLISECONDS)
                         if (chunk != null && chunk.isNotEmpty() && isPlaying.get()) {
                             if (audioTrack?.playState != AudioTrack.PLAYSTATE_PLAYING) {
                                 audioTrack?.play()
@@ -234,8 +237,8 @@ class AndroidAudioEngine(private val context: Context) {
 
         val clean = applySoftLimiter(processedPcm)
 
-        // Prevent overflow buffer delay: maintain under 150ms buffer
-        while (playbackQueue.size > 12) {
+        // Drop delayed stale frames to guarantee real-time instant voice (<60ms)
+        while (playbackQueue.size > 2) {
             playbackQueue.poll()
         }
 

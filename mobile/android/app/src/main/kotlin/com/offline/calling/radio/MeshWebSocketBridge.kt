@@ -144,7 +144,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 handleIncomingJson(text)
             }
             embeddedServer.onPeerListUpdated = { peers ->
-                mergeAndNotifyPeers(peers)
+                updateWsPeers(peers)
             }
             embeddedServer.onPeerCountChanged = { count ->
                 if (count > 0 && !isConnected) {
@@ -166,6 +166,43 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 connectDirect(peerIp)
             }
         }
+    }
+
+    private var lastWsPeers: List<PeerNode> = emptyList()
+    private var lastBtPeers: List<PeerNode> = emptyList()
+
+    private fun isValidRemotePeer(p: PeerNode): Boolean {
+        if (p.id.isEmpty()) return false
+        val pid = p.id.trim()
+        if (pid.equals(localNodeId, true) || pid == "node-local") return false
+        if (p.nickname.contains("(Host)", true) && pid.equals(localNodeId, true)) return false
+        if (p.nickname.contains("Desktop Local", true) && pid.equals(localNodeId, true)) return false
+        return true
+    }
+
+    fun updateWsPeers(peers: List<PeerNode>) {
+        lastWsPeers = peers.filter { isValidRemotePeer(it) }
+        publishCombinedRoster()
+    }
+
+    fun updateBtPeers(peers: List<PeerNode>) {
+        lastBtPeers = peers.filter { isValidRemotePeer(it) }
+        publishCombinedRoster()
+    }
+
+    private fun publishCombinedRoster() {
+        val combined = mutableListOf<PeerNode>()
+        for (p in lastWsPeers) {
+            if (isValidRemotePeer(p) && combined.none { it.id.equals(p.id, true) }) {
+                combined.add(p)
+            }
+        }
+        for (p in lastBtPeers) {
+            if (isValidRemotePeer(p) && combined.none { it.id.equals(p.id, true) }) {
+                combined.add(p)
+            }
+        }
+        publishPeers(combined)
     }
 
     /**
@@ -192,7 +229,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                     publishMeshStatus("● Bluetooth Mesh Linked with $peerName", true)
                 }
                 onPeerListUpdated = { btPeers ->
-                    mergeAndNotifyPeers(btPeers)
+                    updateBtPeers(btPeers)
                 }
                 start()
             }
@@ -200,26 +237,6 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
         } catch (e: Exception) {
             Log.w("MeshBridge", "Bluetooth startup note: ${e.message}")
         }
-    }
-
-    private fun mergeAndNotifyPeers(newPeers: List<PeerNode>) {
-        for (p in newPeers) {
-            if (p.id == localNodeId || p.id.equals(localNodeId, true) || p.id == "node-local" || p.nickname.contains("(Host)", true)) continue
-            val existing = allDiscoveredPeers.find { it.id == p.id }
-            if (existing != null) {
-                val idx = allDiscoveredPeers.indexOf(existing)
-                allDiscoveredPeers[idx] = p
-            } else {
-                allDiscoveredPeers.add(p)
-            }
-        }
-        val filtered = allDiscoveredPeers.filter { 
-            it.id != localNodeId && 
-            !it.id.equals(localNodeId, true) && 
-            it.id != "node-local" && 
-            !it.nickname.contains("(Host)", true) 
-        }
-        publishPeers(filtered)
     }
 
     var currentHost: String = "172.27.180.170"
@@ -272,6 +289,8 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
 
             override fun onFailure(ws: WebSocket, t: Throwable, response: Response?) {
                 isConnected = false
+                lastWsPeers = emptyList()
+                publishCombinedRoster()
                 Log.w("MeshBridge", "Direct connection failure on $url: ${t.message}")
                 val btStatus = if (bluetoothMesh?.hasConnectedPeers() == true) "● Bluetooth Mesh Active" else "○ Searching Mesh Radios..."
                 publishMeshStatus(btStatus, bluetoothMesh?.hasConnectedPeers() == true)
@@ -280,6 +299,8 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 isConnected = false
+                lastWsPeers = emptyList()
+                publishCombinedRoster()
                 val btStatus = if (bluetoothMesh?.hasConnectedPeers() == true) "● Bluetooth Mesh Active" else "○ Standby"
                 publishMeshStatus(btStatus, bluetoothMesh?.hasConnectedPeers() == true)
                 scheduleAutoReconnect()
@@ -464,6 +485,8 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 if (webSocket == ws) {
                     isConnected = false
                     webSocket = null
+                    lastWsPeers = emptyList()
+                    publishCombinedRoster()
                     scheduleAutoReconnect()
                 }
                 latch.countDown()
@@ -473,6 +496,8 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 if (webSocket == ws) {
                     isConnected = false
                     webSocket = null
+                    lastWsPeers = emptyList()
+                    publishCombinedRoster()
                     scheduleAutoReconnect()
                 }
             }
@@ -512,6 +537,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                     val assignedId = json.optString("id")
                     if (assignedId.isNotEmpty()) {
                         localNodeId = assignedId
+                        publishCombinedRoster()
                     }
                 }
                 "CALL_INVITE" -> {
@@ -564,8 +590,8 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 }
                 "PEER_LIST" -> {
                     val peersArray = json.optJSONArray("peers")
+                    val list = mutableListOf<PeerNode>()
                     if (peersArray != null) {
-                        val list = mutableListOf<PeerNode>()
                         for (i in 0 until peersArray.length()) {
                             val pObj = peersArray.getJSONObject(i)
                             val id = pObj.optString("id")
@@ -584,10 +610,13 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                                     timestamp = locObj.optLong("timestamp", System.currentTimeMillis())
                                 )
                             }
-                            list.add(PeerNode(id, nickname, deviceType, status, loc, hopCount))
+                            val p = PeerNode(id, nickname, deviceType, status, loc, hopCount)
+                            if (isValidRemotePeer(p)) {
+                                list.add(p)
+                            }
                         }
-                        mergeAndNotifyPeers(list)
                     }
+                    updateWsPeers(list)
                 }
                 "LOCATION_UPDATE" -> {
                     val senderId = json.optString("senderId", "peer")

@@ -76,6 +76,10 @@ class AndroidMeshServer(
     private fun handleNewClient(socket: Socket) {
         Thread {
             try {
+                try {
+                    socket.tcpNoDelay = true
+                    socket.trafficClass = 0x10 // IPTOS_LOWDELAY (RFC 1349)
+                } catch (e: Exception) {}
                 val input = socket.getInputStream()
                 val output = socket.getOutputStream()
                 val defaultId = "node-" + Math.random().toString().substring(2, 7)

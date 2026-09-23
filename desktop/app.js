@@ -820,7 +820,7 @@ class TacticalMeshDesktop {
       });
 
       const source = this.audioCtx.createMediaStreamSource(this.micStream);
-      const processor = this.audioCtx.createScriptProcessor(1024, 1, 1);
+      const processor = this.audioCtx.createScriptProcessor(512, 1, 1);
       const sampleRate = this.audioCtx.sampleRate || 16000;
 
       processor.onaudioprocess = (e) => {
@@ -853,10 +853,15 @@ class TacticalMeshDesktop {
         this.sendAudioBuffer(packet);
       };
 
+      // Silent sink node so processor runs continuously without local speaker feedback
+      const silentGain = this.audioCtx.createGain();
+      silentGain.gain.value = 0;
       source.connect(processor);
-      processor.connect(this.audioCtx.destination);
+      processor.connect(silentGain);
+      silentGain.connect(this.audioCtx.destination);
       this.processorNode = processor;
       this.sourceNode = source;
+      this.silentGainNode = silentGain;
     } catch (e) {
       this.log(`Microphone access: ${e.message}`);
     }
@@ -874,6 +879,10 @@ class TacticalMeshDesktop {
     if (this.processorNode) {
       try { this.processorNode.disconnect(); } catch(e){}
       this.processorNode = null;
+    }
+    if (this.silentGainNode) {
+      try { this.silentGainNode.disconnect(); } catch(e){}
+      this.silentGainNode = null;
     }
     const vuBar = document.getElementById('micVuBar');
     if (vuBar) vuBar.style.width = '0%';
@@ -910,8 +919,9 @@ class TacticalMeshDesktop {
       source.connect(this.audioCtx.destination);
 
       const currentTime = this.audioCtx.currentTime;
-      if (!this.nextAudioPlayTime || this.nextAudioPlayTime < currentTime) {
-        this.nextAudioPlayTime = currentTime + 0.025; // 25ms jitter buffer
+      // Clamp drift to 40ms max to prevent accumulating lag
+      if (!this.nextAudioPlayTime || this.nextAudioPlayTime < currentTime || (this.nextAudioPlayTime - currentTime > 0.04)) {
+        this.nextAudioPlayTime = currentTime + 0.005; // 5ms ultra-low jitter buffer
       }
 
       source.start(this.nextAudioPlayTime);

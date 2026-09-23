@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using Windows.Devices.Radios;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.Advertisement;
+using Windows.Devices.Bluetooth.GenericAttributeProfile;
 using Windows.Devices.Enumeration;
 using Windows.Foundation;
 
@@ -16,9 +17,11 @@ namespace SharpBose.WindowsBluetooth {
         private static BluetoothLEAdvertisementWatcher _bleWatcher = null;
         private static readonly Dictionary<string, DeviceInfo> _discoveredDevices = new Dictionary<string, DeviceInfo>();
         private static BluetoothLEDevice _connectedDevice = null;
+        private static GattSession _gattSession = null;
         private static string _connectedAddress = null;
-        private static bool _autoReconnect = false;
+        private static bool _autoReconnect = true;
         private static string _lastConnectedAddress = null;
+        private static bool _isUserDisconnecting = false;
         private static readonly object _lock = new object();
 
         public class DeviceInfo {
@@ -49,7 +52,7 @@ namespace SharpBose.WindowsBluetooth {
 
         public static void Main(string[] args) {
             Console.OutputEncoding = Encoding.UTF8;
-            SendJson("LOG", "Windows Bluetooth Service Starting...");
+            SendJson("LOG", "Windows Bluetooth Service Active");
 
             try {
                 InitRadio();
@@ -229,11 +232,12 @@ namespace SharpBose.WindowsBluetooth {
                     return;
                 }
 
+                _isUserDisconnecting = false;
                 SendJson("CONNECT_STATUS", "{\"status\":\"CONNECTING\",\"address\":\"" + EscapeJson(address) + "\"}");
                 ulong uAddress = ParseMac(address);
 
                 var task = ToTask(BluetoothLEDevice.FromBluetoothAddressAsync(uAddress));
-                task.Wait(10000);
+                task.Wait(12000);
                 var device = task.Result;
 
                 if (device == null) {
@@ -246,6 +250,19 @@ namespace SharpBose.WindowsBluetooth {
                     _connectedDevice = device;
                     _connectedAddress = address;
                     _lastConnectedAddress = address;
+                }
+
+                // Attach persistent GATT Session with MaintainConnection = true to prevent Windows from auto-disconnecting
+                try {
+                    var sessionTask = ToTask(GattSession.FromDeviceIdAsync(device.BluetoothDeviceId));
+                    sessionTask.Wait(4000);
+                    _gattSession = sessionTask.Result;
+                    if (_gattSession != null) {
+                        _gattSession.MaintainConnection = true;
+                        SendJson("LOG", "Persistent GATT session established for " + address);
+                    }
+                } catch (Exception gattEx) {
+                    SendJson("LOG", "GATT session note: " + gattEx.Message);
                 }
 
                 device.ConnectionStatusChanged += OnDeviceConnectionStatusChanged;
@@ -263,14 +280,17 @@ namespace SharpBose.WindowsBluetooth {
         private static void OnDeviceConnectionStatusChanged(BluetoothLEDevice sender, object args) {
             try {
                 if (sender.ConnectionStatus == BluetoothConnectionStatus.Disconnected) {
+                    if (_isUserDisconnecting) return;
+
                     string addr = _connectedAddress;
+                    SendJson("LOG", "Bluetooth device disconnected: " + (addr ?? sender.Name));
                     DisconnectCurrent("UNEXPECTED_DISCONNECT");
                     
                     if (_autoReconnect && !string.IsNullOrEmpty(addr)) {
-                        SendJson("LOG", "Auto-reconnect triggered for " + addr + " in 3 seconds...");
+                        SendJson("LOG", "Auto-reconnect active. Attempting reconnection to " + addr + " in 2.5 seconds...");
                         Task.Factory.StartNew(() => {
-                            Thread.Sleep(3000);
-                            if (_connectedDevice == null && _autoReconnect) {
+                            Thread.Sleep(2500);
+                            if (_connectedDevice == null && _autoReconnect && !_isUserDisconnecting) {
                                 ConnectDevice(addr);
                             }
                         });
@@ -283,6 +303,18 @@ namespace SharpBose.WindowsBluetooth {
 
         public static void DisconnectCurrent(string reason = "USER_REQUESTED") {
             lock (_lock) {
+                if (reason == "USER_REQUESTED") {
+                    _isUserDisconnecting = true;
+                }
+
+                if (_gattSession != null) {
+                    try {
+                        _gattSession.MaintainConnection = false;
+                        _gattSession.Dispose();
+                    } catch { }
+                    _gattSession = null;
+                }
+
                 if (_connectedDevice != null) {
                     try {
                         _connectedDevice.Dispose();

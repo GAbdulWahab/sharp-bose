@@ -95,6 +95,9 @@ function startWindowsBluetoothService() {
     btProcess.on('exit', (code) => {
       console.log(`[Bluetooth Service] Process exited with code ${code}`);
       btProcess = null;
+      if (!app?.isQuitting) {
+        setTimeout(startWindowsBluetoothService, 3000);
+      }
     });
 
     console.log('[Bluetooth Service] Native Windows Bluetooth Service started.');
@@ -290,6 +293,12 @@ function startEmbeddedHub() {
     }
 
     wss.on('connection', (ws, req) => {
+      if (req.socket && req.socket.setNoDelay) {
+        req.socket.setNoDelay(true); // Disable TCP buffering for instant live audio
+      }
+      if (ws._socket && ws._socket.setNoDelay) {
+        ws._socket.setNoDelay(true);
+      }
       allWebSockets.add(ws);
       ws.isAlive = true;
       ws.on('pong', () => { ws.isAlive = true; });

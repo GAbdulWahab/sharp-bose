@@ -566,6 +566,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         bridge.onMeshStatusChanged = { status ->
             runOnUiThread {
                 tvStatus.text = status
+                tvPeerId.text = "NODE ID: $localPeerId • CIPHER: NOISE_XX"
                 if (status.contains("Online", true) || status.contains("Connected", true) || status.contains("Active", true)) {
                     tvStatus.setTextColor(ContextCompat.getColor(this, R.color.neon_emerald))
                 } else {
@@ -579,6 +580,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         bridge.onPeersUpdated = { peers ->
             runOnUiThread {
+                tvPeerId.text = "NODE ID: $localPeerId • CIPHER: NOISE_XX"
                 connectedPeersList = peers.toMutableList()
                 if (currentTabIndex == 0) {
                     renderConnectedPeopleList(connectedPeersList)
