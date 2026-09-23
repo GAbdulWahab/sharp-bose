@@ -69,14 +69,38 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
     var onAudioFrameReceived: ((ByteArray) -> Unit)? = null
     var onIncomingCall: ((callerName: String, callerId: String) -> Unit)? = null
     var onCallAccepted: ((peerName: String) -> Unit)? = null
+    var onCallDeclined: ((peerId: String) -> Unit)? = null
+    var onCallTerminated: (() -> Unit)? = null
     var onCallEnded: (() -> Unit)? = null
     var onPttStarted: ((speakerName: String) -> Unit)? = null
     var onPttStopped: (() -> Unit)? = null
     var onChatMessageReceived: ((senderName: String, text: String) -> Unit)? = null
+    var onMeshStatusChanged: ((String) -> Unit)? = null
     var onStatusChanged: ((status: String, isConnected: Boolean) -> Unit)? = null
+    var onPeersUpdated: ((List<PeerNode>) -> Unit)? = null
     var onPeerListUpdated: ((List<PeerNode>) -> Unit)? = null
     var onLocationReceived: ((senderId: String, senderName: String, location: PeerLocation) -> Unit)? = null
     var onRouteDiscovered: ((nodeId: String, hopCount: Int, relayPath: List<String>) -> Unit)? = null
+
+    private fun publishMeshStatus(status: String, isConnectedState: Boolean = true) {
+        onMeshStatusChanged?.invoke(status)
+        onStatusChanged?.invoke(status, isConnectedState)
+    }
+
+    private fun publishPeers(peers: List<PeerNode>) {
+        onPeersUpdated?.invoke(peers)
+        onPeerListUpdated?.invoke(peers)
+    }
+
+    private fun handleCallDeclined(peerId: String) {
+        onCallDeclined?.invoke(peerId)
+        onCallEnded?.invoke()
+    }
+
+    private fun handleCallTerminated() {
+        onCallTerminated?.invoke()
+        onCallEnded?.invoke()
+    }
 
     init {
         router.onForwardRelayPacket = { forwardJson ->
@@ -103,7 +127,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
             }
             embeddedServer.onPeerCountChanged = { count ->
                 if (count > 0 && !isConnected) {
-                    onStatusChanged?.invoke("● P2P Mesh Active ($count Phone(s) connected)", true)
+                    publishMeshStatus("● P2P Mesh Active ($count Phone(s) connected)", true)
                 }
             }
 
@@ -143,7 +167,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                     this@MeshWebSocketBridge.handleIncomingJson(jsonText)
                 }
                 onPeerDiscoveredAndConnected = { peerId, peerName ->
-                    onStatusChanged?.invoke("● Bluetooth Mesh Linked with $peerName", true)
+                    publishMeshStatus("● Bluetooth Mesh Linked with $peerName", true)
                 }
                 onPeerListUpdated = { btPeers ->
                     mergeAndNotifyPeers(btPeers)
@@ -166,7 +190,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                 allDiscoveredPeers.add(p)
             }
         }
-        onPeerListUpdated?.invoke(allDiscoveredPeers.toList())
+        publishPeers(allDiscoveredPeers.toList())
     }
 
     var currentHost: String = "172.27.180.170"
@@ -199,7 +223,7 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                 isConnected = true
                 currentHost = cleanHost
                 Log.d("MeshBridge", "Connected to Mesh at $url")
-                onStatusChanged?.invoke("● Connected to Mesh ($currentHost)", true)
+                publishMeshStatus("● Connected to Mesh ($currentHost)", true)
                 sendJoinRoom(currentRoom)
             }
 
@@ -217,14 +241,14 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                 isConnected = false
                 Log.w("MeshBridge", "Direct connection failure on $url: ${t.message}")
                 val btStatus = if (bluetoothMesh?.hasConnectedPeers() == true) "● Bluetooth Mesh Active" else "○ Searching Mesh Radios..."
-                onStatusChanged?.invoke(btStatus, bluetoothMesh?.hasConnectedPeers() == true)
+                publishMeshStatus(btStatus, bluetoothMesh?.hasConnectedPeers() == true)
                 scheduleAutoReconnect()
             }
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
                 isConnected = false
                 val btStatus = if (bluetoothMesh?.hasConnectedPeers() == true) "● Bluetooth Mesh Active" else "○ Standby"
-                onStatusChanged?.invoke(btStatus, bluetoothMesh?.hasConnectedPeers() == true)
+                publishMeshStatus(btStatus, bluetoothMesh?.hasConnectedPeers() == true)
                 scheduleAutoReconnect()
             }
         })
@@ -456,8 +480,12 @@ class MeshWebSocketBridge(val localNodeId: String = "node-" + java.util.UUID.ran
                     val senderName = json.optString("senderName", "Mesh Peer")
                     onCallAccepted?.invoke(senderName)
                 }
-                "CALL_DECLINE", "CALL_HANGUP" -> {
-                    onCallEnded?.invoke()
+                "CALL_DECLINE" -> {
+                    val senderId = json.optString("senderId", "node-peer")
+                    handleCallDeclined(senderId)
+                }
+                "CALL_HANGUP" -> {
+                    handleCallTerminated()
                 }
                 "PTT_START" -> {
                     val senderName = json.optString("senderName", "Mesh Peer")
