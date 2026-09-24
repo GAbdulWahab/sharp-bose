@@ -51,6 +51,15 @@ class MeshCryptoEngine private constructor() {
     }
 
     /**
+     * Rotates session keys by generating a new random 256-bit AES key.
+     */
+    fun rotateKeys() {
+        val keyGen = KeyGenerator.getInstance("AES")
+        keyGen.init(AES_KEY_SIZE, secureRandom)
+        sessionKey = keyGen.generateKey()
+    }
+
+    /**
      * Generates a unique 6-digit Safety Number / Fingerprint for MITM verification
      */
     fun getSafetyFingerprint(peerId1: String, peerId2: String): String {

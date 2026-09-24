@@ -414,6 +414,10 @@ class BluetoothMeshTransport(
     // =========================================================================
     // 5. Explicit Device Discovery & Scanning (No auto-reconnect)
     // =========================================================================
+    fun triggerImmediateScanAndConnect() {
+        startScan()
+    }
+
     @SuppressLint("MissingPermission")
     fun startScan() {
         if (bluetoothAdapter == null || !bluetoothAdapter.isEnabled) {

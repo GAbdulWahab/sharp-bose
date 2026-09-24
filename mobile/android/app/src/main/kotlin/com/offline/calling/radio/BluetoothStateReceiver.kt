@@ -27,7 +27,7 @@ class BluetoothStateReceiver : BroadcastReceiver() {
                         val bridge = ForegroundMeshService.getSharedBridge(context)
                         bridge.startBluetooth(context)
                         bridge.autoDiscoverAndConnect()
-                        bridge.bluetoothMesh?.triggerImmediateScanAndConnect()
+                        bridge.startBluetoothScan()
                     } catch (e: Exception) {
                         Log.w("BtStateReceiver", "Bridge kick on STATE_ON note: ${e.message}")
                     }
@@ -46,7 +46,7 @@ class BluetoothStateReceiver : BroadcastReceiver() {
                         val bridge = ForegroundMeshService.getSharedBridge(context)
                         bridge.startBluetooth(context)
                         bridge.autoDiscoverAndConnect()
-                        bridge.bluetoothMesh?.triggerImmediateScanAndConnect()
+                        bridge.startBluetoothScan()
                     } catch (e: Exception) {
                         Log.w("BtStateReceiver", "Bridge kick on trigger note: ${e.message}")
                     }

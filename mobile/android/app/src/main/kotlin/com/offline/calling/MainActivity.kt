@@ -200,7 +200,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             startMeshService()
             bridge.startBluetooth(this)
             bridge.autoDiscoverAndConnect()
-            bridge.bluetoothMesh?.triggerImmediateScanAndConnect()
+            bridge.startBluetoothScan()
             renderConnectedPeopleList(connectedPeersList)
         } catch (e: Exception) {
             Log.w("MainActivity", "onResume auto-connect note: ${e.message}")
@@ -650,6 +650,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
         bridge.onCallAccepted = { peerId ->
             runOnUiThread {
                 isCalling = true
+                if (peerId.isNotEmpty()) {
+                    activeCallPeerId = peerId
+                }
                 callStartTime = System.currentTimeMillis()
                 btnCall.text = "[ 🔴 END CALL ]"
                 btnCall.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_rose))
@@ -947,7 +950,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         btnAutoScanMesh.setOnClickListener {
             bridge.autoDiscoverAndConnect()
-            bridge.bluetoothMesh?.triggerImmediateScanAndConnect()
+            bridge.startBluetoothScan()
             Toast.makeText(this, "🔄 Manual scan triggered for Bluetooth PAN & Wi-Fi mesh nodes...", Toast.LENGTH_SHORT).show()
         }
 
@@ -1316,13 +1319,14 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 )
             }
             val wasCalling = isCalling
+            val peerToNotify = activeCallPeerId.ifEmpty { "BROADCAST" }
             isCalling = false
             activeCallPeerId = ""
             activeCallPeerName = "Mesh Peer"
             btnCall.text = "[ 📞 START 2-WAY DUPLEX CALL ]"
             btnCall.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_emerald))
             if (notifyRemote && wasCalling) {
-                bridge.sendCallHangup()
+                bridge.sendCallHangup(peerToNotify)
             }
             logEvent("[Voice Call] Call ended")
             Toast.makeText(this, "Call Ended", Toast.LENGTH_SHORT).show()

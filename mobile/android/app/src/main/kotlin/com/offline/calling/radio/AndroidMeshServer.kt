@@ -315,6 +315,13 @@ class AndroidMeshServer(
         }
     }
 
+    /**
+     * Broadcasts control JSON generated on local phone to all connected peers
+     */
+    fun broadcastLocalJson(text: String) {
+        broadcastLocalText(text)
+    }
+
     fun broadcastPeerList() {
         val remotePeerNodesList = mutableListOf<PeerNode>()
 
