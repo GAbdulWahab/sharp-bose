@@ -41,8 +41,9 @@ class ForegroundMeshService : Service() {
 
                 sharedBridgeInstance = MeshWebSocketBridge(localNodeId = persistentId).apply {
                     appContext = context.applicationContext
+                    transportMode = RadioTransportMode.BLUETOOTH_ONLY
                     startBluetooth(context)
-                    connect(context = context)
+                    startBluetoothScan()
                 }
             }
             return sharedBridgeInstance!!
@@ -72,10 +73,11 @@ class ForegroundMeshService : Service() {
             wakeLock?.acquire(60 * 60 * 1000L /* 60 minutes */)
         } catch (e: Exception) {}
 
-        // Ensure shared bridge and bluetooth are active
+        // Ensure shared bridge and bluetooth are active (Bluetooth Only - No Wi-Fi)
         val bridge = getSharedBridge(this)
+        bridge.transportMode = RadioTransportMode.BLUETOOTH_ONLY
         bridge.startBluetooth(this)
-        bridge.autoDiscoverAndConnect()
+        bridge.startBluetoothScan()
 
         // Listen for background incoming calls
         bridge.onIncomingCall = { callerName, callerId ->

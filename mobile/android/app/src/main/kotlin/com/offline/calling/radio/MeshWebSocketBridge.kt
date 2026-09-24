@@ -70,7 +70,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
     var bluetoothMesh: BluetoothMeshTransport? = null
         private set
 
-    var transportMode: RadioTransportMode = RadioTransportMode.COMBINED
+    var transportMode: RadioTransportMode = RadioTransportMode.BLUETOOTH_ONLY
 
     private var webSocket: WebSocket? = null
     var isConnected = false
@@ -233,8 +233,10 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 refreshMeshStatus()
             }
 
-            embeddedServer.start()
-            udpBeacon.start()
+            if (transportMode != RadioTransportMode.BLUETOOTH_ONLY) {
+                embeddedServer.start()
+                udpBeacon.start()
+            }
         } catch (e: Exception) {
             Log.w("MeshBridge", "P2P startup notice: ${e.message}")
         }
@@ -303,9 +305,11 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
     fun startBluetooth(context: Context) {
         appContext = context.applicationContext
         udpBeacon.context = appContext
-        try {
-            udpBeacon.start()
-        } catch (e: Exception) {}
+        if (transportMode != RadioTransportMode.BLUETOOTH_ONLY) {
+            try {
+                udpBeacon.start()
+            } catch (e: Exception) {}
+        }
 
         if (bluetoothMesh != null) return
 
@@ -376,6 +380,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
     }
 
     private fun connectDirect(host: String) {
+        if (transportMode == RadioTransportMode.BLUETOOTH_ONLY) return
         val cleanHost = host.replace("ws://", "").replace("http://", "").split(":")[0]
         if (cleanHost.isEmpty() || getLocalIpAddresses().contains(cleanHost) || cleanHost == "127.0.0.1" || cleanHost == "localhost" || cleanHost == "0.0.0.0") {
             Log.d("MeshBridge", "Skipping connection to local host address: $cleanHost")

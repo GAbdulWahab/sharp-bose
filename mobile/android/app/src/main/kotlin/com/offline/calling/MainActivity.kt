@@ -98,7 +98,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var btnAutoScanMesh: Button
     private lateinit var btnConfigNodeIp: Button
     private var isBtRadioEnabled = true
-    private var isWifiRadioEnabled = true
+    private var isWifiRadioEnabled = false
 
     // Screen 2: Comms UI
     private lateinit var cardCall: CardView
@@ -703,8 +703,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
         }
 
+        bridge.transportMode = RadioTransportMode.BLUETOOTH_ONLY
         bridge.startBluetooth(this)
-        bridge.connect(context = this)
+        bridge.startBluetoothScan()
         renderConnectedPeopleList(connectedPeersList)
     }
 
