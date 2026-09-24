@@ -83,6 +83,21 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
     var onLocationReceived: ((senderId: String, senderName: String, location: PeerLocation) -> Unit)? = null
     var onRouteDiscovered: ((nodeId: String, hopCount: Int, relayPath: List<String>) -> Unit)? = null
 
+    fun refreshMeshStatus() {
+        val hasBt = bluetoothMesh?.hasConnectedPeers() == true
+        val hasWs = isConnected
+        val hasLocalClients = embeddedServer.hasConnectedClients()
+
+        val (statusText, connected) = when {
+            hasBt && (hasWs || hasLocalClients) -> Pair("● Multi-Radio Active (Wi-Fi + Bluetooth)", true)
+            hasBt -> Pair("● Direct Hardware Bluetooth Active", true)
+            hasWs -> Pair("● Wi-Fi Mesh Connected (${currentHost})", true)
+            hasLocalClients -> Pair("● Hotspot P2P Mesh Active", true)
+            else -> Pair("○ Auto-Scanning Radios (Bluetooth & Wi-Fi)...", false)
+        }
+        publishMeshStatus(statusText, connected)
+    }
+
     private fun publishMeshStatus(status: String, isConnectedState: Boolean = true) {
         onMeshStatusChanged?.invoke(status)
         onStatusChanged?.invoke(status, isConnectedState)
@@ -126,9 +141,9 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
     init {
         router.onForwardRelayPacket = { forwardJson ->
             if (isConnected && webSocket != null) {
-                webSocket?.send(forwardJson)
+                try { webSocket?.send(forwardJson) } catch (e: Exception) {}
             }
-            bluetoothMesh?.broadcastControlMessage(forwardJson)
+            try { bluetoothMesh?.broadcastControlMessage(forwardJson) } catch (e: Exception) {}
         }
         router.onRouteDiscovered = { nodeId, hopCount, relayPath ->
             onRouteDiscovered?.invoke(nodeId, hopCount, relayPath)
@@ -147,9 +162,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 updateWsPeers(peers)
             }
             embeddedServer.onPeerCountChanged = { count ->
-                if (count > 0 && !isConnected) {
-                    publishMeshStatus("● P2P Mesh Active ($count Phone(s) connected)", true)
-                }
+                refreshMeshStatus()
             }
 
             embeddedServer.start()
@@ -192,19 +205,21 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
 
     private fun publishCombinedRoster() {
         val combined = mutableListOf<PeerNode>()
-        for (p in lastWsPeers) {
-            if (isValidRemotePeer(p) && combined.none { it.id.equals(p.id, true) }) {
+        // Prioritize Bluetooth peers first, then Wi-Fi peers, avoiding duplicate cards for the same peer
+        for (p in lastBtPeers) {
+            if (isValidRemotePeer(p) && combined.none { it.id.equals(p.id, true) || it.nickname.equals(p.nickname, true) }) {
                 combined.add(p)
             }
         }
-        for (p in lastBtPeers) {
-            if (isValidRemotePeer(p) && combined.none { it.id.equals(p.id, true) }) {
+        for (p in lastWsPeers) {
+            if (isValidRemotePeer(p) && combined.none { it.id.equals(p.id, true) || it.nickname.equals(p.nickname, true) }) {
                 combined.add(p)
             }
         }
         // Exclusively show only ONE single connected device at any time
         val singlePeerRoster = if (combined.isNotEmpty()) listOf(combined.first()) else emptyList()
         publishPeers(singlePeerRoster)
+        refreshMeshStatus()
     }
 
     /**
@@ -233,7 +248,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                     this@MeshWebSocketBridge.handleIncomingJson(jsonText)
                 }
                 onPeerDiscoveredAndConnected = { peerId, peerName ->
-                    publishMeshStatus("● Bluetooth Mesh Linked with $peerName", true)
+                    refreshMeshStatus()
                 }
                 onPeerListUpdated = { btPeers ->
                     updateBtPeers(btPeers)
@@ -281,7 +296,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 isConnected = true
                 currentHost = cleanHost
                 Log.d("MeshBridge", "Connected to Mesh at $url")
-                publishMeshStatus("● Connected to Mesh ($currentHost)", true)
+                refreshMeshStatus()
                 sendJoinRoom(currentRoom)
             }
 
@@ -300,8 +315,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 lastWsPeers = emptyList()
                 publishCombinedRoster()
                 Log.w("MeshBridge", "Direct connection failure on $url: ${t.message}")
-                val btStatus = if (bluetoothMesh?.hasConnectedPeers() == true) "● Bluetooth Mesh Active" else "○ Searching Mesh Radios..."
-                publishMeshStatus(btStatus, bluetoothMesh?.hasConnectedPeers() == true)
+                refreshMeshStatus()
                 scheduleAutoReconnect()
             }
 
@@ -309,8 +323,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 isConnected = false
                 lastWsPeers = emptyList()
                 publishCombinedRoster()
-                val btStatus = if (bluetoothMesh?.hasConnectedPeers() == true) "● Bluetooth Mesh Active" else "○ Standby"
-                publishMeshStatus(btStatus, bluetoothMesh?.hasConnectedPeers() == true)
+                refreshMeshStatus()
                 scheduleAutoReconnect()
             }
         })
@@ -524,12 +537,12 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
     }
 
     private fun scheduleAutoReconnect() {
-        if (isConnected || isConnecting.get()) return
+        if (isConnected || isConnecting.get() || bluetoothMesh?.hasConnectedPeers() == true) return
         reconnectThread?.interrupt()
         reconnectThread = Thread {
             try {
-                Thread.sleep(3000)
-                if (!isConnected) {
+                Thread.sleep(5000)
+                if (!isConnected && bluetoothMesh?.hasConnectedPeers() != true) {
                     autoDiscoverAndConnect()
                 }
             } catch (e: InterruptedException) {}
@@ -661,11 +674,13 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
 
     fun sendAudioFrame(frame: ByteArray) {
         if (isConnected && webSocket != null) {
-            webSocket?.send(frame.toByteString())
-        } else if (embeddedServer.hasConnectedClients()) {
-            embeddedServer.broadcastLocalAudio(frame)
-        } else {
-            bluetoothMesh?.broadcastAudioFrame(frame)
+            try { webSocket?.send(frame.toByteString()) } catch (e: Exception) {}
+        }
+        if (embeddedServer.hasConnectedClients()) {
+            try { embeddedServer.broadcastLocalAudio(frame) } catch (e: Exception) {}
+        }
+        if (bluetoothMesh?.hasConnectedPeers() == true) {
+            try { bluetoothMesh?.broadcastAudioFrame(frame) } catch (e: Exception) {}
         }
     }
 
@@ -763,11 +778,13 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
         }
         val text = json.toString()
         if (isConnected && webSocket != null) {
-            webSocket?.send(text)
-        } else if (embeddedServer.hasConnectedClients()) {
-            embeddedServer.broadcastLocalText(text)
-        } else {
-            bluetoothMesh?.broadcastControlMessage(text)
+            try { webSocket?.send(text) } catch (e: Exception) {}
+        }
+        if (embeddedServer.hasConnectedClients()) {
+            try { embeddedServer.broadcastLocalText(text) } catch (e: Exception) {}
+        }
+        if (bluetoothMesh?.hasConnectedPeers() == true) {
+            try { bluetoothMesh?.broadcastControlMessage(text) } catch (e: Exception) {}
         }
     }
 

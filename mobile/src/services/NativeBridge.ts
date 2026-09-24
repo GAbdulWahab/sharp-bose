@@ -36,7 +36,7 @@ export const CANDIDATE_MESH_HOSTS: string[] = [
 
 export const DEFAULT_MESH_HOST = Platform.OS === 'web' 
   ? 'localhost:3000' 
-  : '172.27.180.170:3000'; // Default to Bluetooth PAN
+  : '127.0.0.1:3000';
 
 type Listener<T> = (data: T) => void;
 
