@@ -78,16 +78,8 @@ export class NativeBridgeService {
   }
 
   private startAutoScanLoop() {
-    // Initial fast auto-discovery scan across all Bluetooth PAN and Wi-Fi endpoints
+    // Single initial check on launch, no continuous reconnect loop
     this.autoScanMeshServers();
-
-    // Continuous automatic discovery loop (auto-connects the moment Bluetooth or Wi-Fi is enabled)
-    if (this.autoScanTimer) clearInterval(this.autoScanTimer);
-    this.autoScanTimer = setInterval(() => {
-      if (!this.isConnected && !this.isScanning) {
-        this.autoScanMeshServers();
-      }
-    }, 3000);
   }
 
   public setServerHost(host: string) {
@@ -313,19 +305,10 @@ export class NativeBridgeService {
         this.isConnected = false;
         this.notifyConnectionStatus(false);
         if (this.pingTimer) clearInterval(this.pingTimer);
-
-        this.reconnectTimer = setTimeout(() => {
-          if (!this.isConnected && !this.isScanning) {
-            this.autoScanMeshServers();
-          }
-        }, 2000);
       };
     } catch (e) {
-      this.reconnectTimer = setTimeout(() => {
-        if (!this.isConnected && !this.isScanning) {
-          this.autoScanMeshServers();
-        }
-      }, 2000);
+      this.isConnected = false;
+      this.notifyConnectionStatus(false);
     }
   }
 

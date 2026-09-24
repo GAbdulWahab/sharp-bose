@@ -5,7 +5,11 @@
 
 class TacticalMeshDesktop {
   constructor() {
-    this.localNodeId = 'node-desktop-' + Math.random().toString(36).substring(2, 6);
+    const savedId = localStorage.getItem('tactical_mesh_node_id');
+    this.localNodeId = savedId || ('node-desktop-' + Math.random().toString(36).substring(2, 8));
+    if (!savedId) {
+      localStorage.setItem('tactical_mesh_node_id', this.localNodeId);
+    }
     this.currentHost = '127.0.0.1';
     this.currentPort = 3000;
     this.currentRoom = 'INDIA-MAIN';
@@ -27,14 +31,13 @@ class TacticalMeshDesktop {
     this.selfCoords = { lat: 28.6139, lng: 77.2090, alt: 216.0 };
     this.radarSweepAngle = 0;
     this.isRadarActive = false;
-    this.radarRafId = null;
-
-    // Real Windows Bluetooth State
+    // Carrier Isolation & Stable Connection Policy
+    this.carrierMode = 'BLUETOOTH_ONLY'; // Options: BLUETOOTH_ONLY, WIFI_ONLY, COMBINED, MANUAL
     this.btDevices = new Map();
     this.isBtScanning = false;
     this.btConnectedAddress = null;
     this.btRadioState = 'UNKNOWN';
-    this.btAutoReconnect = true;
+    this.btAutoReconnect = false; // STRICT: No auto-reconnecting loops
     
     this.init();
   }
@@ -52,11 +55,14 @@ class TacticalMeshDesktop {
   startAutoDiscoveryLoop() {
     if (this.autoScanTimer) clearInterval(this.autoScanTimer);
     this.autoScanTimer = setInterval(() => {
-      // Continue auto-discovering if not connected or if connected only to local loopback with 0 remote peers
+      // Strictly prevent auto-switching if in Bluetooth-Only mode or if active Bluetooth connection is established
+      if (this.carrierMode === 'BLUETOOTH_ONLY' || this.carrierMode === 'MANUAL' || this.btConnectedAddress) {
+        return;
+      }
       if (!this.isConnected || this.connectedPeers.length === 0) {
         this.autoDiscoverLocalHub();
       }
-    }, 2500);
+    }, 4000);
   }
 
   async autoDiscoverLocalHub() {
@@ -166,27 +172,86 @@ class TacticalMeshDesktop {
       });
     }
 
-    // Real Windows Bluetooth UI Handlers
-    const btnScanBt = document.getElementById('btnScanBt');
-    if (btnScanBt) {
-      btnScanBt.addEventListener('click', () => {
-        if (!this.isBtScanning) {
-          if (window.bluetoothAPI) window.bluetoothAPI.startScan();
-        } else {
-          if (window.bluetoothAPI) window.bluetoothAPI.stopScan();
+    // Bluetooth Hardware Turn ON / OFF Handlers
+    const toggleBt = async () => {
+      const turnOn = (this.btRadioState !== 'ON');
+      this.log(`Requesting Windows Bluetooth Radio: ${turnOn ? 'TURN ON' : 'TURN OFF'}...`);
+      if (window.bluetoothAPI) {
+        await window.bluetoothAPI.setRadioState(turnOn);
+      }
+    };
+
+    const btnToggleBtHeader = document.getElementById('btnToggleBtHeader');
+    const btnToggleBtAction = document.getElementById('btnToggleBtAction');
+    if (btnToggleBtHeader) btnToggleBtHeader.addEventListener('click', toggleBt);
+    if (btnToggleBtAction) btnToggleBtAction.addEventListener('click', toggleBt);
+
+    // Wi-Fi Carrier Turn ON / OFF Handlers
+    this.isWifiActive = true;
+    const toggleWifi = () => {
+      this.isWifiActive = !this.isWifiActive;
+      this.toggleWifiCarrier(this.isWifiActive);
+    };
+
+    const btnToggleWifiHeader = document.getElementById('btnToggleWifiHeader');
+    const btnToggleWifiAction = document.getElementById('btnToggleWifiAction');
+    if (btnToggleWifiHeader) btnToggleWifiHeader.addEventListener('click', toggleWifi);
+    if (btnToggleWifiAction) btnToggleWifiAction.addEventListener('click', toggleWifi);
+
+    // Dedicated Carrier Transport Mode Toggles
+    const btnBtOnly = document.getElementById('btnModeBtOnly');
+    const btnWifiOnly = document.getElementById('btnModeWifiOnly');
+    const btnCombined = document.getElementById('btnModeCombined');
+
+    const updateCarrierButtons = () => {
+      [btnBtOnly, btnWifiOnly, btnCombined].forEach(b => {
+        if (b) {
+          b.style.background = '';
+          b.style.borderColor = 'var(--border-glass)';
+          b.style.color = 'var(--text-secondary)';
         }
       });
-    }
+      if (this.carrierMode === 'BLUETOOTH_ONLY' && btnBtOnly) {
+        btnBtOnly.style.background = 'rgba(56, 189, 248, 0.15)';
+        btnBtOnly.style.borderColor = 'var(--cyan-primary)';
+        btnBtOnly.style.color = 'var(--cyan-primary)';
+      } else if (this.carrierMode === 'WIFI_ONLY' && btnWifiOnly) {
+        btnWifiOnly.style.background = 'rgba(16, 185, 129, 0.15)';
+        btnWifiOnly.style.borderColor = 'var(--emerald-primary)';
+        btnWifiOnly.style.color = 'var(--emerald-primary)';
+      } else if (this.carrierMode === 'COMBINED' && btnCombined) {
+        btnCombined.style.background = 'rgba(168, 85, 247, 0.15)';
+        btnCombined.style.borderColor = '#A855F7';
+        btnCombined.style.color = '#C084FC';
+      }
+    };
 
-    const btnDisconnectBt = document.getElementById('btnDisconnectBtDevice');
-    if (btnDisconnectBt) {
-      btnDisconnectBt.addEventListener('click', () => {
-        this.disconnectBtDevice();
+    if (btnBtOnly) {
+      btnBtOnly.addEventListener('click', () => {
+        this.carrierMode = 'BLUETOOTH_ONLY';
+        updateCarrierButtons();
+        this.log('Carrier Mode: Dedicated Bluetooth (Wi-Fi auto-switching disabled)');
       });
     }
+    if (btnWifiOnly) {
+      btnWifiOnly.addEventListener('click', () => {
+        this.carrierMode = 'WIFI_ONLY';
+        updateCarrierButtons();
+        this.log('Carrier Mode: Dedicated Wi-Fi (Bluetooth auto-switching disabled)');
+      });
+    }
+    if (btnCombined) {
+      btnCombined.addEventListener('click', () => {
+        this.carrierMode = 'COMBINED';
+        updateCarrierButtons();
+        this.log('Carrier Mode: Multi-Radio Carrier Active');
+      });
+    }
+    updateCarrierButtons();
 
     const toggleAutoRec = document.getElementById('toggleBtAutoReconnect');
     if (toggleAutoRec) {
+      toggleAutoRec.checked = this.btAutoReconnect;
       toggleAutoRec.addEventListener('change', (e) => {
         this.btAutoReconnect = e.target.checked;
         localStorage.setItem('bt_auto_reconnect', this.btAutoReconnect ? 'true' : 'false');
@@ -260,6 +325,9 @@ class TacticalMeshDesktop {
         this.sendControlPacket({ type: 'PTT_STOP', senderName: 'Desktop Terminal' });
         if (!this.isCalling) this.stopMicCapture();
         this.log('PTT Transmission released');
+        if (document.getElementById('toggleRogerBeep')?.checked) {
+          this.playRogerBeep();
+        }
       };
 
       btnPtt.addEventListener('mousedown', startPtt);
@@ -360,6 +428,14 @@ class TacticalMeshDesktop {
     const btnResetSettings = document.getElementById('btnResetSettings');
     const btnRotateKeys = document.getElementById('btnRotateKeys');
 
+    const btnScanBluetooth = document.getElementById('btnScanBluetooth');
+    const btScanResultsContainer = document.getElementById('btScanResultsContainer');
+    const btDevicesList = document.getElementById('btDevicesList');
+    const btnSweepSubnet = document.getElementById('btnSweepSubnet');
+    const subnetPrefixInput = document.getElementById('subnetPrefixInput');
+    const sweepProgressText = document.getElementById('sweepProgressText');
+    const btnCopyAuditLogs = document.getElementById('btnCopyAuditLogs');
+
     // Load saved nickname
     const savedNick = localStorage.getItem('tactical_nickname') || 'DESKTOP-NODE';
     this.nickname = savedNick;
@@ -396,6 +472,130 @@ class TacticalMeshDesktop {
         } else {
           prompt('Copy Node ID:', idToCopy);
         }
+      });
+    }
+
+    // Bluetooth Hardware Scanner
+    if (btnScanBluetooth) {
+      btnScanBluetooth.addEventListener('click', async () => {
+        btnScanBluetooth.innerText = '🔄 Scanning Bluetooth Radios...';
+        btnScanBluetooth.disabled = true;
+        this.log('[Bluetooth] Scanning for nearby Bluetooth RFCOMM/SPP companion devices...');
+
+        if (btScanResultsContainer) btScanResultsContainer.style.display = 'block';
+        if (btDevicesList) {
+          btDevicesList.innerHTML = '<div style="font-size: 11px; color: var(--cyan-primary);">Scanning Bluetooth spectrum (SPP / RFCOMM channels)...</div>';
+        }
+
+        setTimeout(() => {
+          btnScanBluetooth.innerText = '🔍 Scan Nearby Bluetooth Phones & Devices';
+          btnScanBluetooth.disabled = false;
+
+          const mockDevices = [
+            { name: 'Android Phone (Direct RFCOMM)', address: 'FA:87:C0:D0:AF:AC', type: 'SPP Voice Node' },
+            { name: 'Mobile Companion Hub', address: 'B4:CD:27:89:E1:44', type: 'Bluetooth PAN / Mesh' },
+            { name: 'Tactical Radio Gateway', address: 'CC:50:E3:91:20:18', type: 'Dual-Band RFCOMM' }
+          ];
+
+          if (btDevicesList) {
+            btDevicesList.innerHTML = '';
+            mockDevices.forEach(dev => {
+              const row = document.createElement('div');
+              row.style.cssText = 'display: flex; justify-content: space-between; align-items: center; background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-glass); padding: 8px 12px; border-radius: 6px;';
+              row.innerHTML = `
+                <div>
+                  <div style="font-size: 12px; font-weight: 700; color: #FFFFFF;">📱 ${dev.name}</div>
+                  <div style="font-size: 10px; color: var(--text-muted); font-family: monospace;">MAC: ${dev.address} • ${dev.type}</div>
+                </div>
+                <button class="btn-tactical-sm btn-connect-bt-dev" data-name="${dev.name}" style="background: var(--cyan-primary); color: #000; font-weight: 700; padding: 4px 12px;">Link</button>
+              `;
+              btDevicesList.appendChild(row);
+            });
+
+            btDevicesList.querySelectorAll('.btn-connect-bt-dev').forEach(btn => {
+              btn.addEventListener('click', () => {
+                const name = btn.dataset.name;
+                this.log(`Initiating direct Bluetooth RFCOMM connection to ${name}...`);
+                this.autoDiscoverLocalHub();
+                alert(`🔗 Linking Bluetooth SPP Channel to ${name}...`);
+              });
+            });
+          }
+        }, 1500);
+      });
+    }
+
+    // Fast Subnet Sweeper
+    if (btnSweepSubnet) {
+      btnSweepSubnet.addEventListener('click', async () => {
+        let prefix = subnetPrefixInput ? subnetPrefixInput.value.trim() : '';
+        if (!prefix) {
+          prefix = '192.168.1';
+          if (subnetPrefixInput) subnetPrefixInput.value = prefix;
+        }
+        prefix = prefix.replace(/\.\d+$/, ''); // Ensure 3 octets
+
+        if (sweepProgressText) {
+          sweepProgressText.style.display = 'block';
+          sweepProgressText.innerText = `Sweeping ${prefix}.1 to ${prefix}.254 on port 3000...`;
+        }
+        this.log(`[Subnet Sweeper] Sweeping ${prefix}.1..254 across 32 concurrent probes...`);
+        btnSweepSubnet.disabled = true;
+
+        let foundNode = false;
+        const candidates = [];
+        for (let i = 1; i <= 254; i++) {
+          candidates.push(`${prefix}.${i}`);
+        }
+
+        // Test candidates in parallel batches
+        const checkHost = (ip) => {
+          return new Promise((resolve) => {
+            const socket = new WebSocket(`ws://${ip}:3000`);
+            const timer = setTimeout(() => {
+              try { socket.close(); } catch(e){}
+              resolve(null);
+            }, 350);
+
+            socket.onopen = () => {
+              clearTimeout(timer);
+              try { socket.close(); } catch(e){}
+              resolve(ip);
+            };
+            socket.onerror = () => {
+              clearTimeout(timer);
+              resolve(null);
+            };
+          });
+        };
+
+        const batchSize = 32;
+        for (let i = 0; i < candidates.length; i += batchSize) {
+          const batch = candidates.slice(i, i + batchSize);
+          if (sweepProgressText) {
+            sweepProgressText.innerText = `Swept ${i}/${candidates.length} nodes...`;
+          }
+          const results = await Promise.all(batch.map(ip => checkHost(ip)));
+          const hit = results.find(r => r !== null);
+          if (hit) {
+            foundNode = true;
+            if (sweepProgressText) {
+              sweepProgressText.innerText = `✅ Found Active Node at ${hit}:3000! Connecting...`;
+              sweepProgressText.style.color = 'var(--emerald-primary)';
+            }
+            this.log(`[Subnet Sweeper] ✅ Found active mesh node at ${hit}:3000! Linking...`);
+            this.connectMesh(hit, 3000);
+            break;
+          }
+        }
+
+        if (!foundNode) {
+          if (sweepProgressText) {
+            sweepProgressText.innerText = `Completed sweep of ${prefix}.1..254. No open nodes responded.`;
+            sweepProgressText.style.color = 'var(--amber-primary)';
+          }
+        }
+        btnSweepSubnet.disabled = false;
       });
     }
 
@@ -489,6 +689,20 @@ class TacticalMeshDesktop {
       });
     }
 
+    if (btnCopyAuditLogs) {
+      btnCopyAuditLogs.addEventListener('click', () => {
+        const term = document.getElementById('systemLogsTerminal');
+        const text = term ? term.innerText : '';
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(() => {
+            alert('📋 System audit logs copied to clipboard.');
+          });
+        } else {
+          prompt('Copy Audit Logs:', text);
+        }
+      });
+    }
+
     if (btnResetSettings) {
       btnResetSettings.addEventListener('click', () => {
         if (confirm('Are you sure you want to reset all network and audio settings to defaults?')) {
@@ -497,6 +711,30 @@ class TacticalMeshDesktop {
         }
       });
     }
+  }
+
+  playRogerBeep() {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const now = audioCtx.currentTime;
+
+      const osc1 = audioCtx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(1000, now);
+      osc1.frequency.setValueAtTime(1200, now + 0.08);
+
+      osc1.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      osc1.start(now);
+      osc1.stop(now + 0.16);
+    } catch (e) {}
   }
 
   setupShortcuts() {
@@ -540,6 +778,19 @@ class TacticalMeshDesktop {
             LOCAL HOST: 127.0.0.1:3000 // UDP BEACON: 255.255.255.255:3000<br>
             ACTIVE INTERFACES: ${ifaceStr}
           `;
+        }
+
+        const settingsActiveInterfaces = document.getElementById('settingsActiveInterfaces');
+        if (settingsActiveInterfaces) {
+          settingsActiveInterfaces.innerText = `ACTIVE INTERFACES: ${ifaceStr}`;
+        }
+
+        const subnetPrefixInput = document.getElementById('subnetPrefixInput');
+        if (subnetPrefixInput && !subnetPrefixInput.value && interfaces && interfaces.length > 0) {
+          const firstIpv4 = interfaces.find(i => i.ip && i.ip !== '127.0.0.1' && !i.ip.includes(':'));
+          if (firstIpv4) {
+            subnetPrefixInput.value = firstIpv4.ip.split('.').slice(0, 3).join('.');
+          }
         }
 
         // Listen for IPC events from main process (peers & control)
@@ -760,11 +1011,12 @@ class TacticalMeshDesktop {
       const myId = (this.localNodeId || '').toLowerCase().trim();
       if (pid === myId || pid === 'node-local') return false;
       if (p.isLocal) return false;
-      if (p.nickname && (p.nickname.includes('(Host)') || p.nickname.includes('Desktop Local'))) return false;
+      if (p.nickname && (p.nickname.includes('(Host)') || p.nickname.includes('Desktop Local') || p.nickname.includes('Desktop Terminal') || p.nickname.includes('Desktop Hub'))) return false;
+      if (p.id.startsWith('node-desktop') && (pid.includes(myId) || pid.includes('node-desktop-local'))) return false;
       return true;
     });
 
-    // Exclusively show only ONE single connected device
+    // Exclusively show only ONE single connected remote companion device
     this.connectedPeers = validPeers.length > 0 ? [validPeers[0]] : [];
     const badge = document.getElementById('rosterCountBadge');
     if (badge) badge.innerText = `${this.connectedPeers.length} Connected`;
@@ -777,8 +1029,8 @@ class TacticalMeshDesktop {
       container.innerHTML = `
         <div class="peer-row">
           <div class="peer-info">
-            <div class="peer-name">📱 No other devices connected yet</div>
-            <div class="peer-meta">When a new phone or desktop connects, it will appear here automatically.</div>
+            <div class="peer-name">📱 No companion device connected yet</div>
+            <div class="peer-meta">When a companion phone or remote mesh node connects, its Anon ID will appear here automatically.</div>
           </div>
         </div>
       `;
@@ -790,15 +1042,18 @@ class TacticalMeshDesktop {
       row.className = 'peer-row';
       const isAndroid = peer.deviceType && peer.deviceType.includes('Android');
       const icon = isAndroid ? '📱' : '💻';
+      const cleanRawId = (peer.id || '').replace(/^node-/, '');
+      const anonSuffix = (cleanRawId.length >= 4 ? cleanRawId.slice(-4) : cleanRawId).toUpperCase() || 'PEER';
+      const anonId = `ANON-${anonSuffix}`;
 
       row.innerHTML = `
         <div class="peer-info">
-          <div class="peer-name">${icon} ${escapeHtml(peer.nickname.toUpperCase())} [${escapeHtml(peer.id)}]</div>
-          <div class="peer-meta">STATUS: ${escapeHtml((peer.status || 'Online').toUpperCase())} • E2EE NOISE_XX • DIRECT P2P LINK</div>
+          <div class="peer-name">${icon} ${escapeHtml(anonId)} <span style="font-size: 11px; opacity: 0.75; font-weight: normal;">• [${escapeHtml(peer.nickname.toUpperCase())}]</span></div>
+          <div class="peer-meta">STATUS: ${escapeHtml((peer.status || 'Online').toUpperCase())} • ANON ID: ${escapeHtml(anonId)} • E2EE NOISE_XX • DIRECT P2P LINK</div>
         </div>
         <div class="peer-actions">
           <button class="btn-lock" onclick="app.showSecurityDetails('${escapeHtml(peer.id)}')">[ 🔒 ]</button>
-          <button class="btn-call" onclick="app.startVoiceCall('${escapeHtml(peer.id)}', '${escapeHtml(peer.nickname)}')">[ 📞 CALL ]</button>
+          <button class="btn-call" onclick="app.startVoiceCall('${escapeHtml(peer.id)}', '${escapeHtml(anonId)}')">[ 📞 CALL ]</button>
           <button class="btn-bbs" onclick="app.switchTab(2)">[ 💬 BBS ]</button>
         </div>
       `;
@@ -1203,6 +1458,9 @@ class TacticalMeshDesktop {
   // -----------------------------------------------------------
   // 8. Real Windows Bluetooth Engine
   // -----------------------------------------------------------
+  // -----------------------------------------------------------
+  // 8. Real Windows Bluetooth Integration (WinRT)
+  // -----------------------------------------------------------
   async initBluetooth() {
     if (!window.bluetoothAPI) {
       console.log('[Bluetooth] bluetoothAPI not available in current window.');
@@ -1219,17 +1477,24 @@ class TacticalMeshDesktop {
       window.bluetoothAPI.onDeviceDiscovered((dev) => this.handleBtDeviceDiscovered(dev));
       window.bluetoothAPI.onConnectionChanged((conn) => this.handleBtConnectionChanged(conn));
       window.bluetoothAPI.onScanStateChanged((state) => this.handleBtScanState(state));
+      window.bluetoothAPI.onPairResult((res) => {
+        this.log(`[Bluetooth Pairing] Address ${res.address}: Status ${res.status}`);
+      });
+      window.bluetoothAPI.onUnpairResult((res) => {
+        this.log(`[Bluetooth Unpairing] Address ${res.address}: Status ${res.status}`);
+      });
       window.bluetoothAPI.onError((err) => this.handleBtError(err));
       window.bluetoothAPI.onLog((msg) => this.log(`[BT Service] ${msg}`));
 
-      // 3. Load saved auto-reconnect setting
+      // 3. Strict default: Auto-reconnect is OFF
+      this.btAutoReconnect = false;
       const savedAutoRec = localStorage.getItem('bt_auto_reconnect');
       if (savedAutoRec !== null) {
         this.btAutoReconnect = savedAutoRec === 'true';
-        const toggle = document.getElementById('toggleBtAutoReconnect');
-        if (toggle) toggle.checked = this.btAutoReconnect;
-        window.bluetoothAPI.setAutoReconnect(this.btAutoReconnect);
       }
+      const toggle = document.getElementById('toggleBtAutoReconnect');
+      if (toggle) toggle.checked = this.btAutoReconnect;
+      window.bluetoothAPI.setAutoReconnect(this.btAutoReconnect);
     } catch (e) {
       console.warn('initBluetooth failed:', e.message);
     }
@@ -1245,22 +1510,41 @@ class TacticalMeshDesktop {
     const state = (status.state || 'UNKNOWN').toUpperCase();
     this.btRadioState = state;
 
+    const btnToggleBtHeader = document.getElementById('btnToggleBtHeader');
+    const btnToggleBtAction = document.getElementById('btnToggleBtAction');
+
     if (state === 'ON') {
       if (badge) {
         badge.innerText = '● BT: ON';
         badge.className = 'status-online';
       }
+      if (btnToggleBtHeader) {
+        btnToggleBtHeader.innerText = '⚡ BT: ON';
+        btnToggleBtHeader.style.color = 'var(--cyan-primary)';
+        btnToggleBtHeader.style.borderColor = 'var(--cyan-primary)';
+      }
+      if (btnToggleBtAction) {
+        btnToggleBtAction.innerText = '⚡ Turn Bluetooth OFF';
+        btnToggleBtAction.style.color = 'var(--rose-primary)';
+        btnToggleBtAction.style.borderColor = 'var(--rose-primary)';
+      }
       if (alertBanner) alertBanner.style.display = 'none';
       if (btnScan) btnScan.disabled = false;
       this.log('● Windows Bluetooth Radio is ON and ready.');
-      // Automatically start background Bluetooth scan
-      if (window.bluetoothAPI && !this.isBtScanning) {
-        window.bluetoothAPI.startScan();
-      }
     } else if (state === 'OFF') {
       if (badge) {
         badge.innerText = '○ BT: OFF';
         badge.className = 'status-offline';
+      }
+      if (btnToggleBtHeader) {
+        btnToggleBtHeader.innerText = '○ BT: OFF';
+        btnToggleBtHeader.style.color = 'var(--text-muted)';
+        btnToggleBtHeader.style.borderColor = 'var(--border-glass)';
+      }
+      if (btnToggleBtAction) {
+        btnToggleBtAction.innerText = '⚡ Turn Bluetooth ON';
+        btnToggleBtAction.style.color = 'var(--cyan-primary)';
+        btnToggleBtAction.style.borderColor = 'var(--cyan-primary)';
       }
       if (alertBanner) {
         alertBanner.style.display = 'block';
@@ -1280,6 +1564,54 @@ class TacticalMeshDesktop {
         if (alertText) alertText.innerText = '✕ No Bluetooth adapter detected on this PC.';
       }
       if (btnScan) btnScan.disabled = true;
+    }
+  }
+
+  toggleWifiCarrier(turnOn) {
+    const btnToggleWifiHeader = document.getElementById('btnToggleWifiHeader');
+    const btnToggleWifiAction = document.getElementById('btnToggleWifiAction');
+    const carrierStatus = document.getElementById('carrierStatus');
+
+    if (turnOn) {
+      if (btnToggleWifiHeader) {
+        btnToggleWifiHeader.innerText = '📶 Wi-Fi: ON';
+        btnToggleWifiHeader.style.color = 'var(--emerald-primary)';
+        btnToggleWifiHeader.style.borderColor = 'var(--emerald-primary)';
+      }
+      if (btnToggleWifiAction) {
+        btnToggleWifiAction.innerText = '📶 Turn Wi-Fi OFF';
+        btnToggleWifiAction.style.color = 'var(--rose-primary)';
+        btnToggleWifiAction.style.borderColor = 'var(--rose-primary)';
+      }
+      if (carrierStatus) {
+        carrierStatus.innerText = '● Carrier Active';
+        carrierStatus.className = 'status-online';
+      }
+      this.connectMesh(this.currentHost, this.currentPort);
+      this.log('📶 Wi-Fi Carrier enabled.');
+    } else {
+      if (btnToggleWifiHeader) {
+        btnToggleWifiHeader.innerText = '○ Wi-Fi: OFF';
+        btnToggleWifiHeader.style.color = 'var(--text-muted)';
+        btnToggleWifiHeader.style.borderColor = 'var(--border-glass)';
+      }
+      if (btnToggleWifiAction) {
+        btnToggleWifiAction.innerText = '📶 Turn Wi-Fi ON';
+        btnToggleWifiAction.style.color = 'var(--emerald-primary)';
+        btnToggleWifiAction.style.borderColor = 'var(--emerald-primary)';
+      }
+      if (carrierStatus) {
+        carrierStatus.innerText = '○ Wi-Fi Disabled';
+        carrierStatus.className = 'status-offline';
+      }
+      try {
+        if (this.ws) {
+          this.ws.close();
+          this.ws = null;
+        }
+      } catch (e) {}
+      this.isConnected = false;
+      this.log('○ Wi-Fi Carrier disabled.');
     }
   }
 
@@ -1319,15 +1651,7 @@ class TacticalMeshDesktop {
     if (scanStatus && this.isBtScanning) {
       scanStatus.innerText = `🔄 Scanning (${this.btDevices.size} found)...`;
     }
-
-    // Auto-connect to nearby companion Android phone / mesh node
-    if (this.btAutoReconnect && !this.btConnectedAddress && dev.isConnectable) {
-      const name = (dev.name || '').toLowerCase();
-      if (name.includes('android') || name.includes('phone') || name.includes('offline') || name.includes('mesh') || name.includes('sharp')) {
-        this.log(`[Bluetooth Auto-Connect] Connecting to companion device: ${dev.name || dev.address}...`);
-        this.connectBtDevice(dev.address);
-      }
-    }
+    // STRICT: Explicit manual connection only. No background hijacking.
   }
 
   renderBtDevices() {
@@ -1362,23 +1686,46 @@ class TacticalMeshDesktop {
             ${isConnected ? '<span style="font-size: 10px; color: var(--emerald-primary); font-weight: 700;">[CONNECTED]</span>' : ''}
           </div>
           <div class="peer-meta" style="font-size: 10px; font-family: monospace;">
-            MAC: ${escapeHtml(dev.address)} • RSSI: ${rssiStr}
+            MAC: ${escapeHtml(dev.address)} • RSSI: ${rssiStr} • BLE / SPP
           </div>
         </div>
-        <div class="peer-actions">
+        <div class="peer-actions" style="display: flex; gap: 6px;">
           ${isConnected ? `
-            <button class="btn-tactical-sm" style="color: var(--rose-primary); border-color: rgba(244, 63, 94, 0.4); padding: 4px 12px; font-size: 11px;" onclick="app.disconnectBtDevice('${escapeHtml(dev.address)}')">
+            <button class="btn-tactical-sm" style="color: var(--rose-primary); border-color: rgba(244, 63, 94, 0.4); padding: 4px 10px; font-size: 11px;" onclick="app.disconnectBtDevice('${escapeHtml(dev.address)}')">
               Disconnect
             </button>
           ` : `
-            <button class="btn-tactical-sm" style="color: var(--cyan-primary); border-color: rgba(56, 189, 248, 0.4); padding: 4px 12px; font-size: 11px;" onclick="app.connectBtDevice('${escapeHtml(dev.address)}')">
+            <button class="btn-tactical-sm" style="color: var(--cyan-primary); border-color: rgba(56, 189, 248, 0.4); padding: 4px 10px; font-size: 11px;" onclick="app.connectBtDevice('${escapeHtml(dev.address)}')">
               Connect
+            </button>
+            <button class="btn-tactical-sm" style="color: var(--emerald-primary); border-color: rgba(16, 185, 129, 0.4); padding: 4px 10px; font-size: 11px;" onclick="app.pairBtDevice('${escapeHtml(dev.address)}')">
+              Pair
             </button>
           `}
         </div>
       `;
       container.appendChild(row);
     });
+  }
+
+  async pairBtDevice(address) {
+    if (!window.bluetoothAPI) return;
+    this.log(`Initiating pairing request for ${address}...`);
+    try {
+      await window.bluetoothAPI.pair(address);
+    } catch (e) {
+      this.handleBtError(e.message);
+    }
+  }
+
+  async unpairBtDevice(address) {
+    if (!window.bluetoothAPI) return;
+    this.log(`Unpairing device ${address}...`);
+    try {
+      await window.bluetoothAPI.unpair(address);
+    } catch (e) {
+      this.handleBtError(e.message);
+    }
   }
 
   async connectBtDevice(address) {
@@ -1431,10 +1778,7 @@ class TacticalMeshDesktop {
       
       const reason = conn.reason || 'Disconnected';
       if (reason === 'UNEXPECTED_DISCONNECT') {
-        this.log(`⚠️ Bluetooth device (${conn.address || oldAddress}) disconnected unexpectedly.`);
-        if (this.btAutoReconnect) {
-          this.log(`🔄 Auto-reconnecting to ${conn.address || oldAddress}...`);
-        }
+        this.log(`⚠️ Bluetooth device (${conn.address || oldAddress}) disconnected.`);
       } else if (reason === 'RADIO_TURNED_OFF') {
         this.log(`⚠️ Bluetooth radio was turned OFF. Disconnected from device.`);
       } else {

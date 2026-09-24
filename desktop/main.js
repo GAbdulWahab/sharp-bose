@@ -42,7 +42,22 @@ if (app && app.commandLine) {
 
 const HTTP_PORT = 3000;
 const UDP_PORT = 3000;
-const LOCAL_NODE_ID = 'node-desktop-' + Math.random().toString(36).substring(2, 6);
+const crypto = require('crypto');
+const configDir = (app && app.getPath) ? app.getPath('userData') : __dirname;
+const idFilePath = path.join(configDir, '.mesh_node_id');
+let LOCAL_NODE_ID = '';
+try {
+  if (fs.existsSync(idFilePath)) {
+    LOCAL_NODE_ID = fs.readFileSync(idFilePath, 'utf8').trim();
+  }
+} catch (e) {}
+if (!LOCAL_NODE_ID) {
+  const hash = crypto.createHash('sha256').update(os.hostname() + '-' + (process.env.USERNAME || 'user')).digest('hex').substring(0, 8);
+  LOCAL_NODE_ID = 'node-pc-' + hash;
+  try {
+    fs.writeFileSync(idFilePath, LOCAL_NODE_ID, 'utf8');
+  } catch (e) {}
+}
 const IS_HEADLESS = process.argv.includes('--headless') || process.argv.includes('-h') || !app;
 
 let mainWindow = null;
@@ -141,6 +156,24 @@ function handleBtServiceMessage(msg) {
     case 'SCAN_STATE':
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('bluetooth:scan-state', payload);
+      }
+      break;
+
+    case 'PAIR_RESULT':
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('bluetooth:pair-result', payload);
+      }
+      break;
+
+    case 'UNPAIR_RESULT':
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('bluetooth:unpair-result', payload);
+      }
+      break;
+
+    case 'CONTROL_PACKET':
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('hub:control-packet', payload);
       }
       break;
 
@@ -278,7 +311,7 @@ function startEmbeddedHub() {
 
       if (mainWindow && !mainWindow.isDestroyed()) {
         const remotePeers = Array.from(clients.values())
-          .filter(c => !c.isLocal && c.id !== LOCAL_NODE_ID)
+          .filter(c => !c.isLocal && c.id !== LOCAL_NODE_ID && !c.nickname.includes('Desktop Local') && !c.nickname.includes('Desktop Terminal') && !c.nickname.includes('(Host)'))
           .map(c => ({
             id: c.id,
             nickname: c.nickname,
@@ -581,6 +614,18 @@ if (!app || IS_HEADLESS) {
     });
     ipcMain.handle('bluetooth:disconnect', () => {
       sendBtCommand('DISCONNECT');
+      return true;
+    });
+    ipcMain.handle('bluetooth:pair', (event, address) => {
+      sendBtCommand(`PAIR:${address}`);
+      return true;
+    });
+    ipcMain.handle('bluetooth:unpair', (event, address) => {
+      sendBtCommand(`UNPAIR:${address}`);
+      return true;
+    });
+    ipcMain.handle('bluetooth:set-radio-state', (event, enabled) => {
+      sendBtCommand(enabled ? 'RADIO:ON' : 'RADIO:OFF');
       return true;
     });
     ipcMain.handle('bluetooth:set-auto-reconnect', (event, enabled) => {

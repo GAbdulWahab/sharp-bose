@@ -25,6 +25,9 @@ contextBridge.exposeInMainWorld('bluetoothAPI', {
   stopScan: () => ipcRenderer.invoke('bluetooth:stop-scan'),
   connect: (address) => ipcRenderer.invoke('bluetooth:connect', address),
   disconnect: () => ipcRenderer.invoke('bluetooth:disconnect'),
+  pair: (address) => ipcRenderer.invoke('bluetooth:pair', address),
+  unpair: (address) => ipcRenderer.invoke('bluetooth:unpair', address),
+  setRadioState: (enabled) => ipcRenderer.invoke('bluetooth:set-radio-state', enabled),
   setAutoReconnect: (enabled) => ipcRenderer.invoke('bluetooth:set-auto-reconnect', enabled),
 
   onStatusChanged: (callback) => {
@@ -38,6 +41,12 @@ contextBridge.exposeInMainWorld('bluetoothAPI', {
   },
   onScanStateChanged: (callback) => {
     ipcRenderer.on('bluetooth:scan-state', (event, data) => callback(data));
+  },
+  onPairResult: (callback) => {
+    ipcRenderer.on('bluetooth:pair-result', (event, data) => callback(data));
+  },
+  onUnpairResult: (callback) => {
+    ipcRenderer.on('bluetooth:unpair-result', (event, data) => callback(data));
   },
   onError: (callback) => {
     ipcRenderer.on('bluetooth:error', (event, data) => callback(data));

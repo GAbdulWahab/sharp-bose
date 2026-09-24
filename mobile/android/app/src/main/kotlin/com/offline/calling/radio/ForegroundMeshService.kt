@@ -32,7 +32,14 @@ class ForegroundMeshService : Service() {
         @Synchronized
         fun getSharedBridge(context: Context): MeshWebSocketBridge {
             if (sharedBridgeInstance == null) {
-                sharedBridgeInstance = MeshWebSocketBridge().apply {
+                val prefs = context.applicationContext.getSharedPreferences("offline_mesh_prefs", Context.MODE_PRIVATE)
+                var persistentId = prefs.getString("persistent_node_id", null)
+                if (persistentId.isNullOrEmpty()) {
+                    persistentId = "node-" + java.util.UUID.randomUUID().toString().substring(0, 8)
+                    prefs.edit().putString("persistent_node_id", persistentId).apply()
+                }
+
+                sharedBridgeInstance = MeshWebSocketBridge(localNodeId = persistentId).apply {
                     appContext = context.applicationContext
                     startBluetooth(context)
                     connect(context = context)

@@ -25,11 +25,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import android.bluetooth.BluetoothAdapter
+import android.provider.Settings
 import com.offline.calling.audio.AndroidAudioEngine
 import com.offline.calling.radio.ForegroundMeshService
 import com.offline.calling.radio.MeshWebSocketBridge
 import com.offline.calling.radio.PeerLocation
 import com.offline.calling.radio.PeerNode
+import com.offline.calling.radio.RadioTransportMode
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -55,6 +58,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var headerLayout: LinearLayout
     private lateinit var tvAppTitle: TextView
     private lateinit var tvAppSubtitle: TextView
+    private lateinit var btnToggleBluetooth: Button
+    private lateinit var btnToggleWifi: Button
     private lateinit var btnThemeToggle: Button
 
     // 6 Dedicated Screens
@@ -85,8 +90,15 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var tvPeopleCount: TextView
     private lateinit var llConnectedPeople: LinearLayout
     private lateinit var cardControls: CardView
+    private lateinit var btnBtPower: Button
+    private lateinit var btnWifiPower: Button
+    private lateinit var btnCarrierBtOnly: Button
+    private lateinit var btnCarrierWifiOnly: Button
+    private lateinit var btnCarrierCombined: Button
     private lateinit var btnAutoScanMesh: Button
     private lateinit var btnConfigNodeIp: Button
+    private var isBtRadioEnabled = true
+    private var isWifiRadioEnabled = true
 
     // Screen 2: Comms UI
     private lateinit var cardCall: CardView
@@ -215,6 +227,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
         headerLayout = findViewById(R.id.headerLayout)
         tvAppTitle = findViewById(R.id.tvAppTitle)
         tvAppSubtitle = findViewById(R.id.tvAppSubtitle)
+        btnToggleBluetooth = findViewById(R.id.btnToggleBluetooth)
+        btnToggleWifi = findViewById(R.id.btnToggleWifi)
         btnThemeToggle = findViewById(R.id.btnThemeToggle)
 
         // 6 Dedicated Screen Containers
@@ -244,6 +258,11 @@ class MainActivity : AppCompatActivity(), LocationListener {
         tvPeopleCount = findViewById(R.id.tvPeopleCount)
         llConnectedPeople = findViewById(R.id.llConnectedPeople)
         cardControls = findViewById(R.id.cardControls)
+        btnBtPower = findViewById(R.id.btnBtPower)
+        btnWifiPower = findViewById(R.id.btnWifiPower)
+        btnCarrierBtOnly = findViewById(R.id.btnCarrierBtOnly)
+        btnCarrierWifiOnly = findViewById(R.id.btnCarrierWifiOnly)
+        btnCarrierCombined = findViewById(R.id.btnCarrierCombined)
         btnAutoScanMesh = findViewById(R.id.btnAutoScanMesh)
         btnConfigNodeIp = findViewById(R.id.btnConfigNodeIp)
 
@@ -423,8 +442,12 @@ class MainActivity : AppCompatActivity(), LocationListener {
                     layoutParams = lp
                 }
 
+                val cleanRawId = peer.id.replace("node-", "")
+                val anonSuffix = if (cleanRawId.length >= 4) cleanRawId.takeLast(4).uppercase(Locale.ROOT) else cleanRawId.uppercase(Locale.ROOT)
+                val anonId = "ANON-$anonSuffix"
+
                 val tvName = TextView(this).apply {
-                    text = "${if (peer.deviceType.contains("Android", true)) "📱" else "💻"} ${peer.nickname.uppercase(Locale.ROOT)} [${peer.id}]"
+                    text = "${if (peer.deviceType.contains("Android", true)) "📱" else "💻"} $anonId • [${peer.nickname.uppercase(Locale.ROOT)}]"
                     setTextColor(if (isDarkMode) Color.parseColor("#00F0FF") else Color.parseColor("#0F172A"))
                     textSize = 12f
                     typeface = android.graphics.Typeface.MONOSPACE
@@ -753,8 +776,12 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
 
             val iconStr = if (peer.deviceType.contains("Android", true)) "📱" else "💻"
+            val cleanRawId = peer.id.replace("node-", "")
+            val anonSuffix = if (cleanRawId.length >= 4) cleanRawId.takeLast(4).uppercase(Locale.ROOT) else cleanRawId.uppercase(Locale.ROOT)
+            val anonId = "ANON-$anonSuffix"
+
             val tvName = TextView(this).apply {
-                text = "$iconStr ${peer.nickname.uppercase(Locale.ROOT)}"
+                text = "$iconStr $anonId • [${peer.nickname.uppercase(Locale.ROOT)}]"
                 setTextColor(if (isDarkMode) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A"))
                 textSize = 13f
                 typeface = android.graphics.Typeface.MONOSPACE
@@ -772,7 +799,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
 
             val tvMeta = TextView(this).apply {
-                text = "LINK: ONLINE • E2EE // ${peer.status.uppercase(Locale.ROOT)} // $distStr"
+                text = "STATUS: ${peer.status.uppercase(Locale.ROOT)} • ANON ID: $anonId • E2EE // $distStr"
                 setTextColor(Color.parseColor("#10B981"))
                 typeface = android.graphics.Typeface.MONOSPACE
                 textSize = 10f
@@ -891,6 +918,17 @@ class MainActivity : AppCompatActivity(), LocationListener {
         tabChannels.setOnClickListener { switchScreen(4) }
         tabLogs.setOnClickListener { switchScreen(5) }
 
+        // Radio Power Toggle Listeners
+        btnToggleBluetooth.setOnClickListener { toggleBluetoothRadio() }
+        btnBtPower.setOnClickListener { toggleBluetoothRadio() }
+        btnToggleWifi.setOnClickListener { toggleWifiRadio() }
+        btnWifiPower.setOnClickListener { toggleWifiRadio() }
+
+        // Carrier Isolation Lock Listeners
+        btnCarrierBtOnly.setOnClickListener { setCarrierMode(RadioTransportMode.BLUETOOTH_ONLY) }
+        btnCarrierWifiOnly.setOnClickListener { setCarrierMode(RadioTransportMode.WIFI_ONLY) }
+        btnCarrierCombined.setOnClickListener { setCarrierMode(RadioTransportMode.COMBINED) }
+
         btnThemeToggle.setOnClickListener {
             applyTheme(!isDarkMode)
         }
@@ -909,12 +947,15 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         btnAutoScanMesh.setOnClickListener {
             bridge.autoDiscoverAndConnect()
-            Toast.makeText(this, "🔄 Auto-scanning Bluetooth PAN & Wi-Fi mesh interfaces...", Toast.LENGTH_SHORT).show()
+            bridge.bluetoothMesh?.triggerImmediateScanAndConnect()
+            Toast.makeText(this, "🔄 Manual scan triggered for Bluetooth PAN & Wi-Fi mesh nodes...", Toast.LENGTH_SHORT).show()
         }
 
         btnConfigNodeIp.setOnClickListener {
             showIpSettingsDialog()
         }
+
+        updateRadioUiState()
 
         // Comms Screen Actions
         btnCall.setOnClickListener {
@@ -1018,6 +1059,126 @@ class MainActivity : AppCompatActivity(), LocationListener {
         audioEngine.onAudioFrameCaptured = { frame ->
             bridge.sendAudioFrame(frame)
         }
+    }
+
+    private fun updateRadioUiState() {
+        // Bluetooth buttons
+        val btText = if (isBtRadioEnabled) "⚡ BT: ON" else "⚡ BT: OFF"
+        val btColor = if (isBtRadioEnabled) Color.parseColor("#00F0FF") else Color.parseColor("#94A3B8")
+        btnToggleBluetooth.text = btText
+        btnToggleBluetooth.setTextColor(btColor)
+        btnBtPower.text = if (isBtRadioEnabled) "⚡ BT: ON (Tap to Disable)" else "⚡ BT: OFF (Tap to Enable)"
+        btnBtPower.setTextColor(btColor)
+
+        // Wi-Fi buttons
+        val wifiText = if (isWifiRadioEnabled) "📶 Wi-Fi: ON" else "📶 Wi-Fi: OFF"
+        val wifiColor = if (isWifiRadioEnabled) Color.parseColor("#00FF66") else Color.parseColor("#94A3B8")
+        btnToggleWifi.text = wifiText
+        btnToggleWifi.setTextColor(wifiColor)
+        btnWifiPower.text = if (isWifiRadioEnabled) "📶 Wi-Fi: ON (Tap to Disable)" else "📶 Wi-Fi: OFF (Tap to Enable)"
+        btnWifiPower.setTextColor(wifiColor)
+
+        // Carrier buttons
+        when (bridge.transportMode) {
+            RadioTransportMode.BLUETOOTH_ONLY -> {
+                btnCarrierBtOnly.setTextColor(Color.parseColor("#00F0FF"))
+                btnCarrierWifiOnly.setTextColor(Color.parseColor("#64748B"))
+                btnCarrierCombined.setTextColor(Color.parseColor("#64748B"))
+            }
+            RadioTransportMode.WIFI_ONLY -> {
+                btnCarrierBtOnly.setTextColor(Color.parseColor("#64748B"))
+                btnCarrierWifiOnly.setTextColor(Color.parseColor("#00FF66"))
+                btnCarrierCombined.setTextColor(Color.parseColor("#64748B"))
+            }
+            RadioTransportMode.COMBINED, RadioTransportMode.MANUAL -> {
+                btnCarrierBtOnly.setTextColor(Color.parseColor("#64748B"))
+                btnCarrierWifiOnly.setTextColor(Color.parseColor("#64748B"))
+                btnCarrierCombined.setTextColor(Color.parseColor("#38BDF8"))
+            }
+        }
+    }
+
+    private fun toggleBluetoothRadio() {
+        val btAdapter = BluetoothAdapter.getDefaultAdapter()
+        if (!isBtRadioEnabled) {
+            isBtRadioEnabled = true
+            bridge.startBluetooth(this)
+            if (btAdapter != null && !btAdapter.isEnabled) {
+                try {
+                    val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+                    startActivity(enableBtIntent)
+                } catch (e: Exception) {
+                    try {
+                        startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                    } catch (ex: Exception) {}
+                }
+            }
+            logEvent("[Radio] ⚡ Bluetooth radio enabled")
+            Toast.makeText(this, "⚡ Bluetooth Radio Turned ON", Toast.LENGTH_SHORT).show()
+        } else {
+            isBtRadioEnabled = false
+            bridge.bluetoothMesh?.stop()
+            if (bridge.transportMode == RadioTransportMode.BLUETOOTH_ONLY) {
+                bridge.transportMode = RadioTransportMode.WIFI_ONLY
+            }
+            logEvent("[Radio] ⚡ Bluetooth radio disabled")
+            Toast.makeText(this, "⚡ Bluetooth Radio Turned OFF", Toast.LENGTH_SHORT).show()
+        }
+        updateRadioUiState()
+        renderConnectedPeopleList(connectedPeersList)
+    }
+
+    private fun toggleWifiRadio() {
+        if (!isWifiRadioEnabled) {
+            isWifiRadioEnabled = true
+            if (bridge.transportMode == RadioTransportMode.BLUETOOTH_ONLY) {
+                bridge.transportMode = RadioTransportMode.COMBINED
+            }
+            bridge.connect(context = this)
+            bridge.autoDiscoverAndConnect()
+            logEvent("[Radio] 📶 Wi-Fi radio link enabled")
+            Toast.makeText(this, "📶 Wi-Fi Radio Turned ON", Toast.LENGTH_SHORT).show()
+        } else {
+            isWifiRadioEnabled = false
+            bridge.disconnect()
+            if (bridge.transportMode != RadioTransportMode.BLUETOOTH_ONLY) {
+                bridge.transportMode = RadioTransportMode.BLUETOOTH_ONLY
+            }
+            logEvent("[Radio] 📶 Wi-Fi radio link disabled")
+            Toast.makeText(this, "📶 Wi-Fi Radio Turned OFF", Toast.LENGTH_SHORT).show()
+        }
+        updateRadioUiState()
+        renderConnectedPeopleList(connectedPeersList)
+    }
+
+    private fun setCarrierMode(mode: RadioTransportMode) {
+        bridge.transportMode = mode
+        when (mode) {
+            RadioTransportMode.BLUETOOTH_ONLY -> {
+                isBtRadioEnabled = true
+                bridge.disconnect()
+                bridge.startBluetooth(this)
+                logEvent("[Carrier] 🔒 Locked to Bluetooth Dedicated Mode")
+                Toast.makeText(this, "🔵 Carrier Lock: Bluetooth Dedicated (Wi-Fi Auto-Discovery Disabled)", Toast.LENGTH_SHORT).show()
+            }
+            RadioTransportMode.WIFI_ONLY -> {
+                isWifiRadioEnabled = true
+                bridge.bluetoothMesh?.stop()
+                bridge.connect(context = this)
+                logEvent("[Carrier] 🔒 Locked to Wi-Fi Dedicated Mode")
+                Toast.makeText(this, "🟢 Carrier Lock: Wi-Fi Dedicated (Bluetooth Mesh Disabled)", Toast.LENGTH_SHORT).show()
+            }
+            RadioTransportMode.COMBINED, RadioTransportMode.MANUAL -> {
+                isBtRadioEnabled = true
+                isWifiRadioEnabled = true
+                bridge.startBluetooth(this)
+                bridge.connect(context = this)
+                logEvent("[Carrier] 🌐 Dual-Radio Combined Mode Active")
+                Toast.makeText(this, "🌐 Multi-Radio Mode: Both Radios Enabled", Toast.LENGTH_SHORT).show()
+            }
+        }
+        updateRadioUiState()
+        renderConnectedPeopleList(connectedPeersList)
     }
 
     private fun showIncomingCallDialog(callerName: String, callerId: String) {
@@ -1197,9 +1358,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
         layout.addView(tvTitle)
 
-        // Section 1: Node Identity
+        // Section 1: Node Identity & Cryptography
         val tvIdentityHeader = TextView(this).apply {
-            text = "🪪 [ NODE IDENTITY & CALL-SIGN ]"
+            text = "🪪 [ NODE IDENTITY & CRYPTO ]"
             textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -1229,6 +1390,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 val newNick = inputNickname.text.toString().trim()
                 if (newNick.isNotEmpty()) {
                     prefs.edit().putString("tactical_nickname", newNick).apply()
+                    bridge.sendSetNickname(newNick)
                     Toast.makeText(this@MainActivity, "✅ Call-sign saved: $newNick", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -1242,7 +1404,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
             setTextColor(Color.parseColor("#38BDF8"))
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(0, 6, 0, 10)
+                setMargins(0, 4, 0, 4)
             }
             layoutParams = lp
             setOnClickListener {
@@ -1254,29 +1416,37 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
         layout.addView(btnCopyId)
 
-        // Section 2: Network & Mesh Connection
-        val tvNetHeader = TextView(this).apply {
-            text = "📡 [ MESH NETWORK & CARRIER LINK ]"
+        val btnRotateKeys = Button(this).apply {
+            text = "[ 🔑 ROTATE NOISE-XX KEYS ]"
+            textSize = 10f
+            typeface = android.graphics.Typeface.MONOSPACE
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+            setTextColor(Color.parseColor("#F59E0B"))
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 2, 0, 10)
+            }
+            layoutParams = lp
+            setOnClickListener {
+                bridge.crypto.rotateKeys()
+                logEvent("[Crypto] 🔑 Noise-XX cryptographic session keys regenerated")
+                Toast.makeText(this@MainActivity, "🔑 E2EE Session Keys Rotated", Toast.LENGTH_SHORT).show()
+            }
+        }
+        layout.addView(btnRotateKeys)
+
+        // Section 2: Bluetooth Hardware Scanner & Direct Controls
+        val tvBtHeader = TextView(this).apply {
+            text = "📡 [ BLUETOOTH DIRECT HARDWARE MESH ]"
             textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             setTypeface(typeface, android.graphics.Typeface.BOLD)
-            setTextColor(Color.parseColor("#38BDF8"))
+            setTextColor(Color.parseColor("#10B981"))
             setPadding(0, 10, 0, 4)
         }
-        layout.addView(tvNetHeader)
+        layout.addView(tvBtHeader)
 
-        val tvCurrent = TextView(this).apply {
-            val carrierStr = if (bridge.currentHost.isNotEmpty()) "${bridge.currentHost}:3000" else "P2P BLUETOOTH / DYNAMIC MESH"
-            text = "CARRIER: $carrierStr // STATUS: ${tvStatus.text}"
-            textSize = 10f
-            typeface = android.graphics.Typeface.MONOSPACE
-            setTextColor(if (isDarkMode) Color.parseColor("#10B981") else Color.parseColor("#475569"))
-            setPadding(0, 0, 0, 8)
-        }
-        layout.addView(tvCurrent)
-
-        val btnBt = Button(this).apply {
-            text = "[ 📱 AUTO-SCAN & CONNECT BLUETOOTH ]"
+        val btnBtScan = Button(this).apply {
+            text = "[ 🔍 TRIGGER DEEP BLUETOOTH SCAN ]"
             textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
@@ -1288,38 +1458,160 @@ class MainActivity : AppCompatActivity(), LocationListener {
             setOnClickListener {
                 bridge.startBluetooth(this@MainActivity)
                 bridge.bluetoothMesh?.triggerImmediateScanAndConnect()
-                Toast.makeText(this@MainActivity, "🔄 Scanning & connecting nearby Bluetooth peers...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "🔄 Scanning nearby Bluetooth peers (RFCOMM/SPP)...", Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
             }
         }
-        layout.addView(btnBt)
+        layout.addView(btnBtScan)
 
-        val btnScan = Button(this).apply {
-            text = "[ 🔄 AUTO-DISCOVER WI-FI & HOTSPOT ]"
+        // List Paired Bluetooth Devices for direct 1-tap connection
+        val pairedDevices = bridge.getPairedBluetoothDevices()
+        if (pairedDevices.isNotEmpty()) {
+            val tvPairedHeader = TextView(this).apply {
+                text = "PAIRED HARDWARE DEVICES (${pairedDevices.size}):"
+                textSize = 9f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextColor(Color.parseColor("#94A3B8"))
+                setPadding(0, 6, 0, 2)
+            }
+            layout.addView(tvPairedHeader)
+
+            for (dev in pairedDevices) {
+                val devRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(8, 4, 8, 4)
+                    background = ColorDrawable(Color.parseColor("#0F172A"))
+                    val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                        setMargins(0, 2, 0, 2)
+                    }
+                    layoutParams = lp
+                }
+
+                @SuppressLint("MissingPermission")
+                val devName = try { dev.name ?: "Bluetooth Device" } catch (e: Exception) { "Bluetooth Device" }
+                val devAddr = dev.address
+
+                val tvDev = TextView(this).apply {
+                    text = "📱 $devName\n   [$devAddr]"
+                    textSize = 10f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTextColor(Color.parseColor("#F8FAFC"))
+                    val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    layoutParams = lp
+                }
+                devRow.addView(tvDev)
+
+                val btnConnDev = Button(this).apply {
+                    text = "LINK"
+                    textSize = 9f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
+                    setTextColor(Color.WHITE)
+                    setOnClickListener {
+                        bridge.connectBluetoothDevice(devAddr)
+                        Toast.makeText(this@MainActivity, "Connecting to $devName...", Toast.LENGTH_SHORT).show()
+                        dialog.dismiss()
+                    }
+                }
+                devRow.addView(btnConnDev)
+                layout.addView(devRow)
+            }
+        }
+
+        // Section 3: Wi-Fi, Hotspot & Subnet Discovery
+        val tvNetHeader = TextView(this).apply {
+            text = "🌐 [ WI-FI, HOTSPOT & SUBNET ROUTER ]"
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(Color.parseColor("#38BDF8"))
+            setPadding(0, 12, 0, 4)
+        }
+        layout.addView(tvNetHeader)
+
+        val ifaces = bridge.getActiveNetworkInterfaces()
+        val ifaceSummary = if (ifaces.isNotEmpty()) ifaces.joinToString(" // ") { "${it.first}: ${it.second}" } else "Local P2P Loopback"
+        val tvCurrent = TextView(this).apply {
+            val carrierStr = if (bridge.currentHost.isNotEmpty()) "${bridge.currentHost}:3000" else "P2P BLUETOOTH / DYNAMIC MESH"
+            text = "CARRIER: $carrierStr\nACTIVE IPS: $ifaceSummary"
+            textSize = 9f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTextColor(if (isDarkMode) Color.parseColor("#10B981") else Color.parseColor("#475569"))
+            setPadding(0, 0, 0, 6)
+        }
+        layout.addView(tvCurrent)
+
+        val btnSweep = Button(this).apply {
+            text = "[ 🔄 SWEEP ACTIVE SUBNET (1..254) ]"
             textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
             setTextColor(Color.parseColor("#38BDF8"))
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(0, 6, 0, 0)
+                setMargins(0, 4, 0, 0)
             }
             layoutParams = lp
             setOnClickListener {
                 bridge.autoDiscoverAndConnect()
-                Toast.makeText(this@MainActivity, "Auto-discovering dynamic mesh interfaces...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@MainActivity, "Auto-sweeping subnet across 32 threads...", Toast.LENGTH_SHORT).show()
                 dialog.dismiss()
             }
         }
-        layout.addView(btnScan)
+        layout.addView(btnSweep)
+
+        // Preset IP Nodes
+        val presetsLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 4, 0, 4)
+            }
+            layoutParams = lp
+        }
+
+        val btnPresetHotspot = Button(this).apply {
+            text = "🔥 HOTSPOT"
+            textSize = 9f
+            typeface = android.graphics.Typeface.MONOSPACE
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+            setTextColor(Color.parseColor("#F59E0B"))
+            val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            layoutParams = lp
+            setOnClickListener {
+                bridge.connect("192.168.43.1", this@MainActivity)
+                Toast.makeText(this@MainActivity, "Connecting to Hotspot Gateway 192.168.43.1...", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+        }
+        presetsLayout.addView(btnPresetHotspot)
+
+        val btnPresetRouter = Button(this).apply {
+            text = "🏠 ROUTER"
+            textSize = 9f
+            typeface = android.graphics.Typeface.MONOSPACE
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+            setTextColor(Color.parseColor("#38BDF8"))
+            val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                setMargins(4, 0, 0, 0)
+            }
+            layoutParams = lp
+            setOnClickListener {
+                bridge.connect("192.168.1.1", this@MainActivity)
+                Toast.makeText(this@MainActivity, "Connecting to Router Gateway 192.168.1.1...", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+        }
+        presetsLayout.addView(btnPresetRouter)
+        layout.addView(presetsLayout)
 
         val inputIp = EditText(this).apply {
-            hint = "Custom Node IP (optional)"
+            hint = "Custom Node IP (e.g. 192.168.1.50)"
             typeface = android.graphics.Typeface.MONOSPACE
             setHintTextColor(Color.parseColor("#64748B"))
             setTextColor(if (isDarkMode) Color.parseColor("#F8FAFC") else Color.BLACK)
             textSize = 12f
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(0, 10, 0, 6)
+                setMargins(0, 6, 0, 4)
             }
             layoutParams = lp
         }
@@ -1342,9 +1634,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
         layout.addView(btnCustom)
 
-        // Section 3: Audio & Telephony Reset
+        // Section 4: Audio Engine & Voice Controls
         val tvAudioHeader = TextView(this).apply {
-            text = "🧹 [ STORAGE, CACHE & SYSTEM RESET ]"
+            text = "🎙️ [ HD VOICE & AUDIO DSP ENGINE ]"
             textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             setTypeface(typeface, android.graphics.Typeface.BOLD)
@@ -1352,6 +1644,32 @@ class MainActivity : AppCompatActivity(), LocationListener {
             setPadding(0, 14, 0, 4)
         }
         layout.addView(tvAudioHeader)
+
+        val btnToggleSpkr = Button(this).apply {
+            text = if (isSpeakerOn) "[ 🔊 DEFAULT ROUTE: SPEAKERPHONE ]" else "[ 🔈 DEFAULT ROUTE: EARPIECE ]"
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+            setTextColor(Color.parseColor("#10B981"))
+            setOnClickListener {
+                isSpeakerOn = !isSpeakerOn
+                audioEngine.setSpeakerphoneOn(isSpeakerOn)
+                text = if (isSpeakerOn) "[ 🔊 DEFAULT ROUTE: SPEAKERPHONE ]" else "[ 🔈 DEFAULT ROUTE: EARPIECE ]"
+                Toast.makeText(this@MainActivity, "Audio route: ${if (isSpeakerOn) "Speakerphone" else "Earpiece"}", Toast.LENGTH_SHORT).show()
+            }
+        }
+        layout.addView(btnToggleSpkr)
+
+        // Section 5: Storage & History Reset
+        val tvResetHeader = TextView(this).apply {
+            text = "🧹 [ STORAGE, CACHE & SYSTEM RESET ]"
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(Color.parseColor("#F43F5E"))
+            setPadding(0, 14, 0, 4)
+        }
+        layout.addView(tvResetHeader)
 
         val btnClearChat = Button(this).apply {
             text = "[ 💬 CLEAR CHAT BBS HISTORY ]"
@@ -1374,7 +1692,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
             setTextColor(Color.parseColor("#F43F5E"))
             val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(0, 6, 0, 0)
+                setMargins(0, 4, 0, 0)
             }
             layoutParams = lp
             setOnClickListener {
@@ -1385,9 +1703,29 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
         layout.addView(btnClearCalls)
 
+        val btnExportLogs = Button(this).apply {
+            text = "[ 📋 COPY SYSTEM AUDIT LOGS ]"
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+            setTextColor(Color.parseColor("#10B981"))
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 4, 0, 0)
+            }
+            layoutParams = lp
+            setOnClickListener {
+                val logsText = tvLogs.text.toString()
+                val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                val clip = android.content.ClipData.newPlainText("System Logs", logsText)
+                clipboard.setPrimaryClip(clip)
+                Toast.makeText(this@MainActivity, "📋 System audit logs copied to clipboard", Toast.LENGTH_SHORT).show()
+            }
+        }
+        layout.addView(btnExportLogs)
+
         scrollView.addView(layout)
         dialog.setContentView(scrollView)
-        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.94).toInt(), (resources.displayMetrics.heightPixels * 0.82).toInt())
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.94).toInt(), (resources.displayMetrics.heightPixels * 0.85).toInt())
         dialog.show()
     }
 

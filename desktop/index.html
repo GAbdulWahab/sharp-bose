@@ -18,7 +18,9 @@
         <span class="indicator"></span> Embedded Mesh Hub Live • 256-bit Noise_XX • 100% Offline
       </div>
     </div>
-    <div class="header-right">
+    <div class="header-right" style="display: flex; gap: 8px; align-items: center;">
+      <button class="btn-tactical-sm" id="btnToggleBtHeader" style="color: var(--cyan-primary); border-color: var(--cyan-primary);">⚡ BT: ON</button>
+      <button class="btn-tactical-sm" id="btnToggleWifiHeader" style="color: var(--emerald-primary); border-color: var(--emerald-primary);">📶 Wi-Fi: ON</button>
       <div class="node-badge" id="nodeIdBadge">NODE: INITIALIZING...</div>
       <button class="btn-tactical-sm" id="btnThemeToggle">🌙 Dark</button>
     </div>
@@ -96,6 +98,15 @@
           </div>
         </div>
 
+        <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;">
+          <button class="btn-tactical-sm" id="btnToggleBtAction" style="flex: 1; min-width: 140px; padding: 10px; font-size: 11px; justify-content: center; background: rgba(56, 189, 248, 0.15); color: var(--cyan-primary); border-color: var(--cyan-primary);">
+            ⚡ Turn Bluetooth OFF
+          </button>
+          <button class="btn-tactical-sm" id="btnToggleWifiAction" style="flex: 1; min-width: 140px; padding: 10px; font-size: 11px; justify-content: center; background: rgba(16, 185, 129, 0.15); color: var(--emerald-primary); border-color: var(--emerald-primary);">
+            📶 Turn Wi-Fi OFF
+          </button>
+        </div>
+
         <div style="display: flex; gap: 10px; flex-wrap: wrap;">
           <button class="btn-tactical-sm" id="btnScanBt" style="flex: 1; min-width: 140px; padding: 12px; font-size: 12px; justify-content: center; background: rgba(56, 189, 248, 0.15); color: var(--cyan-primary); border-color: var(--cyan-primary);">
             🔍 Scan Bluetooth Devices
@@ -108,14 +119,28 @@
           </button>
         </div>
 
-        <!-- Auto-Reconnect Row -->
+        <!-- Dedicated Carrier Transport Mode Selector (No Auto Switching) -->
+        <div style="display: flex; gap: 8px; align-items: center; margin-top: 12px; padding: 8px 12px; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid var(--border-glass);">
+          <span style="font-size: 11px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase;">Lock Carrier:</span>
+          <button class="btn-tactical-sm" id="btnModeBtOnly" style="padding: 4px 10px; font-size: 11px; color: var(--cyan-primary); border-color: var(--cyan-primary);">
+            🔵 Bluetooth Dedicated
+          </button>
+          <button class="btn-tactical-sm" id="btnModeWifiOnly" style="padding: 4px 10px; font-size: 11px;">
+            🟢 Wi-Fi Dedicated
+          </button>
+          <button class="btn-tactical-sm" id="btnModeCombined" style="padding: 4px 10px; font-size: 11px;">
+            🌐 Multi-Radio
+          </button>
+        </div>
+
+        <!-- Auto-Reconnect Row (Default OFF: Stable Manual Reconnect) -->
         <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border-glass);">
           <div>
-            <div style="font-size: 12px; font-weight: 600; color: var(--text-primary);">🔄 Bluetooth Auto-Reconnect</div>
-            <div style="font-size: 10px; color: var(--text-muted);">Automatically re-establishes connection to previously linked device if signal drops or radio turns on.</div>
+            <div style="font-size: 12px; font-weight: 600; color: var(--text-primary);">🔄 Background Auto-Reconnect</div>
+            <div style="font-size: 10px; color: var(--text-muted);">Disabled by default for maximum link stability. When OFF, link remains strictly in current state without reconnect loops.</div>
           </div>
           <label class="switch">
-            <input type="checkbox" id="toggleBtAutoReconnect" checked>
+            <input type="checkbox" id="toggleBtAutoReconnect">
             <span class="slider"></span>
           </label>
         </div>
@@ -331,21 +356,58 @@
         </div>
       </div>
 
-      <!-- 02. Mesh Radio & Network Interface Settings -->
+      <!-- 02. Bluetooth Direct Hardware Mesh Controller -->
       <div class="tactical-card" style="margin-top: 16px;">
         <div class="card-title">
-          <span>📡 Network Interfaces &amp; Mesh Link</span>
+          <span>📡 Bluetooth Direct Hardware Mesh</span>
+          <span style="color: var(--emerald-primary); font-weight: 600;" id="btMeshStatusBadge">● RFCOMM SPP Ready</span>
+        </div>
+        <div class="card-subtitle">
+          Direct hardware Bluetooth pairing &amp; RFCOMM discovery without Wi-Fi or tethering.
+        </div>
+
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <button class="btn-tactical-sm" id="btnScanBluetooth" style="flex: 1; background: var(--emerald-primary); color: #000; font-weight: 700; height: 38px; justify-content: center;">
+            🔍 Scan Nearby Bluetooth Phones &amp; Devices
+          </button>
+        </div>
+
+        <div id="btScanResultsContainer" style="margin-top: 12px; display: none;">
+          <div style="font-size: 11px; color: var(--text-muted); font-weight: 600; margin-bottom: 6px;">DISCOVERED / PAIRED BLUETOOTH DEVICES:</div>
+          <div id="btDevicesList" style="display: flex; flex-direction: column; gap: 6px;">
+            <!-- Populated dynamically via JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- 03. Wi-Fi & Subnet Mesh Sweeper -->
+      <div class="tactical-card" style="margin-top: 16px;">
+        <div class="card-title">
+          <span>🌐 Wi-Fi &amp; Subnet Mesh Router</span>
           <span class="status-online" id="settingCarrierBadge">● Carrier Active</span>
         </div>
         <div class="card-subtitle">
-          Configure custom node connections, auto-discovery parameters, and multi-hop routing.
+          Active network interfaces, high-speed multi-threaded subnet sweep, and node presets.
         </div>
 
-        <div class="settings-grid">
+        <div style="margin-top: 8px; padding: 10px; background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-glass); border-radius: 8px; font-family: monospace; font-size: 11px; color: var(--emerald-primary);" id="settingsActiveInterfaces">
+          ACTIVE INTERFACES: Loading...
+        </div>
+
+        <div style="margin-top: 12px;">
+          <label class="settings-label">FAST SUBNET SWEEPER (1..254)</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" class="chat-input" id="subnetPrefixInput" placeholder="e.g. 192.168.1 or 192.168.43" style="flex: 1;">
+            <button class="btn-tactical-sm" id="btnSweepSubnet" style="padding: 0 16px; background: var(--cyan-primary); color: #000; font-weight: 700;">🔄 Sweep Subnet</button>
+          </div>
+          <div id="sweepProgressText" style="font-size: 11px; color: var(--cyan-primary); margin-top: 6px; display: none;"></div>
+        </div>
+
+        <div class="settings-grid" style="margin-top: 14px;">
           <div class="settings-field">
             <label class="settings-label">CONNECT CUSTOM NODE IP / HOST</label>
             <div style="display: flex; gap: 8px;">
-              <input type="text" class="chat-input" id="settingCustomIp" placeholder="e.g. 172.27.180.170:3000" style="flex: 1;">
+              <input type="text" class="chat-input" id="settingCustomIp" placeholder="e.g. 192.168.1.50:3000" style="flex: 1;">
               <button class="btn-tactical-sm" id="btnConnectSettingIp" style="padding: 0 16px; background: var(--emerald-primary); color: #000; font-weight: 700;">Connect</button>
             </div>
           </div>
@@ -353,7 +415,8 @@
           <div class="settings-field">
             <label class="settings-label">QUICK PRESET NODES</label>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-              <button class="btn-tactical-sm btn-ip-preset" data-ip="172.27.180.170:3000">🔵 BT PAN (172.27.180.170)</button>
+              <button class="btn-tactical-sm btn-ip-preset" data-ip="192.168.43.1:3000">🔥 Hotspot AP (192.168.43.1)</button>
+              <button class="btn-tactical-sm btn-ip-preset" data-ip="192.168.1.1:3000">🏠 Router (192.168.1.1)</button>
               <button class="btn-tactical-sm btn-ip-preset" data-ip="10.19.238.166:3000">💻 Wi-Fi LAN (10.19.238.166)</button>
               <button class="btn-tactical-sm btn-ip-preset" data-ip="127.0.0.1:3000">🏠 Localhost (127.0.0.1)</button>
             </div>
@@ -385,7 +448,7 @@
         </div>
       </div>
 
-      <!-- 03. Audio & Voice DSP Engine Settings -->
+      <!-- 04. Audio & Voice DSP Engine Settings -->
       <div class="tactical-card" style="margin-top: 16px;">
         <div class="card-title">
           <span>🎙️ HD Voice DSP &amp; Audio Tuning</span>
@@ -420,11 +483,11 @@
 
           <div class="settings-toggle-item">
             <div>
-              <div class="toggle-title">Automatic Gain Control (AGC)</div>
-              <div class="toggle-desc">Normalizes microphone loudness for clear tactical voice.</div>
+              <div class="toggle-title">Push-To-Talk (PTT) Roger Beep</div>
+              <div class="toggle-desc">Plays an authentic tactical dual-tone roger beep when PTT transmission ends.</div>
             </div>
             <label class="switch">
-              <input type="checkbox" id="toggleAGC" checked>
+              <input type="checkbox" id="toggleRogerBeep" checked>
               <span class="slider"></span>
             </label>
           </div>
@@ -447,7 +510,7 @@
         </div>
       </div>
 
-      <!-- 04. Cryptographic Security & Safety -->
+      <!-- 05. Cryptographic Security & Safety -->
       <div class="tactical-card" style="margin-top: 16px;">
         <div class="card-title">
           <span>🔒 Cryptographic Security &amp; Safety</span>
@@ -475,24 +538,27 @@
         </div>
       </div>
 
-      <!-- 05. Maintenance, History & System Reset -->
+      <!-- 06. Maintenance, History & System Reset -->
       <div class="tactical-card" style="margin-top: 16px; margin-bottom: 20px;">
         <div class="card-title">
           <span>🧹 Storage, Cache &amp; Reset</span>
           <span style="color: var(--rose-primary); font-weight: 600;">Diagnostic</span>
         </div>
         <div class="card-subtitle">
-          Manage local memory buffers, clear message history, and restore default configurations.
+          Manage local memory buffers, export audit logs, clear message history, and restore default configurations.
         </div>
 
         <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
-          <button class="btn-tactical-sm" id="btnClearChatHistory" style="flex: 1; min-width: 160px; justify-content: center;">
+          <button class="btn-tactical-sm" id="btnClearChatHistory" style="flex: 1; min-width: 140px; justify-content: center;">
             💬 Clear Chat BBS
           </button>
-          <button class="btn-tactical-sm" id="btnClearCdrHistory" style="flex: 1; min-width: 160px; justify-content: center;">
+          <button class="btn-tactical-sm" id="btnClearCdrHistory" style="flex: 1; min-width: 140px; justify-content: center;">
             📞 Clear Call History
           </button>
-          <button class="btn-tactical-sm" id="btnResetSettings" style="flex: 1; min-width: 160px; justify-content: center; color: var(--rose-primary);">
+          <button class="btn-tactical-sm" id="btnCopyAuditLogs" style="flex: 1; min-width: 140px; justify-content: center; color: var(--emerald-primary);">
+            📋 Copy System Logs
+          </button>
+          <button class="btn-tactical-sm" id="btnResetSettings" style="flex: 1; min-width: 140px; justify-content: center; color: var(--rose-primary);">
             ⚠️ Reset All Settings
           </button>
         </div>
