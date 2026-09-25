@@ -18,6 +18,8 @@ namespace SharpBose.WindowsBluetooth {
     public class Program {
         private static Radio _bluetoothRadio = null;
         private static BluetoothLEAdvertisementWatcher _bleWatcher = null;
+        private static BluetoothLEAdvertisementPublisher _blePublisher = null;
+        private static DeviceWatcher _deviceWatcher = null;
         private static readonly Dictionary<string, DeviceInfo> _discoveredDevices = new Dictionary<string, DeviceInfo>();
         
         // Active Connection State
@@ -33,7 +35,7 @@ namespace SharpBose.WindowsBluetooth {
         private static DataWriter _rfcommWriter = null;
 
         private static string _connectedAddress = null;
-        private static bool _autoReconnect = false; // STRICT: No auto-reconnect by default
+        private static bool _autoReconnect = false;
         private static string _lastConnectedAddress = null;
         private static bool _isUserDisconnecting = false;
         private static readonly object _lock = new object();
@@ -109,7 +111,9 @@ namespace SharpBose.WindowsBluetooth {
 
             try {
                 InitRadio();
+                InitBlePublisher();
                 InitWatcher();
+                InitDeviceWatcher();
                 InitRfcommServer();
             } catch (Exception ex) {
                 SendJson("ERROR", "Initialization error: " + ex.Message);
@@ -168,7 +172,9 @@ namespace SharpBose.WindowsBluetooth {
                 } else {
                     string stateStr = _bluetoothRadio.State == RadioState.On ? "ON" : "OFF";
                     SendJson("STATUS", "{\"available\":true,\"state\":\"" + stateStr + "\",\"name\":\"" + EscapeJson(_bluetoothRadio.Name) + "\"}");
-                    _bluetoothRadio.StateChanged += OnRadioStateChanged;
+                    try {
+                        _bluetoothRadio.StateChanged += OnRadioStateChanged;
+                    } catch { }
                 }
             } catch (Exception ex) {
                 SendJson("ERROR", "Radio init failed: " + ex.Message);
@@ -209,6 +215,7 @@ namespace SharpBose.WindowsBluetooth {
                 }
             } else if (sender.State == RadioState.On) {
                 SendJson("LOG", "Bluetooth turned ON. Ready for connection.");
+                InitBlePublisher();
             }
         }
 
@@ -220,12 +227,32 @@ namespace SharpBose.WindowsBluetooth {
         }
 
         // =========================================================================
+        // BLE Publisher (Allows Android phones to discover this PC)
+        // =========================================================================
+        private static void InitBlePublisher() {
+            try {
+                if (_blePublisher != null) {
+                    try { _blePublisher.Stop(); } catch { }
+                    _blePublisher = null;
+                }
+
+                _blePublisher = new BluetoothLEAdvertisementPublisher();
+                _blePublisher.Advertisement.ServiceUuids.Add(MESH_SERVICE_GUID);
+                _blePublisher.Advertisement.LocalName = "SharpBose PC (" + Environment.MachineName + ")";
+                _blePublisher.Start();
+                SendJson("LOG", "BLE Advertisement Publisher active (Broadcasting Mesh Service)");
+            } catch (Exception ex) {
+                SendJson("LOG", "BLE Publisher note: " + ex.Message);
+            }
+        }
+
+        // =========================================================================
         // Classic Bluetooth RFCOMM SPP Server
         // =========================================================================
         private static void InitRfcommServer() {
             Task.Factory.StartNew(async () => {
                 try {
-                    _rfcommProvider = await ToTask(RfcommServiceProvider.CreateAsync(RfcommServiceId.SerialPort));
+                    _rfcommProvider = await ToTask(RfcommServiceProvider.CreateAsync(RfcommServiceId.FromUuid(MESH_SERVICE_GUID)));
                     _rfcommListener = new StreamSocketListener();
                     _rfcommListener.ConnectionReceived += OnRfcommConnectionReceived;
 
@@ -242,7 +269,7 @@ namespace SharpBose.WindowsBluetooth {
                     }
 
                     _rfcommProvider.StartAdvertising(_rfcommListener, true);
-                    SendJson("LOG", "RFCOMM SPP Service Listener initialized on SerialPort profile.");
+                    SendJson("LOG", "RFCOMM SPP Service Listener initialized on Mesh UUID.");
                 } catch (Exception ex) {
                     SendJson("LOG", "RFCOMM Server note: " + ex.Message);
                 }
@@ -292,13 +319,32 @@ namespace SharpBose.WindowsBluetooth {
         }
 
         // =========================================================================
-        // BLE Scanning & Advertisement
+        // BLE & Classic Scanning
         // =========================================================================
         private static void InitWatcher() {
-            _bleWatcher = new BluetoothLEAdvertisementWatcher();
-            _bleWatcher.ScanningMode = BluetoothLEScanningMode.Active;
-            _bleWatcher.Received += OnAdvertisementReceived;
-            _bleWatcher.Stopped += OnWatcherStopped;
+            try {
+                _bleWatcher = new BluetoothLEAdvertisementWatcher();
+                _bleWatcher.ScanningMode = BluetoothLEScanningMode.Active;
+                _bleWatcher.Received += OnAdvertisementReceived;
+                _bleWatcher.Stopped += OnWatcherStopped;
+            } catch (Exception ex) {
+                SendJson("LOG", "BLE Watcher init note: " + ex.Message);
+            }
+        }
+
+        private static void InitDeviceWatcher() {
+            try {
+                string aqs = BluetoothDevice.GetDeviceSelector();
+                _deviceWatcher = DeviceInformation.CreateWatcher(aqs);
+                _deviceWatcher.Added += (w, d) => {
+                    EmitDiscoveredDevice(d.Id, d.Name, isPaired: d.Pairing.IsPaired, isConnectable: true, transport: "CLASSIC");
+                };
+                _deviceWatcher.Updated += (w, d) => {
+                    // Update if needed
+                };
+            } catch (Exception ex) {
+                SendJson("LOG", "Device Watcher note: " + ex.Message);
+            }
         }
 
         public static void StartScan() {
@@ -312,21 +358,113 @@ namespace SharpBose.WindowsBluetooth {
                     _discoveredDevices.Clear();
                 }
 
+                // 1. Immediately scan paired Classic & BLE devices
+                Task.Factory.StartNew(async () => {
+                    await ScanPairedDevicesAsync();
+                });
+
+                // 2. Start BLE Watcher
                 if (_bleWatcher != null && _bleWatcher.Status != BluetoothLEAdvertisementWatcherStatus.Started) {
                     _bleWatcher.Start();
-                    SendJson("SCAN_STATE", "{\"scanning\":true}");
                 }
+
+                // 3. Start Classic Device Watcher
+                if (_deviceWatcher != null && _deviceWatcher.Status != DeviceWatcherStatus.Started && _deviceWatcher.Status != DeviceWatcherStatus.EnumerationCompleted) {
+                    try { _deviceWatcher.Start(); } catch { }
+                }
+
+                SendJson("SCAN_STATE", "{\"scanning\":true}");
             } catch (Exception ex) {
                 SendJson("ERROR", "Start scan error: " + ex.Message);
             }
+        }
+
+        private static async Task ScanPairedDevicesAsync() {
+            try {
+                // Classic Paired
+                string aqsClassic = BluetoothDevice.GetDeviceSelector();
+                var classicDevs = await ToTask(DeviceInformation.FindAllAsync(aqsClassic));
+                if (classicDevs != null) {
+                    for (int i = 0; i < classicDevs.Count; i++) {
+                        var d = classicDevs[i];
+                        EmitDiscoveredDevice(d.Id, d.Name, isPaired: d.Pairing.IsPaired, isConnectable: true, transport: "PAIRED");
+                    }
+                }
+
+                // BLE Paired
+                string aqsBle = BluetoothLEDevice.GetDeviceSelector();
+                var bleDevs = await ToTask(DeviceInformation.FindAllAsync(aqsBle));
+                if (bleDevs != null) {
+                    for (int i = 0; i < bleDevs.Count; i++) {
+                        var d = bleDevs[i];
+                        EmitDiscoveredDevice(d.Id, d.Name, isPaired: d.Pairing.IsPaired, isConnectable: true, transport: "PAIRED_BLE");
+                    }
+                }
+            } catch (Exception ex) {
+                SendJson("LOG", "Paired scan note: " + ex.Message);
+            }
+        }
+
+        private static void EmitDiscoveredDevice(string id, string name, bool isPaired, bool isConnectable, string transport) {
+            try {
+                string mac = ExtractMacFromId(id);
+                if (string.IsNullOrEmpty(mac)) return;
+
+                if (string.IsNullOrEmpty(name)) {
+                    name = "Bluetooth Device (" + mac.Substring(Math.Max(0, mac.Length - 5)) + ")";
+                }
+
+                var info = new DeviceInfo {
+                    address = mac,
+                    name = name,
+                    rssi = -60,
+                    isConnectable = isConnectable,
+                    isPaired = isPaired,
+                    transport = transport,
+                    lastSeen = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond
+                };
+
+                bool isNew = false;
+                lock (_lock) {
+                    if (!_discoveredDevices.ContainsKey(mac)) {
+                        isNew = true;
+                    }
+                    _discoveredDevices[mac] = info;
+                }
+
+                string devJson = "{\"address\":\"" + EscapeJson(info.address) + "\",\"name\":\"" + EscapeJson(info.name) + "\",\"rssi\":" + info.rssi + ",\"isConnectable\":" + (info.isConnectable ? "true" : "false") + ",\"isPaired\":" + (info.isPaired ? "true" : "false") + ",\"isNew\":" + (isNew ? "true" : "false") + "}";
+                SendJson("DEVICE_FOUND", devJson);
+            } catch { }
+        }
+
+        private static string ExtractMacFromId(string id) {
+            if (string.IsNullOrEmpty(id)) return "";
+            if (id.Contains("Bluetooth#Bluetooth") || id.Contains("BluetoothLE#BluetoothLE")) {
+                var parts = id.Split('-', '_', ':');
+                foreach (var p in parts) {
+                    string cleaned = p.Replace(":", "").Trim();
+                    if (cleaned.Length == 12) {
+                        try {
+                            ulong val = Convert.ToUInt64(cleaned, 16);
+                            if (val > 0) return FormatMac(cleaned);
+                        } catch { }
+                    }
+                }
+            }
+            if (id.Length == 17 && id.Contains(":")) return id.ToUpper();
+            if (id.Length == 12) return FormatMac(id);
+            return "";
         }
 
         public static void StopScan() {
             try {
                 if (_bleWatcher != null && _bleWatcher.Status == BluetoothLEAdvertisementWatcherStatus.Started) {
                     _bleWatcher.Stop();
-                    SendJson("SCAN_STATE", "{\"scanning\":false}");
                 }
+                if (_deviceWatcher != null && (_deviceWatcher.Status == DeviceWatcherStatus.Started || _deviceWatcher.Status == DeviceWatcherStatus.EnumerationCompleted)) {
+                    try { _deviceWatcher.Stop(); } catch { }
+                }
+                SendJson("SCAN_STATE", "{\"scanning\":false}");
             } catch (Exception ex) {
                 SendJson("ERROR", "Stop scan error: " + ex.Message);
             }
@@ -359,7 +497,7 @@ namespace SharpBose.WindowsBluetooth {
                     _discoveredDevices[mac] = info;
                 }
 
-                string devJson = "{\"address\":\"" + EscapeJson(info.address) + "\",\"name\":\"" + EscapeJson(info.name) + "\",\"rssi\":" + info.rssi + ",\"isConnectable\":" + (info.isConnectable ? "true" : "false") + ",\"isNew\":" + (isNew ? "true" : "false") + "}";
+                string devJson = "{\"address\":\"" + EscapeJson(info.address) + "\",\"name\":\"" + EscapeJson(info.name) + "\",\"rssi\":" + info.rssi + ",\"isConnectable\":" + (info.isConnectable ? "true" : "false") + ",\"isPaired\":false,\"isNew\":" + (isNew ? "true" : "false") + "}";
                 SendJson("DEVICE_FOUND", devJson);
             } catch { }
         }
@@ -411,7 +549,9 @@ namespace SharpBose.WindowsBluetooth {
                     SendJson("LOG", "GATT session note: " + gattEx.Message);
                 }
 
-                device.ConnectionStatusChanged += OnDeviceConnectionStatusChanged;
+                try {
+                    device.ConnectionStatusChanged += OnDeviceConnectionStatusChanged;
+                } catch { }
 
                 // Discover GATT Services & Characteristics
                 Task.Factory.StartNew(async () => {
@@ -430,7 +570,9 @@ namespace SharpBose.WindowsBluetooth {
                                             if (ch.Uuid == MESH_TX_CHAR_GUID) {
                                                 _notifyCharacteristic = ch;
                                                 await ToTask(ch.WriteClientCharacteristicConfigurationDescriptorAsync(GattClientCharacteristicConfigurationDescriptorValue.Notify));
-                                                ch.ValueChanged += OnGattCharacteristicValueChanged;
+                                                try {
+                                                    ch.ValueChanged += OnGattCharacteristicValueChanged;
+                                                } catch { }
                                             } else if (ch.Uuid == MESH_RX_CHAR_GUID) {
                                                 _writeCharacteristic = ch;
                                             }
@@ -481,7 +623,6 @@ namespace SharpBose.WindowsBluetooth {
                     string addr = _connectedAddress;
                     SendJson("LOG", "Bluetooth device disconnected: " + (addr ?? sender.Name));
                     DisconnectCurrent("UNEXPECTED_DISCONNECT");
-                    // STRICT: NO background auto-reconnect loop. Clean disconnect state preserved.
                 } else if (sender.ConnectionStatus == BluetoothConnectionStatus.Connected) {
                     SendJson("CONNECT_STATUS", "{\"status\":\"CONNECTED\",\"address\":\"" + EscapeJson(_connectedAddress) + "\",\"name\":\"" + EscapeJson(sender.Name) + "\"}");
                 }

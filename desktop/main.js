@@ -74,7 +74,10 @@ const btDiscoveredDevices = new Map();
 function startWindowsBluetoothService() {
   if (process.platform !== 'win32') return;
 
-  const exePath = path.join(__dirname, 'win-bluetooth', 'SharpBoseWinBluetooth.exe');
+  let exePath = path.join(__dirname, 'win-bluetooth', 'SharpBoseWinBluetoothCore.exe');
+  if (!fs.existsSync(exePath)) {
+    exePath = path.join(__dirname, 'win-bluetooth', 'SharpBoseWinBluetooth.exe');
+  }
   if (!fs.existsSync(exePath)) {
     console.warn('[Bluetooth Service] Binary not found at:', exePath);
     return;

@@ -2457,8 +2457,54 @@ class TacticalMeshDesktop {
         this.btAutoReconnect = savedAutoRec === 'true';
       }
       const toggle = document.getElementById('toggleBtAutoReconnect');
-      if (toggle) toggle.checked = this.btAutoReconnect;
+      if (toggle) {
+        toggle.checked = this.btAutoReconnect;
+        toggle.addEventListener('change', () => {
+          this.btAutoReconnect = toggle.checked;
+          localStorage.setItem('bt_auto_reconnect', this.btAutoReconnect);
+          window.bluetoothAPI.setAutoReconnect(this.btAutoReconnect);
+        });
+      }
       window.bluetoothAPI.setAutoReconnect(this.btAutoReconnect);
+
+      // 4. Bind UI Buttons
+      const btnScan = document.getElementById('btnScanBt');
+      if (btnScan) {
+        btnScan.addEventListener('click', () => {
+          if (this.isBtScanning) {
+            window.bluetoothAPI.stopScan();
+          } else {
+            window.bluetoothAPI.startScan();
+          }
+        });
+      }
+
+      const toggleBtHandler = () => {
+        const isCurrentlyOn = this.btRadioState === 'ON';
+        window.bluetoothAPI.setRadioState(!isCurrentlyOn);
+      };
+      const btnToggleBtAction = document.getElementById('btnToggleBtAction');
+      const btnToggleBtHeader = document.getElementById('btnToggleBtHeader');
+      if (btnToggleBtAction) btnToggleBtAction.addEventListener('click', toggleBtHandler);
+      if (btnToggleBtHeader) btnToggleBtHeader.addEventListener('click', toggleBtHandler);
+
+      const toggleWifiHandler = () => {
+        this.toggleWifiCarrier(!this.isConnected);
+      };
+      const btnToggleWifiAction = document.getElementById('btnToggleWifiAction');
+      const btnToggleWifiHeader = document.getElementById('btnToggleWifiHeader');
+      if (btnToggleWifiAction) btnToggleWifiAction.addEventListener('click', toggleWifiHandler);
+      if (btnToggleWifiHeader) btnToggleWifiHeader.addEventListener('click', toggleWifiHandler);
+
+      const btnModeBtOnly = document.getElementById('btnModeBtOnly');
+      const btnModeWifiOnly = document.getElementById('btnModeWifiOnly');
+      const btnModeCombined = document.getElementById('btnModeCombined');
+      if (btnModeBtOnly) btnModeBtOnly.addEventListener('click', () => this.setCarrierMode('BLUETOOTH_ONLY'));
+      if (btnModeWifiOnly) btnModeWifiOnly.addEventListener('click', () => this.setCarrierMode('WIFI_ONLY'));
+      if (btnModeCombined) btnModeCombined.addEventListener('click', () => this.setCarrierMode('COMBINED'));
+
+      // 5. Automatically trigger initial Bluetooth device scan
+      window.bluetoothAPI.startScan();
     } catch (e) {
       console.warn('initBluetooth failed:', e.message);
     }

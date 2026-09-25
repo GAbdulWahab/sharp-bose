@@ -390,8 +390,12 @@ class BluetoothMeshTransport(
             .build()
 
         val data = AdvertiseData.Builder()
-            .setIncludeDeviceName(true)
+            .setIncludeDeviceName(false)
             .addServiceUuid(ParcelUuid(MESH_SERVICE_UUID))
+            .build()
+
+        val scanResponse = AdvertiseData.Builder()
+            .setIncludeDeviceName(true)
             .build()
 
         bleAdvertiseCallback = object : AdvertiseCallback() {
@@ -405,7 +409,7 @@ class BluetoothMeshTransport(
         }
 
         try {
-            bleAdvertiser?.startAdvertising(settings, data, bleAdvertiseCallback)
+            bleAdvertiser?.startAdvertising(settings, data, scanResponse, bleAdvertiseCallback)
         } catch (e: Exception) {
             Log.w(TAG, "BLE Advertiser start error: ${e.message}")
         }
