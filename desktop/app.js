@@ -1051,6 +1051,37 @@ class TacticalMeshDesktop {
     }
 
     switch (json.type) {
+      case 'BT_STATUS':
+        if (window.bluetoothAPI && window.bluetoothAPI._emit) window.bluetoothAPI._emit('status', json.data);
+        this.handleBtStatus(json.data);
+        break;
+      case 'BT_DEVICE_DISCOVERED':
+        if (window.bluetoothAPI && window.bluetoothAPI._emit) window.bluetoothAPI._emit('device', json.data);
+        this.handleBtDeviceDiscovered(json.data);
+        break;
+      case 'BT_CONNECTION_CHANGED':
+        if (window.bluetoothAPI && window.bluetoothAPI._emit) window.bluetoothAPI._emit('connection', json.data);
+        this.handleBtConnectionChanged(json.data);
+        break;
+      case 'BT_SCAN_STATE':
+        if (window.bluetoothAPI && window.bluetoothAPI._emit) window.bluetoothAPI._emit('scanState', json.data);
+        this.handleBtScanState(json.data);
+        break;
+      case 'BT_PAIR_RESULT':
+        if (window.bluetoothAPI && window.bluetoothAPI._emit) window.bluetoothAPI._emit('pairResult', json.data);
+        break;
+      case 'BT_UNPAIR_RESULT':
+        if (window.bluetoothAPI && window.bluetoothAPI._emit) window.bluetoothAPI._emit('unpairResult', json.data);
+        break;
+      case 'BT_ERROR':
+        if (window.bluetoothAPI && window.bluetoothAPI._emit) window.bluetoothAPI._emit('error', json.data);
+        this.handleBtError(json.data);
+        break;
+      case 'BT_LOG':
+        if (window.bluetoothAPI && window.bluetoothAPI._emit) window.bluetoothAPI._emit('log', json.data);
+        this.log(`[BT] ${json.data}`);
+        break;
+
       case 'ASSIGN_ID':
         // PRESERVE SINGLE STABLE USER NODE ID: Do not overwrite persistent ID
         if (!this.localNodeId || this.localNodeId === 'node-local' || this.localNodeId === 'node-temp') {
@@ -2317,16 +2348,88 @@ class TacticalMeshDesktop {
   }
 
   // -----------------------------------------------------------
-  // 8. Real Windows Bluetooth Engine
-  // -----------------------------------------------------------
-  // -----------------------------------------------------------
   // 8. Real Windows Bluetooth Integration (WinRT)
   // -----------------------------------------------------------
+  setupBluetoothPolyfill() {
+    if (window.bluetoothAPI) return;
+
+    const listeners = {
+      status: [],
+      device: [],
+      connection: [],
+      scanState: [],
+      pairResult: [],
+      unpairResult: [],
+      error: [],
+      log: []
+    };
+
+    window.bluetoothAPI = {
+      getStatus: async () => {
+        try {
+          const res = await fetch('/api/bluetooth/status');
+          if (res.ok) return await res.json();
+        } catch (e) {}
+        this.sendControlPacket({ type: 'BT_GET_STATUS' });
+        return { available: true, state: 'ON' };
+      },
+      startScan: async () => {
+        this.sendControlPacket({ type: 'BT_SCAN_START' });
+        try { await fetch('/api/bluetooth/scan/start'); } catch (e) {}
+        return true;
+      },
+      stopScan: async () => {
+        this.sendControlPacket({ type: 'BT_SCAN_STOP' });
+        try { await fetch('/api/bluetooth/scan/stop'); } catch (e) {}
+        return true;
+      },
+      connect: async (address) => {
+        this.sendControlPacket({ type: 'BT_CONNECT', address });
+        try { await fetch(`/api/bluetooth/connect?address=${encodeURIComponent(address)}`); } catch (e) {}
+        return true;
+      },
+      disconnect: async () => {
+        this.sendControlPacket({ type: 'BT_DISCONNECT' });
+        try { await fetch('/api/bluetooth/disconnect'); } catch (e) {}
+        return true;
+      },
+      pair: async (address) => {
+        this.sendControlPacket({ type: 'BT_PAIR', address });
+        try { await fetch(`/api/bluetooth/pair?address=${encodeURIComponent(address)}`); } catch (e) {}
+        return true;
+      },
+      unpair: async (address) => {
+        this.sendControlPacket({ type: 'BT_UNPAIR', address });
+        try { await fetch(`/api/bluetooth/unpair?address=${encodeURIComponent(address)}`); } catch (e) {}
+        return true;
+      },
+      setRadioState: async (enabled) => {
+        this.sendControlPacket({ type: 'BT_SET_RADIO_STATE', enabled });
+        try { await fetch(`/api/bluetooth/radio?state=${enabled ? 'on' : 'off'}`); } catch (e) {}
+        return true;
+      },
+      setAutoReconnect: async (enabled) => {
+        this.sendControlPacket({ type: 'BT_SET_AUTO_RECONNECT', enabled });
+        return true;
+      },
+      onStatusChanged: (cb) => listeners.status.push(cb),
+      onDeviceDiscovered: (cb) => listeners.device.push(cb),
+      onConnectionChanged: (cb) => listeners.connection.push(cb),
+      onScanStateChanged: (cb) => listeners.scanState.push(cb),
+      onPairResult: (cb) => listeners.pairResult.push(cb),
+      onUnpairResult: (cb) => listeners.unpairResult.push(cb),
+      onError: (cb) => listeners.error.push(cb),
+      onLog: (cb) => listeners.log.push(cb),
+      _emit: (type, data) => {
+        if (listeners[type]) {
+          listeners[type].forEach(fn => { try { fn(data); } catch (e) {} });
+        }
+      }
+    };
+  }
+
   async initBluetooth() {
-    if (!window.bluetoothAPI) {
-      console.log('[Bluetooth] bluetoothAPI not available in current window.');
-      return;
-    }
+    this.setupBluetoothPolyfill();
 
     try {
       // 1. Initial status query
@@ -2631,6 +2734,18 @@ class TacticalMeshDesktop {
       if (scanStatus) scanStatus.innerText = `Connected to ${conn.name || conn.address}`;
       this.log(`✅ Connected to Bluetooth Device: ${conn.name || conn.address} (${conn.address})`);
       this.renderBtDevices();
+
+      // Automatically register the connected Bluetooth device into the Active Roster
+      const rawMac = (conn.address || '').replace(/[^a-zA-Z0-9]/g, '');
+      const anonSuffix = rawMac.length >= 4 ? rawMac.slice(-4).toUpperCase() : (rawMac || 'BT01');
+      const btPeer = {
+        id: `node-bt-${anonSuffix.toLowerCase()}`,
+        nickname: conn.name || 'Bluetooth Companion Phone',
+        deviceType: 'Android (Bluetooth SPP/BLE)',
+        status: 'Online (Bluetooth Direct)',
+        location: null
+      };
+      this.renderPeers([btPeer]);
     } else if (status === 'DISCONNECTED') {
       const oldAddress = this.btConnectedAddress;
       this.btConnectedAddress = null;
@@ -2646,6 +2761,9 @@ class TacticalMeshDesktop {
         this.log(`Bluetooth device disconnected.`);
       }
       this.renderBtDevices();
+      if (this.connectedPeers.some(p => p.deviceType && p.deviceType.includes('Bluetooth'))) {
+        this.renderPeers([]);
+      }
     }
   }
 

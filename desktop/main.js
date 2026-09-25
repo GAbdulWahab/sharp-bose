@@ -121,6 +121,15 @@ function startWindowsBluetoothService() {
   }
 }
 
+function broadcastToWebSockets(payloadObj) {
+  const jsonStr = typeof payloadObj === 'string' ? payloadObj : JSON.stringify(payloadObj);
+  for (const client of allWebSockets) {
+    if (client.readyState === 1) { // OPEN
+      try { client.send(jsonStr); } catch (e) {}
+    }
+  }
+}
+
 function handleBtServiceMessage(msg) {
   if (!msg || !msg.type) return;
 
@@ -133,6 +142,7 @@ function handleBtServiceMessage(msg) {
     case 'STATUS':
     case 'RADIO_CHANGED':
       latestBtStatus = payload;
+      broadcastToWebSockets({ type: 'BT_STATUS', data: latestBtStatus });
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('bluetooth:status-changed', latestBtStatus);
       }
@@ -142,48 +152,56 @@ function handleBtServiceMessage(msg) {
       if (payload && payload.address) {
         btDiscoveredDevices.set(payload.address, payload);
       }
+      broadcastToWebSockets({ type: 'BT_DEVICE_DISCOVERED', data: payload });
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('bluetooth:device-discovered', payload);
       }
       break;
 
     case 'CONNECT_STATUS':
+      broadcastToWebSockets({ type: 'BT_CONNECTION_CHANGED', data: payload });
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('bluetooth:connection-changed', payload);
       }
       break;
 
     case 'SCAN_STATE':
+      broadcastToWebSockets({ type: 'BT_SCAN_STATE', data: payload });
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('bluetooth:scan-state', payload);
       }
       break;
 
     case 'PAIR_RESULT':
+      broadcastToWebSockets({ type: 'BT_PAIR_RESULT', data: payload });
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('bluetooth:pair-result', payload);
       }
       break;
 
     case 'UNPAIR_RESULT':
+      broadcastToWebSockets({ type: 'BT_UNPAIR_RESULT', data: payload });
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('bluetooth:unpair-result', payload);
       }
       break;
 
     case 'CONTROL_PACKET':
+      broadcastToWebSockets(payload);
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('hub:control-packet', payload);
       }
       break;
 
     case 'ERROR':
+      broadcastToWebSockets({ type: 'BT_ERROR', data: typeof payload === 'string' ? payload : (payload.error || payload.message || 'Bluetooth Error') });
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('bluetooth:error', typeof payload === 'string' ? payload : (payload.error || payload.message || 'Bluetooth Error'));
       }
       break;
 
     case 'LOG':
+      broadcastToWebSockets({ type: 'BT_LOG', data: typeof payload === 'string' ? payload : JSON.stringify(payload) });
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('bluetooth:log', typeof payload === 'string' ? payload : JSON.stringify(payload));
       }
@@ -235,6 +253,48 @@ function startEmbeddedHub() {
 
   httpServer = http.createServer((req, res) => {
     let reqPath = req.url.split('?')[0];
+
+    // Bluetooth REST API Endpoints
+    if (reqPath.startsWith('/api/bluetooth/')) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      if (reqPath === '/api/bluetooth/status') {
+        sendBtCommand('STATUS');
+        res.end(JSON.stringify(latestBtStatus));
+      } else if (reqPath === '/api/bluetooth/scan/start') {
+        sendBtCommand('SCAN:START');
+        res.end(JSON.stringify({ ok: true, scanning: true }));
+      } else if (reqPath === '/api/bluetooth/scan/stop') {
+        sendBtCommand('SCAN:STOP');
+        res.end(JSON.stringify({ ok: true, scanning: false }));
+      } else if (reqPath.startsWith('/api/bluetooth/connect')) {
+        const u = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const addr = u.searchParams.get('address');
+        if (addr) sendBtCommand(`CONNECT:${addr}`);
+        res.end(JSON.stringify({ ok: true, address: addr }));
+      } else if (reqPath === '/api/bluetooth/disconnect') {
+        sendBtCommand('DISCONNECT');
+        res.end(JSON.stringify({ ok: true }));
+      } else if (reqPath.startsWith('/api/bluetooth/pair')) {
+        const u = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const addr = u.searchParams.get('address');
+        if (addr) sendBtCommand(`PAIR:${addr}`);
+        res.end(JSON.stringify({ ok: true, address: addr }));
+      } else if (reqPath.startsWith('/api/bluetooth/unpair')) {
+        const u = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const addr = u.searchParams.get('address');
+        if (addr) sendBtCommand(`UNPAIR:${addr}`);
+        res.end(JSON.stringify({ ok: true, address: addr }));
+      } else if (reqPath.startsWith('/api/bluetooth/radio')) {
+        const u = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        const state = u.searchParams.get('state');
+        sendBtCommand(state === 'off' ? 'RADIO:OFF' : 'RADIO:ON');
+        res.end(JSON.stringify({ ok: true, state }));
+      } else {
+        res.end(JSON.stringify({ ok: true }));
+      }
+      return;
+    }
+
     if (reqPath === '/api/status') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
@@ -390,6 +450,40 @@ function startEmbeddedHub() {
           const text = message.toString();
           const json = JSON.parse(text);
 
+          if (json.type && json.type.startsWith('BT_')) {
+            switch (json.type) {
+              case 'BT_GET_STATUS':
+                sendBtCommand('STATUS');
+                ws.send(JSON.stringify({ type: 'BT_STATUS', data: latestBtStatus }));
+                break;
+              case 'BT_SCAN_START':
+                sendBtCommand('SCAN:START');
+                break;
+              case 'BT_SCAN_STOP':
+                sendBtCommand('SCAN:STOP');
+                break;
+              case 'BT_CONNECT':
+                if (json.address) sendBtCommand(`CONNECT:${json.address}`);
+                break;
+              case 'BT_DISCONNECT':
+                sendBtCommand('DISCONNECT');
+                break;
+              case 'BT_PAIR':
+                if (json.address) sendBtCommand(`PAIR:${json.address}`);
+                break;
+              case 'BT_UNPAIR':
+                if (json.address) sendBtCommand(`UNPAIR:${json.address}`);
+                break;
+              case 'BT_SET_RADIO_STATE':
+                sendBtCommand(json.enabled ? 'RADIO:ON' : 'RADIO:OFF');
+                break;
+              case 'BT_SET_AUTO_RECONNECT':
+                sendBtCommand(`AUTO_RECONNECT:${json.enabled ? 'true' : 'false'}`);
+                break;
+            }
+            return;
+          }
+
           switch (json.type) {
             case 'SET_NICKNAME':
               if (json.id || json.nodeId) clientInfo.id = json.id || json.nodeId;
@@ -424,6 +518,8 @@ function startEmbeddedHub() {
             case 'CHAT_MSG':
             case 'SOS_BEACON':
             case 'FILE_CHUNK':
+              // Forward packet over Bluetooth RFCOMM/GATT link if active
+              sendBtCommand(`SEND:${text}`);
               // Broadcast packet to all other connected peers
               for (const client of allWebSockets) {
                 if (client !== ws && client.readyState === 1) {
@@ -590,7 +686,8 @@ if (!app || IS_HEADLESS) {
   // Pure Node.js headless mode (super lightweight ~20MB RAM)
   startEmbeddedHub();
   startUdpBeacon();
-  console.log(`[Mesh Hub] Headless hub active. Open http://localhost:${HTTP_PORT} in your browser.`);
+  startWindowsBluetoothService();
+  console.log(`[Mesh Hub] Headless hub active with Native Windows Bluetooth Service. Open http://localhost:${HTTP_PORT} in your browser.`);
 } else {
   // Electron App mode
   const gotSingleLock = app.requestSingleInstanceLock();
