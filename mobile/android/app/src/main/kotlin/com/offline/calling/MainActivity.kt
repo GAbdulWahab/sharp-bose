@@ -834,19 +834,18 @@ class MainActivity : AppCompatActivity(), LocationListener {
             !it.nickname.contains("Desktop Local", true)
         }
         
-        val singlePeer = otherPeers.firstOrNull()
         val connectingDevs = bridge.getConnectingBluetoothDevices()
         
-        if (singlePeer != null) {
-            tvPeopleCount.text = "1 Connected"
+        if (otherPeers.isNotEmpty()) {
+            tvPeopleCount.text = "${otherPeers.size} Connected"
         } else if (connectingDevs.isNotEmpty()) {
             tvPeopleCount.text = "${connectingDevs.size} Connecting"
         } else {
             tvPeopleCount.text = "0 Connected"
         }
 
-        // 1. If currently connecting to a Bluetooth device, render the Connecting Card
-        if (connectingDevs.isNotEmpty() && singlePeer == null) {
+        // 1. Render active connecting cards for in-progress Bluetooth connections
+        if (connectingDevs.isNotEmpty()) {
             for (addr in connectingDevs) {
                 val connCard = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
@@ -875,14 +874,14 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
                 val tvConnTitle = TextView(this).apply {
                     text = "🔄 CONNECTING TO BLUETOOTH NODE..."
-                    setTextColor(Color.parseColor("#38BDF8"))
+                    setTextColor(Color.parseColor("#00F0FF"))
                     textSize = 12f
                     typeface = android.graphics.Typeface.MONOSPACE
                     setTypeface(typeface, android.graphics.Typeface.BOLD)
                 }
 
                 val tvConnMeta = TextView(this).apply {
-                    text = "TARGET: $addr • Direct Fast Hardware Link"
+                    text = "TARGET: $addr • Direct Fast RFCOMM Link"
                     setTextColor(Color.parseColor("#64748B"))
                     textSize = 10f
                     typeface = android.graphics.Typeface.MONOSPACE
@@ -908,10 +907,10 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
                 llConnectedPeople.addView(connCard)
             }
-            return
         }
 
-        if (singlePeer == null) {
+        // 2. If no peers are connected, show actionable helper state based on current carrier mode
+        if (otherPeers.isEmpty() && connectingDevs.isEmpty()) {
             val emptyCard = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 val bg = if (isDarkMode) Color.parseColor("#131D31") else Color.parseColor("#F1F5F9")
@@ -925,13 +924,12 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
 
             val tvNotice = TextView(this).apply {
-                val statusMsg = if (bridge.bluetoothMesh?.hasConnectedPeers() == true) {
-                    "● Direct Hardware Bluetooth Active\nConnected peer-to-peer over Bluetooth RFCOMM."
-                } else if (bridge.isConnected) {
-                    val hostInfo = if (bridge.currentHost.isNotEmpty()) " (${bridge.currentHost})" else ""
-                    "● Wi-Fi Mesh Connected$hostInfo\nMesh link active on local network."
-                } else {
-                    "○ Scanning Direct Radios...\nBluetooth & Wi-Fi auto-discovery active in background."
+                val isBtMode = bridge.transportMode == RadioTransportMode.BLUETOOTH_ONLY
+                val isWifiMode = bridge.transportMode == RadioTransportMode.WIFI_ONLY
+                val statusMsg = when {
+                    isBtMode -> "⚡ [BLUETOOTH DEDICATED MODE]\nReady to connect nearby Bluetooth peers. Tap below to scan and link instantly."
+                    isWifiMode -> "📶 [WI-FI MESH DEDICATED MODE]\nReady to link with local Wi-Fi / Hotspot nodes. Tap below to scan subnet."
+                    else -> "🌐 [DUAL CARRIER MESH ACTIVE]\nScanning for direct Bluetooth peers & local Wi-Fi nodes."
                 }
                 text = statusMsg
                 setTextColor(if (isDarkMode) Color.parseColor("#38BDF8") else Color.parseColor("#64748B"))
@@ -940,32 +938,82 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 setLineSpacing(4f, 1.0f)
             }
             emptyCard.addView(tvNotice)
+
+            val btnActionRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(0, 10, 0, 0) }
+                layoutParams = lp
+            }
+
+            val btnScanBt = Button(this).apply {
+                text = "[ ⚡ SCAN BLUETOOTH ]"
+                textSize = 10f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0369A1"))
+                setTextColor(Color.WHITE)
+                val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                layoutParams = lp
+                setOnClickListener {
+                    setCarrierMode(RadioTransportMode.BLUETOOTH_ONLY)
+                    bridge.startBluetoothScan()
+                    bridge.bluetoothMesh?.triggerImmediateScanAndConnect()
+                    Toast.makeText(this@MainActivity, "⚡ Scanning Bluetooth mesh nodes...", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            val btnScanWifi = Button(this).apply {
+                text = "[ 📶 SWEEP WI-FI ]"
+                textSize = 10f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#047857"))
+                setTextColor(Color.WHITE)
+                val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(8, 0, 0, 0) }
+                layoutParams = lp
+                setOnClickListener {
+                    setCarrierMode(RadioTransportMode.WIFI_ONLY)
+                    bridge.autoDiscoverAndConnect()
+                    Toast.makeText(this@MainActivity, "📶 Sweeping local Wi-Fi subnet...", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            btnActionRow.addView(btnScanBt)
+            btnActionRow.addView(btnScanWifi)
+            emptyCard.addView(btnActionRow)
+
             llConnectedPeople.addView(emptyCard)
             return
         }
 
-        val peer = singlePeer
-        val peerRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            val bg = if (isDarkMode) Color.parseColor("#131D31") else Color.parseColor("#F1F5F9")
-            setBackgroundColor(bg)
-            setPadding(16, 12, 16, 12)
-            val params = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                setMargins(0, 0, 0, 10)
+        // 3. Render all connected peers
+        for (peer in otherPeers) {
+            val peerRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                val bg = if (isDarkMode) Color.parseColor("#131D31") else Color.parseColor("#F1F5F9")
+                setBackgroundColor(bg)
+                setPadding(16, 12, 16, 12)
+                val params = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    setMargins(0, 0, 0, 10)
+                }
+                layoutParams = params
             }
-            layoutParams = params
-        }
 
             val leftInfo = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
             }
 
-            val iconStr = if (peer.deviceType.contains("Android", true)) "📱" else "💻"
+            val isBtPeer = peer.deviceType.contains("Bluetooth", true) || peer.deviceType.contains("RFCOMM", true) || peer.deviceType.contains("GATT", true)
+            val iconStr = if (isBtPeer) "⚡" else if (peer.deviceType.contains("Android", true)) "📱" else "💻"
+            val transportBadge = if (isBtPeer) "⚡ BT DIRECT" else "📶 WI-FI MESH"
             val cleanRawId = peer.id.replace("node-", "")
             val anonSuffix = if (cleanRawId.length >= 4) cleanRawId.takeLast(4).uppercase(Locale.ROOT) else cleanRawId.uppercase(Locale.ROOT)
             val anonId = "ANON-$anonSuffix"
@@ -978,9 +1026,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 setTypeface(typeface, android.graphics.Typeface.BOLD)
             }
 
-            var distStr = "DIRECT (0 HOPS)"
+            var distStr = "DIRECT LINK"
             if (peer.hopCount > 0) {
-                distStr = "MULTI-HOP (${peer.hopCount} HOPS)"
+                distStr = "RELAY (${peer.hopCount} HOPS)"
             } else if (hasGpsFix && peer.location != null && peer.location.lat != 0.0) {
                 val dist = calculateDistanceMeters(currentLatitude, currentLongitude, peer.location.lat, peer.location.lng)
                 val bearing = calculateBearingDegrees(currentLatitude, currentLongitude, peer.location.lat, peer.location.lng)
@@ -989,8 +1037,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
 
             val tvMeta = TextView(this).apply {
-                text = "STATUS: ${peer.status.uppercase(Locale.ROOT)} • ANON ID: $anonId • E2EE // $distStr"
-                setTextColor(Color.parseColor("#10B981"))
+                text = "$transportBadge • ${peer.status.uppercase(Locale.ROOT)} • E2EE // $distStr"
+                setTextColor(if (isBtPeer) Color.parseColor("#00F0FF") else Color.parseColor("#10B981"))
                 typeface = android.graphics.Typeface.MONOSPACE
                 textSize = 10f
             }
@@ -1046,6 +1094,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             peerRow.addView(btnQuickChat)
 
             llConnectedPeople.addView(peerRow)
+        }
     }
 
     private fun appendRichChatBubble(
@@ -2031,53 +2080,37 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
     private fun toggleBluetoothRadio() {
         val btAdapter = BluetoothAdapter.getDefaultAdapter()
-        if (!isBtRadioEnabled) {
-            isBtRadioEnabled = true
-            bridge.startBluetooth(this)
-            if (btAdapter != null && !btAdapter.isEnabled) {
+        isBtRadioEnabled = true
+        bridge.transportMode = RadioTransportMode.BLUETOOTH_ONLY
+        bridge.disconnect() // Cleanly disconnect Wi-Fi for dedicated Bluetooth link
+        bridge.startBluetooth(this)
+        bridge.startBluetoothScan()
+        bridge.bluetoothMesh?.triggerImmediateScanAndConnect()
+
+        if (btAdapter != null && !btAdapter.isEnabled) {
+            try {
+                val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+                startActivity(enableBtIntent)
+            } catch (e: Exception) {
                 try {
-                    val enableBtIntent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
-                    startActivity(enableBtIntent)
-                } catch (e: Exception) {
-                    try {
-                        startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
-                    } catch (ex: Exception) {}
-                }
+                    startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+                } catch (ex: Exception) {}
             }
-            logEvent("[Radio] ⚡ Bluetooth radio enabled")
-            Toast.makeText(this, "⚡ Bluetooth Radio Turned ON", Toast.LENGTH_SHORT).show()
-        } else {
-            isBtRadioEnabled = false
-            bridge.bluetoothMesh?.stop()
-            if (bridge.transportMode == RadioTransportMode.BLUETOOTH_ONLY) {
-                bridge.transportMode = RadioTransportMode.WIFI_ONLY
-            }
-            logEvent("[Radio] ⚡ Bluetooth radio disabled")
-            Toast.makeText(this, "⚡ Bluetooth Radio Turned OFF", Toast.LENGTH_SHORT).show()
         }
+        logEvent("[Radio] ⚡ Bluetooth Dedicated Mode Active • Scanning nearby devices")
+        Toast.makeText(this, "⚡ Bluetooth Mode: Scanning & Linking Bluetooth Devices", Toast.LENGTH_SHORT).show()
         updateRadioUiState()
         renderConnectedPeopleList(connectedPeersList)
     }
 
     private fun toggleWifiRadio() {
-        if (!isWifiRadioEnabled) {
-            isWifiRadioEnabled = true
-            if (bridge.transportMode == RadioTransportMode.BLUETOOTH_ONLY) {
-                bridge.transportMode = RadioTransportMode.COMBINED
-            }
-            bridge.connect(context = this)
-            bridge.autoDiscoverAndConnect()
-            logEvent("[Radio] 📶 Wi-Fi radio link enabled")
-            Toast.makeText(this, "📶 Wi-Fi Radio Turned ON", Toast.LENGTH_SHORT).show()
-        } else {
-            isWifiRadioEnabled = false
-            bridge.disconnect()
-            if (bridge.transportMode != RadioTransportMode.BLUETOOTH_ONLY) {
-                bridge.transportMode = RadioTransportMode.BLUETOOTH_ONLY
-            }
-            logEvent("[Radio] 📶 Wi-Fi radio link disabled")
-            Toast.makeText(this, "📶 Wi-Fi Radio Turned OFF", Toast.LENGTH_SHORT).show()
-        }
+        isWifiRadioEnabled = true
+        bridge.transportMode = RadioTransportMode.WIFI_ONLY
+        bridge.bluetoothMesh?.stop() // Pause Bluetooth for dedicated Wi-Fi link
+        bridge.connect(context = this)
+        bridge.autoDiscoverAndConnect()
+        logEvent("[Radio] 📶 Wi-Fi Dedicated Mode Active • Scanning local mesh")
+        Toast.makeText(this, "📶 Wi-Fi Mode: Connecting & Sweeping Wi-Fi Mesh", Toast.LENGTH_SHORT).show()
         updateRadioUiState()
         renderConnectedPeopleList(connectedPeersList)
     }
@@ -2089,23 +2122,27 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 isBtRadioEnabled = true
                 bridge.disconnect()
                 bridge.startBluetooth(this)
+                bridge.startBluetoothScan()
+                bridge.bluetoothMesh?.triggerImmediateScanAndConnect()
                 logEvent("[Carrier] 🔒 Locked to Bluetooth Dedicated Mode")
-                Toast.makeText(this, "🔵 Carrier Lock: Bluetooth Dedicated (Wi-Fi Auto-Discovery Disabled)", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "🔵 Bluetooth Dedicated Mode Active", Toast.LENGTH_SHORT).show()
             }
             RadioTransportMode.WIFI_ONLY -> {
                 isWifiRadioEnabled = true
                 bridge.bluetoothMesh?.stop()
                 bridge.connect(context = this)
+                bridge.autoDiscoverAndConnect()
                 logEvent("[Carrier] 🔒 Locked to Wi-Fi Dedicated Mode")
-                Toast.makeText(this, "🟢 Carrier Lock: Wi-Fi Dedicated (Bluetooth Mesh Disabled)", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "🟢 Wi-Fi Dedicated Mode Active", Toast.LENGTH_SHORT).show()
             }
             RadioTransportMode.COMBINED, RadioTransportMode.MANUAL -> {
                 isBtRadioEnabled = true
                 isWifiRadioEnabled = true
                 bridge.startBluetooth(this)
                 bridge.connect(context = this)
+                bridge.autoDiscoverAndConnect()
                 logEvent("[Carrier] 🌐 Dual-Radio Combined Mode Active")
-                Toast.makeText(this, "🌐 Multi-Radio Mode: Both Radios Enabled", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "🌐 Multi-Radio Mode: Both Bluetooth & Wi-Fi Active", Toast.LENGTH_SHORT).show()
             }
         }
         updateRadioUiState()

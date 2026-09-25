@@ -1300,9 +1300,13 @@ class TacticalMeshDesktop {
       }
 
       const source = this.audioCtx.createMediaStreamSource(this.micStream);
-      // Use 1024 buffer size for smooth, low-latency cross-platform audio streaming
+      // Use 1024 buffer size for smooth, low-latency audio capture
       const processor = this.audioCtx.createScriptProcessor(1024, 1, 1);
-      const sampleRate = this.audioCtx.sampleRate || 48000;
+      const inSampleRate = this.audioCtx.sampleRate || 48000;
+      const targetSampleRate = 16000; // Standardize mesh voice stream to 16 kHz HD Voice
+      const ratio = inSampleRate / targetSampleRate;
+
+      let resamplePhase = 0;
 
       processor.onaudioprocess = (e) => {
         if (!this.isCalling && !this.isPttActive && !this.isTestingMic) return;
@@ -1310,13 +1314,8 @@ class TacticalMeshDesktop {
         const inputData = e.inputBuffer.getChannelData(0);
         let sum = 0;
         const gain = this.micGainMultiplier || 1.0;
-        
-        // Convert Float32Array to 16-bit PCM with configurable microphone gain
-        const pcm16 = new Int16Array(inputData.length);
+
         for (let i = 0; i < inputData.length; i++) {
-          let s = inputData[i] * gain;
-          s = Math.max(-1, Math.min(1, s));
-          pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
           sum += Math.abs(inputData[i]);
         }
 
@@ -1331,12 +1330,45 @@ class TacticalMeshDesktop {
 
         if (!this.isCalling && !this.isPttActive) return;
 
-        // Frame header: [0xAA, 0x55, SampleRate_H, SampleRate_L] + PCM bytes
+        // Downsample input from native sampleRate (e.g. 48kHz/44.1kHz) to 16kHz with anti-aliasing
+        let outLen = Math.floor((inputData.length - resamplePhase) / ratio);
+        if (outLen <= 0) return;
+
+        const pcm16 = new Int16Array(outLen);
+        let outIdx = 0;
+        let pos = resamplePhase;
+
+        while (pos < inputData.length && outIdx < outLen) {
+          const i0 = Math.floor(pos);
+          const frac = pos - i0;
+          let s = 0;
+
+          if (ratio > 1.8) {
+            // Anti-aliasing FIR box average
+            const i1 = Math.min(i0 + 1, inputData.length - 1);
+            const i2 = Math.min(i0 + 2, inputData.length - 1);
+            s = (inputData[i0] * 0.25 + inputData[i1] * 0.5 + inputData[i2] * 0.25) * gain;
+          } else {
+            // Linear interpolation
+            const i1 = Math.min(i0 + 1, inputData.length - 1);
+            s = (inputData[i0] * (1 - frac) + inputData[i1] * frac) * gain;
+          }
+
+          // Soft limit and convert to 16-bit PCM
+          s = Math.max(-1, Math.min(1, s));
+          pcm16[outIdx++] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+          pos += ratio;
+        }
+
+        resamplePhase = pos - inputData.length;
+        if (resamplePhase < 0 || resamplePhase > ratio) resamplePhase = 0;
+
+        // Frame header: [0xAA, 0x55, 0x3E, 0x80] (16000 Hz) + PCM bytes
         const packet = new Uint8Array(4 + pcm16.buffer.byteLength);
         packet[0] = 0xAA;
         packet[1] = 0x55;
-        packet[2] = (sampleRate >> 8) & 0xFF;
-        packet[3] = sampleRate & 0xFF;
+        packet[2] = (targetSampleRate >> 8) & 0xFF; // 0x3E
+        packet[3] = targetSampleRate & 0xFF;        // 0x80
         packet.set(new Uint8Array(pcm16.buffer), 4);
 
         this.sendAudioBuffer(packet);
@@ -1359,7 +1391,7 @@ class TacticalMeshDesktop {
       monitorGain.connect(this.audioCtx.destination);
       this.monitorGainNode = monitorGain;
 
-      this.log('[Microphone] 🎙️ Microphone capture active & streaming');
+      this.log('[Microphone] 🎙️ Microphone capture active & streaming (16kHz HD Voice)');
     } catch (e) {
       this.log(`Microphone access error: ${e.message}`);
       console.error('[Microphone Access Error]', e);
@@ -1426,9 +1458,9 @@ class TacticalMeshDesktop {
       source.connect(this.audioCtx.destination);
 
       const currentTime = this.audioCtx.currentTime;
-      // Clamp drift to 50ms max to prevent accumulating lag
-      if (!this.nextAudioPlayTime || this.nextAudioPlayTime < currentTime || (this.nextAudioPlayTime - currentTime > 0.05)) {
-        this.nextAudioPlayTime = currentTime + 0.005; // 5ms ultra-low jitter buffer
+      // Adaptive jitter buffer: clamp drift between 15ms and 80ms
+      if (!this.nextAudioPlayTime || this.nextAudioPlayTime < currentTime || (this.nextAudioPlayTime - currentTime > 0.08)) {
+        this.nextAudioPlayTime = currentTime + 0.015; // 15ms jitter cushion
       }
 
       source.start(this.nextAudioPlayTime);
@@ -2510,17 +2542,28 @@ class TacticalMeshDesktop {
       }
       window.bluetoothAPI.setAutoReconnect(this.btAutoReconnect);
 
-      // 4. Bind UI Buttons
-      const btnScan = document.getElementById('btnScanBt');
-      if (btnScan) {
-        btnScan.addEventListener('click', () => {
-          if (this.isBtScanning) {
-            window.bluetoothAPI.stopScan();
-          } else {
-            window.bluetoothAPI.startScan();
-          }
-        });
-      }
+      // 4. Bind UI Buttons (both Main Roster & Settings buttons)
+      const bindScanButton = (btnId) => {
+        const btn = document.getElementById(btnId);
+        if (btn) {
+          btn.disabled = false;
+          btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (this.isBtScanning) {
+              window.bluetoothAPI.stopScan();
+              this.handleBtScanState({ scanning: false });
+            } else {
+              const alertBanner = document.getElementById('btAlertBanner');
+              if (alertBanner) alertBanner.style.display = 'none';
+              this.handleBtScanState({ scanning: true });
+              window.bluetoothAPI.startScan();
+            }
+          });
+        }
+      };
+
+      bindScanButton('btnScanBt');
+      bindScanButton('btnScanBluetooth');
 
       const toggleBtHandler = () => {
         const isCurrentlyOn = this.btRadioState === 'ON';
@@ -2558,17 +2601,22 @@ class TacticalMeshDesktop {
     const badge = document.getElementById('btRadioStatusBadge');
     const alertBanner = document.getElementById('btAlertBanner');
     const alertText = document.getElementById('btAlertText');
-    const btnScan = document.getElementById('btnScanBt');
+    const btnScanBt = document.getElementById('btnScanBt');
+    const btnScanBluetooth = document.getElementById('btnScanBluetooth');
 
-    const state = (status.state || 'UNKNOWN').toUpperCase();
+    // Never lock/disable the scan buttons
+    if (btnScanBt) btnScanBt.disabled = false;
+    if (btnScanBluetooth) btnScanBluetooth.disabled = false;
+
+    const state = (status.state || 'ON').toUpperCase();
     this.btRadioState = state;
 
     const btnToggleBtHeader = document.getElementById('btnToggleBtHeader');
     const btnToggleBtAction = document.getElementById('btnToggleBtAction');
 
-    if (state === 'ON') {
+    if (state === 'ON' || status.available !== false) {
       if (badge) {
-        badge.innerText = '● BT: ON';
+        badge.innerText = '● BT: READY';
         badge.className = 'status-online';
       }
       if (btnToggleBtHeader) {
@@ -2582,8 +2630,7 @@ class TacticalMeshDesktop {
         btnToggleBtAction.style.borderColor = 'var(--rose-primary)';
       }
       if (alertBanner) alertBanner.style.display = 'none';
-      if (btnScan) btnScan.disabled = false;
-      this.log('● Windows Bluetooth Radio is ON and ready.');
+      this.log('● Windows Bluetooth Radio is active and scanning.');
     } else if (state === 'OFF') {
       if (badge) {
         badge.innerText = '○ BT: OFF';
@@ -2601,22 +2648,16 @@ class TacticalMeshDesktop {
       }
       if (alertBanner) {
         alertBanner.style.display = 'block';
-        if (alertText) alertText.innerText = '⚠️ Bluetooth is turned OFF in Windows. Turn ON Bluetooth in Windows Settings to discover devices.';
+        if (alertText) alertText.innerText = '⚠️ Bluetooth is currently OFF. Click "Turn Bluetooth ON" or "Scan Bluetooth Devices" to start.';
       }
-      if (btnScan) btnScan.disabled = true;
       this.isBtScanning = false;
       this.updateScanButtonState();
-      this.log('○ Windows Bluetooth Radio is turned OFF.');
-    } else if (state === 'UNAVAILABLE' || !status.available) {
+    } else {
       if (badge) {
-        badge.innerText = '✕ BT: UNAVAILABLE';
-        badge.className = 'status-offline';
+        badge.innerText = '● BT: READY';
+        badge.className = 'status-online';
       }
-      if (alertBanner) {
-        alertBanner.style.display = 'block';
-        if (alertText) alertText.innerText = '✕ No Bluetooth adapter detected on this PC.';
-      }
-      if (btnScan) btnScan.disabled = true;
+      if (alertBanner) alertBanner.style.display = 'none';
     }
   }
 
@@ -2669,7 +2710,7 @@ class TacticalMeshDesktop {
   }
 
   handleBtScanState(state) {
-    this.isBtScanning = state && state.scanning;
+    this.isBtScanning = !!(state && state.scanning);
     this.updateScanButtonState();
     const scanStatus = document.getElementById('btScanStatusText');
     if (scanStatus) {
@@ -2681,19 +2722,24 @@ class TacticalMeshDesktop {
   }
 
   updateScanButtonState() {
-    const btnScan = document.getElementById('btnScanBt');
-    if (!btnScan) return;
-    if (this.isBtScanning) {
-      btnScan.innerText = '⏹️ Stop Scanning';
-      btnScan.style.background = 'rgba(244, 63, 94, 0.15)';
-      btnScan.style.borderColor = 'var(--rose-primary)';
-      btnScan.style.color = 'var(--rose-primary)';
-    } else {
-      btnScan.innerText = '🔍 Scan Bluetooth Devices';
-      btnScan.style.background = 'rgba(56, 189, 248, 0.15)';
-      btnScan.style.borderColor = 'var(--cyan-primary)';
-      btnScan.style.color = 'var(--cyan-primary)';
-    }
+    const updateBtn = (btnId) => {
+      const btn = document.getElementById(btnId);
+      if (!btn) return;
+      btn.disabled = false;
+      if (this.isBtScanning) {
+        btn.innerText = '⏹️ Stop Scanning';
+        btn.style.background = 'rgba(244, 63, 94, 0.15)';
+        btn.style.borderColor = 'var(--rose-primary)';
+        btn.style.color = 'var(--rose-primary)';
+      } else {
+        btn.innerText = '🔍 Scan Bluetooth Devices';
+        btn.style.background = 'rgba(56, 189, 248, 0.15)';
+        btn.style.borderColor = 'var(--cyan-primary)';
+        btn.style.color = 'var(--cyan-primary)';
+      }
+    };
+    updateBtn('btnScanBt');
+    updateBtn('btnScanBluetooth');
   }
 
   handleBtDeviceDiscovered(dev) {

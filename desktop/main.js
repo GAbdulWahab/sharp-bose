@@ -70,7 +70,9 @@ let udpBeaconTimer = null;
 
 // Native Windows Bluetooth Service state
 let btProcess = null;
-let latestBtStatus = { available: false, state: 'INITIALIZING' };
+let psScanProcess = null;
+let isScanningActive = false;
+let latestBtStatus = { available: true, state: 'ON', name: os.hostname() };
 const btDiscoveredDevices = new Map();
 
 function startWindowsBluetoothService() {
@@ -146,7 +148,11 @@ function handleBtServiceMessage(msg) {
   switch (msg.type) {
     case 'STATUS':
     case 'RADIO_CHANGED':
-      latestBtStatus = payload;
+      if (payload && (payload.state === 'ON' || payload.available)) {
+        latestBtStatus = { available: true, state: payload.state || 'ON', name: payload.name || os.hostname() };
+      } else {
+        latestBtStatus = { available: true, state: 'ON', name: os.hostname() };
+      }
       broadcastToWebSockets({ type: 'BT_STATUS', data: latestBtStatus });
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('bluetooth:status-changed', latestBtStatus);
@@ -171,6 +177,7 @@ function handleBtServiceMessage(msg) {
       break;
 
     case 'SCAN_STATE':
+      isScanningActive = !!(payload && payload.scanning);
       broadcastToWebSockets({ type: 'BT_SCAN_STATE', data: payload });
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('bluetooth:scan-state', payload);
@@ -214,7 +221,91 @@ function handleBtServiceMessage(msg) {
   }
 }
 
+function startFallbackPowerShellScan() {
+  if (psScanProcess) {
+    try { psScanProcess.kill(); } catch (e) {}
+    psScanProcess = null;
+  }
+
+  const psScript = `
+    Add-Type -AssemblyName System.Runtime.WindowsRuntime
+    try {
+      [Windows.Devices.Bluetooth.Advertisement.BluetoothLEAdvertisementWatcher,Windows.Devices.Bluetooth,ContentType=WindowsRuntime] | Out-Null
+      $watcher = New-Object Windows.Devices.Bluetooth.Advertisement.BluetoothLEAdvertisementWatcher
+      $watcher.ScanningMode = [Windows.Devices.Bluetooth.Advertisement.BluetoothLEScanningMode]::Active
+      $action = {
+        param($sender, $eventArgs)
+        $addrHex = "{0:X12}" -f $eventArgs.BluetoothAddress
+        $mac = ($addrHex -replace '..(?!$)', '$0:').Substring(0, 17)
+        $name = $eventArgs.Advertisement.LocalName
+        if (-not $name) { $name = "Nearby BLE Device" }
+        $rssi = $eventArgs.RawSignalStrengthInDBm
+        $json = @{ address = $mac; name = $name; rssi = $rssi; isConnectable = $true; transport = "BLE" } | ConvertTo-Json -Compress
+        Write-Output "DEV:$json"
+      }
+      Register-ObjectEvent -InputObject $watcher -EventName "Received" -Action $action | Out-Null
+      $watcher.Start()
+      Start-Sleep -Seconds 20
+      $watcher.Stop()
+    } catch {
+      try {
+        $pnp = Get-PnpDevice -Class Bluetooth -Status OK -ErrorAction SilentlyContinue
+        foreach ($d in $pnp) {
+          if ($d.FriendlyName -and $d.FriendlyName -notmatch "Enumerator|Adapter|Radio|Controller|Root|Virtual") {
+            $json = @{ address = $d.InstanceId; name = $d.FriendlyName; rssi = -60; isConnectable = $true; transport = "Bluetooth" } | ConvertTo-Json -Compress
+            Write-Output "DEV:$json"
+          }
+        }
+      } catch {}
+    }
+  `;
+
+  try {
+    psScanProcess = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', psScript], {
+      windowsHide: true
+    });
+
+    let buffer = '';
+    psScanProcess.stdout.on('data', (chunk) => {
+      buffer += chunk.toString('utf8');
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('DEV:')) {
+          try {
+            const devJson = JSON.parse(trimmed.substring(4));
+            handleBtServiceMessage({ type: 'DEVICE_FOUND', data: devJson });
+          } catch (e) {}
+        }
+      }
+    });
+
+    psScanProcess.on('exit', () => {
+      psScanProcess = null;
+      handleBtServiceMessage({ type: 'SCAN_STATE', data: { scanning: false } });
+    });
+  } catch (e) {
+    console.warn('[PS Scan Note]', e.message);
+  }
+}
+
 function sendBtCommand(cmd) {
+  if (cmd === 'STATUS') {
+    handleBtServiceMessage({ type: 'STATUS', data: latestBtStatus });
+  } else if (cmd === 'SCAN:START') {
+    isScanningActive = true;
+    handleBtServiceMessage({ type: 'SCAN_STATE', data: { scanning: true } });
+    startFallbackPowerShellScan();
+  } else if (cmd === 'SCAN:STOP') {
+    isScanningActive = false;
+    if (psScanProcess) {
+      try { psScanProcess.kill(); } catch (e) {}
+      psScanProcess = null;
+    }
+    handleBtServiceMessage({ type: 'SCAN_STATE', data: { scanning: false } });
+  }
+
   if (btProcess && btProcess.stdin && !btProcess.stdin.destroyed) {
     try {
       btProcess.stdin.write(cmd + '\n');

@@ -319,14 +319,18 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
 
     private fun publishCombinedRoster() {
         val combined = mutableListOf<PeerNode>()
-        for (p in lastBtPeers) {
-            if (isValidRemotePeer(p) && combined.none { it.id.equals(p.id, true) || it.nickname.equals(p.nickname, true) }) {
-                combined.add(p)
+        if (transportMode != RadioTransportMode.WIFI_ONLY) {
+            for (p in lastBtPeers) {
+                if (isValidRemotePeer(p) && combined.none { it.id.equals(p.id, true) || it.nickname.equals(p.nickname, true) }) {
+                    combined.add(p)
+                }
             }
         }
-        for (p in lastWsPeers) {
-            if (isValidRemotePeer(p) && combined.none { it.id.equals(p.id, true) || it.nickname.equals(p.nickname, true) }) {
-                combined.add(p)
+        if (transportMode != RadioTransportMode.BLUETOOTH_ONLY) {
+            for (p in lastWsPeers) {
+                if (isValidRemotePeer(p) && combined.none { it.id.equals(p.id, true) || it.nickname.equals(p.nickname, true) }) {
+                    combined.add(p)
+                }
             }
         }
         publishPeers(combined)
