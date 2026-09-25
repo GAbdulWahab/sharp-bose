@@ -412,6 +412,7 @@ function startEmbeddedHub() {
             case 'PTT_STOP':
             case 'CHAT_MSG':
             case 'SOS_BEACON':
+            case 'FILE_CHUNK':
               // Broadcast packet to all other connected peers
               for (const client of allWebSockets) {
                 if (client !== ws && client.readyState === 1) {

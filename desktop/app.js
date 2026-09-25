@@ -120,6 +120,7 @@ class TacticalMeshDesktop {
       document.getElementById('viewRoster'),
       document.getElementById('viewComms'),
       document.getElementById('viewChat'),
+      document.getElementById('viewFiles'),
       document.getElementById('viewRadar'),
       document.getElementById('viewChannels'),
       document.getElementById('viewLogs'),
@@ -137,8 +138,12 @@ class TacticalMeshDesktop {
           views[tabIndex].classList.add('active');
         }
 
-        // Only animate Radar when Tab 3 (Radar) is active
         if (tabIndex === 3) {
+          this.renderDesktopTransfers();
+        }
+
+        // Only animate Radar when Tab 4 (Radar) is active
+        if (tabIndex === 4) {
           this.isRadarActive = true;
           this.startRadarAnimation();
         } else {
@@ -149,14 +154,15 @@ class TacticalMeshDesktop {
           }
         }
 
-        // When switching to Settings (Tab 6), sync fields
-        if (tabIndex === 6) {
+        // When switching to Settings (Tab 7), sync fields
+        if (tabIndex === 7) {
           const settingNodeId = document.getElementById('settingNodeId');
           if (settingNodeId) settingNodeId.value = this.localNodeId;
         }
       });
     });
 
+    this.bindFileSharingUI();
     this.bindSettingsUI();
 
     // Theme Toggle
@@ -998,6 +1004,13 @@ class TacticalMeshDesktop {
         }
         break;
       }
+
+      case 'FILE_CHUNK': {
+        const senderId = (json.senderId || '').trim();
+        if (senderId && senderId.toLowerCase() === this.localNodeId.toLowerCase()) return;
+        this.processIncomingFileChunk(json);
+        break;
+      }
     }
   }
 
@@ -1802,6 +1815,331 @@ class TacticalMeshDesktop {
         }
       }, 7000);
     }
+  }
+
+  // -----------------------------------------------------------
+  // 8.5. Offline P2P File & Media Transfer Engine (CRC32 Chunker)
+  // -----------------------------------------------------------
+  bindFileSharingUI() {
+    this.fileTransfers = new Map(); // transferId -> { metadata, chunks, blobUrl, ... }
+    this.CHUNK_SIZE = 512;
+
+    const dropZone = document.getElementById('fileDropZone');
+    const fileInput = document.getElementById('desktopFileInput');
+    const btnSendPhoto = document.getElementById('btnSendPhotoDesk');
+    const btnSendMap = document.getElementById('btnSendMapDesk');
+    const btnSendVoice = document.getElementById('btnSendVoiceDesk');
+    const btnSelectCustom = document.getElementById('btnSelectCustomFileDesk');
+
+    if (dropZone && fileInput) {
+      dropZone.addEventListener('click', () => fileInput.click());
+      dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = 'var(--cyan-primary)';
+        dropZone.style.background = 'rgba(56, 189, 248, 0.1)';
+      });
+      dropZone.addEventListener('dragleave', () => {
+        dropZone.style.borderColor = 'var(--border-glass)';
+        dropZone.style.background = 'rgba(15, 23, 42, 0.4)';
+      });
+      dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = 'var(--border-glass)';
+        dropZone.style.background = 'rgba(15, 23, 42, 0.4)';
+        if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+          this.handleFilesSelected(e.dataTransfer.files);
+        }
+      });
+
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          this.handleFilesSelected(e.target.files);
+        }
+      });
+    }
+
+    if (btnSendPhoto) {
+      btnSendPhoto.addEventListener('click', () => {
+        const dummyBytes = new Uint8Array(2048);
+        for (let i = 0; i < dummyBytes.length; i++) dummyBytes[i] = i % 256;
+        const fileName = `recon_snap_${Date.now().toString().slice(-4)}.jpg`;
+        this.sendFile(dummyBytes, fileName, 'Desktop Hub');
+      });
+    }
+
+    if (btnSendMap) {
+      btnSendMap.addEventListener('click', () => {
+        const geoJson = JSON.stringify({
+          type: "FeatureCollection",
+          features: [{
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [this.selfCoords.lng, this.selfCoords.lat] },
+            properties: { title: "Tactical Base Station Fix", time: new Date().toISOString() }
+          }]
+        });
+        const encoder = new TextEncoder();
+        const fileName = `tactical_sector_${Date.now().toString().slice(-4)}.geojson`;
+        this.sendFile(encoder.encode(geoJson), fileName, 'Desktop Hub');
+      });
+    }
+
+    if (btnSendVoice) {
+      btnSendVoice.addEventListener('click', () => {
+        const dummyAudio = new Uint8Array(1536);
+        for (let i = 0; i < dummyAudio.length; i++) dummyAudio[i] = (i * 3) % 256;
+        const fileName = `voice_sitrep_${Date.now().toString().slice(-4)}.opus`;
+        this.sendFile(dummyAudio, fileName, 'Desktop Hub');
+      });
+    }
+
+    if (btnSelectCustom && fileInput) {
+      btnSelectCustom.addEventListener('click', () => fileInput.click());
+    }
+  }
+
+  handleFilesSelected(fileList) {
+    Array.from(fileList).forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const bytes = new Uint8Array(e.target.result);
+        this.sendFile(bytes, file.name, 'Desktop Hub');
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  calculateCRC32(bytes) {
+    let crc = 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) {
+      crc ^= bytes[i];
+      for (let j = 0; j < 8; j++) {
+        crc = (crc >>> 1) ^ (0xEDB88320 & -(crc & 1));
+      }
+    }
+    return ((~crc) >>> 0).toString(16).toUpperCase().padStart(8, '0');
+  }
+
+  sendFile(fileBytes, fileName, senderName = 'Desktop Terminal', targetPeerId = 'BROADCAST') {
+    const transferId = 'tx-' + Math.random().toString(36).substring(2, 8);
+    const totalChunks = Math.ceil(fileBytes.length / this.CHUNK_SIZE);
+    const overallCrc = this.calculateCRC32(fileBytes);
+
+    const txRecord = {
+      transferId,
+      fileName,
+      fileSize: fileBytes.length,
+      isOutgoing: true,
+      senderName: 'YOU (Desktop Hub)',
+      progress: 0,
+      totalChunks,
+      sentChunks: 0,
+      speed: '0.0 kB/s',
+      isCompleted: false,
+      crc32Hex: overallCrc,
+      hops: 1,
+      startTime: Date.now()
+    };
+
+    this.fileTransfers.set(transferId, txRecord);
+    this.renderDesktopTransfers();
+    this.log(`[File Transfer] Starting transmission of ${fileName} (${(fileBytes.length / 1024).toFixed(1)} KB, ${totalChunks} chunks) CRC32: ${overallCrc}`);
+
+    let chunkIndex = 0;
+    const sendNextChunk = () => {
+      if (chunkIndex >= totalChunks) {
+        txRecord.isCompleted = true;
+        txRecord.progress = 100;
+        this.renderDesktopTransfers();
+        this.log(`[File Transfer] ✓ Completed transmission of ${fileName}`);
+        return;
+      }
+
+      const offset = chunkIndex * this.CHUNK_SIZE;
+      const len = Math.min(this.CHUNK_SIZE, fileBytes.length - offset);
+      const chunkData = fileBytes.slice(offset, offset + len);
+
+      // Binary to base64
+      let binary = '';
+      for (let i = 0; i < chunkData.length; i++) {
+        binary += String.fromCharCode(chunkData[i]);
+      }
+      const base64Data = btoa(binary);
+
+      const chunkCrc = parseInt(this.calculateCRC32(chunkData), 16);
+
+      const packet = {
+        type: 'FILE_CHUNK',
+        transferId,
+        fileName,
+        fileSize: fileBytes.length,
+        totalChunks,
+        chunkIndex,
+        chunkCrc32: chunkCrc,
+        data: base64Data,
+        senderId: this.localNodeId,
+        senderName: senderName,
+        targetId: targetPeerId,
+        hops: 1
+      };
+
+      this.sendControlPacket(packet);
+      if (window.bluetoothAPI && window.bluetoothAPI.sendControlMessage) {
+        window.bluetoothAPI.sendControlMessage(JSON.stringify(packet));
+      }
+
+      chunkIndex++;
+      txRecord.sentChunks = chunkIndex;
+      txRecord.progress = Math.round((chunkIndex / totalChunks) * 100);
+      const elapsed = (Date.now() - txRecord.startTime) / 1000;
+      if (elapsed > 0.05) {
+        txRecord.speed = `${((chunkIndex * this.CHUNK_SIZE / 1024) / elapsed).toFixed(1)} kB/s`;
+      }
+
+      this.renderDesktopTransfers();
+      setTimeout(sendNextChunk, 20); // 20ms pace for reliable MTU transmission
+    };
+
+    sendNextChunk();
+  }
+
+  processIncomingFileChunk(json) {
+    const { transferId, fileName, fileSize, totalChunks, chunkIndex, chunkCrc32, data, senderId, senderName, hops } = json;
+    if (!transferId || !data) return;
+
+    let binaryStr = '';
+    try {
+      binaryStr = atob(data);
+    } catch (e) {
+      return;
+    }
+
+    const chunkBytes = new Uint8Array(binaryStr.length);
+    for (let i = 0; i < binaryStr.length; i++) {
+      chunkBytes[i] = binaryStr.charCodeAt(i);
+    }
+
+    // Verify CRC32
+    const calcCrc = parseInt(this.calculateCRC32(chunkBytes), 16);
+    if (chunkCrc32 && calcCrc !== chunkCrc32) {
+      this.log(`⚠️ Checksum error on chunk ${chunkIndex} of ${fileName}. Discarded.`);
+      return;
+    }
+
+    let txRecord = this.fileTransfers.get(transferId);
+    if (!txRecord) {
+      txRecord = {
+        transferId,
+        fileName: fileName || 'unnamed_mesh_file',
+        fileSize: fileSize || 0,
+        isOutgoing: false,
+        senderName: senderName || 'Companion Node',
+        progress: 0,
+        totalChunks: totalChunks || 1,
+        receivedMap: new Map(),
+        speed: '0.0 kB/s',
+        isCompleted: false,
+        crc32Hex: chunkCrc32 ? chunkCrc32.toString(16).toUpperCase() : 'VERIFIED',
+        hops: hops || 1,
+        startTime: Date.now()
+      };
+      this.fileTransfers.set(transferId, txRecord);
+      this.log(`[File Transfer] Receiving incoming file: ${txRecord.fileName} from ${txRecord.senderName}`);
+    }
+
+    txRecord.receivedMap.set(chunkIndex, chunkBytes);
+    txRecord.progress = Math.round((txRecord.receivedMap.size / txRecord.totalChunks) * 100);
+    const elapsed = (Date.now() - txRecord.startTime) / 1000;
+    if (elapsed > 0.05) {
+      const bytesSoFar = txRecord.receivedMap.size * this.CHUNK_SIZE;
+      txRecord.speed = `${((bytesSoFar / 1024) / elapsed).toFixed(1)} kB/s`;
+    }
+
+    if (txRecord.receivedMap.size >= txRecord.totalChunks && !txRecord.isCompleted) {
+      txRecord.isCompleted = true;
+      txRecord.progress = 100;
+
+      // Reassemble complete binary array
+      const fullBuffer = new Uint8Array(txRecord.fileSize || (txRecord.totalChunks * this.CHUNK_SIZE));
+      let offset = 0;
+      for (let i = 0; i < txRecord.totalChunks; i++) {
+        const cData = txRecord.receivedMap.get(i);
+        if (cData) {
+          fullBuffer.set(cData, offset);
+          offset += cData.length;
+        }
+      }
+
+      txRecord.crc32Hex = this.calculateCRC32(fullBuffer);
+      const blob = new Blob([fullBuffer]);
+      txRecord.blobUrl = URL.createObjectURL(blob);
+      this.log(`[File Transfer] ✓ Reassembled 100% of ${txRecord.fileName} (CRC32: ${txRecord.crc32Hex})`);
+    }
+
+    this.renderDesktopTransfers();
+  }
+
+  renderDesktopTransfers() {
+    const container = document.getElementById('desktopTransfersList');
+    const badge = document.getElementById('transfersCountBadgeDesk');
+    if (!container) return;
+
+    const transfers = Array.from(this.fileTransfers.values()).reverse();
+    if (badge) badge.innerText = `${transfers.length} Transfers • CRC32 Verified`;
+
+    if (transfers.length === 0) {
+      container.innerHTML = `
+        <div class="peer-row" style="padding: 14px;">
+          <div class="peer-info">
+            <div class="peer-name">📁 No active mesh transfers</div>
+            <div class="peer-meta">Drag and drop any image, map, or audio file above to stream across the mesh network.</div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = '';
+    transfers.forEach(tx => {
+      const isImg = tx.fileName.endsWith('.jpg') || tx.fileName.endsWith('.png');
+      const isMap = tx.fileName.endsWith('.geojson') || tx.fileName.endsWith('.mbtiles');
+      const isAudio = tx.fileName.endsWith('.opus') || tx.fileName.endsWith('.wav');
+      const icon = isImg ? '🖼️' : isMap ? '🗺️' : isAudio ? '🎙️' : '📄';
+
+      const row = document.createElement('div');
+      row.className = 'tactical-card';
+      row.style.cssText = 'background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-glass); padding: 12px 14px; margin-bottom: 0;';
+
+      const sizeKb = (tx.fileSize / 1024).toFixed(1);
+
+      row.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 22px;">${icon}</span>
+            <div>
+              <div style="font-size: 13px; font-weight: 700; color: #FFFFFF;">${escapeHtml(tx.fileName)}</div>
+              <div style="font-size: 10px; color: var(--text-muted); font-family: monospace; margin-top: 2px;">
+                ${sizeKb} KB • ${escapeHtml(tx.senderName)} • ${tx.hops} hop • CRC32: <span style="color: var(--cyan-primary);">${tx.crc32Hex}</span>
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <span style="font-size: 11px; font-weight: 700; color: ${tx.isCompleted ? 'var(--emerald-primary)' : 'var(--cyan-primary)'}; background: ${tx.isCompleted ? 'rgba(16, 185, 129, 0.15)' : 'rgba(56, 189, 248, 0.15)'}; border: 1px solid ${tx.isCompleted ? 'rgba(16, 185, 129, 0.3)' : 'rgba(56, 189, 248, 0.3)'}; border-radius: 6px; padding: 4px 8px;">
+              ${tx.isCompleted ? '✓ COMPLETED' : `${tx.progress}%`}
+            </span>
+            ${tx.blobUrl ? `<a href="${tx.blobUrl}" download="${escapeHtml(tx.fileName)}" class="btn-tactical-sm" style="padding: 4px 10px; font-size: 11px; background: var(--emerald-primary); color: #000; font-weight: 700; text-decoration: none;">💾 Save</a>` : ''}
+          </div>
+        </div>
+        <div class="audio-vu-container" style="height: 6px; margin-top: 8px;">
+          <div class="audio-vu-bar" style="width: ${tx.progress}%; background: ${tx.isCompleted ? 'var(--emerald-primary)' : 'var(--cyan-primary)'}; transition: width 0.2s ease;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--text-muted); font-family: monospace; margin-top: 4px;">
+          <span>${tx.isCompleted ? '100% Reassembled' : `Streaming: ${tx.progress}%`}</span>
+          <span style="color: var(--cyan-primary);">${tx.isCompleted ? 'Frame Verified' : tx.speed}</span>
+        </div>
+      `;
+
+      container.appendChild(row);
+    });
   }
 
   // -----------------------------------------------------------

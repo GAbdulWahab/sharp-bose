@@ -62,22 +62,33 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var btnToggleWifi: Button
     private lateinit var btnThemeToggle: Button
 
-    // 6 Dedicated Screens
+    // 7 Dedicated Screens
     private lateinit var screenRoster: ScrollView
     private lateinit var screenComms: ScrollView
     private lateinit var screenChat: LinearLayout
+    private lateinit var screenFiles: ScrollView
     private lateinit var screenRadar: ScrollView
     private lateinit var screenChannels: ScrollView
     private lateinit var screenLogsSecurity: ScrollView
 
-    // 6 Navigation Dock Tabs
+    // 7 Navigation Dock Tabs
     private lateinit var tabRoster: Button
     private lateinit var tabComms: Button
     private lateinit var tabChat: Button
+    private lateinit var tabFiles: Button
     private lateinit var tabRadar: Button
     private lateinit var tabChannels: Button
     private lateinit var tabLogs: Button
     private var currentTabIndex: Int = 0
+
+    // Screen 7: Files UI
+    private lateinit var btnSendPhoto: Button
+    private lateinit var btnSendMap: Button
+    private lateinit var btnSendVoiceNote: Button
+    private lateinit var btnPickCustomFile: Button
+    private lateinit var tvTransfersCountBadge: TextView
+    private lateinit var llTransfersContainer: LinearLayout
+    private lateinit var tvNoTransfersPlaceholder: TextView
 
     // Screen 1: Roster UI
     private lateinit var cardStatus: CardView
@@ -231,21 +242,32 @@ class MainActivity : AppCompatActivity(), LocationListener {
         btnToggleWifi = findViewById(R.id.btnToggleWifi)
         btnThemeToggle = findViewById(R.id.btnThemeToggle)
 
-        // 6 Dedicated Screen Containers
+        // 7 Dedicated Screen Containers
         screenRoster = findViewById(R.id.screenRoster)
         screenComms = findViewById(R.id.screenComms)
         screenChat = findViewById(R.id.screenChat)
+        screenFiles = findViewById(R.id.screenFiles)
         screenRadar = findViewById(R.id.screenRadar)
         screenChannels = findViewById(R.id.screenChannels)
         screenLogsSecurity = findViewById(R.id.screenLogsSecurity)
 
-        // 6 Navigation Dock Tabs
+        // 7 Navigation Dock Tabs
         tabRoster = findViewById(R.id.tabRoster)
         tabComms = findViewById(R.id.tabComms)
         tabChat = findViewById(R.id.tabChat)
+        tabFiles = findViewById(R.id.tabFiles)
         tabRadar = findViewById(R.id.tabRadar)
         tabChannels = findViewById(R.id.tabChannels)
         tabLogs = findViewById(R.id.tabLogs)
+
+        // Screen 7: Files
+        btnSendPhoto = findViewById(R.id.btnSendPhoto)
+        btnSendMap = findViewById(R.id.btnSendMap)
+        btnSendVoiceNote = findViewById(R.id.btnSendVoiceNote)
+        btnPickCustomFile = findViewById(R.id.btnPickCustomFile)
+        tvTransfersCountBadge = findViewById(R.id.tvTransfersCountBadge)
+        llTransfersContainer = findViewById(R.id.llTransfersContainer)
+        tvNoTransfersPlaceholder = findViewById(R.id.tvNoTransfersPlaceholder)
 
         // Screen 1: Roster
         cardStatus = findViewById(R.id.cardStatus)
@@ -318,8 +340,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private fun switchScreen(tabIndex: Int) {
         currentTabIndex = tabIndex
 
-        val screens = listOf(screenRoster, screenComms, screenChat, screenRadar, screenChannels, screenLogsSecurity)
-        val tabs = listOf(tabRoster, tabComms, tabChat, tabRadar, tabChannels, tabLogs)
+        val screens = listOf(screenRoster, screenComms, screenChat, screenFiles, screenRadar, screenChannels, screenLogsSecurity)
+        val tabs = listOf(tabRoster, tabComms, tabChat, tabFiles, tabRadar, tabChannels, tabLogs)
 
         for (i in screens.indices) {
             screens[i].visibility = if (i == tabIndex) View.VISIBLE else View.GONE
@@ -337,8 +359,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         when (tabIndex) {
             0 -> renderConnectedPeopleList(connectedPeersList)
-            3 -> updateRadarView()
-            5 -> {
+            3 -> renderTransfersList()
+            4 -> updateRadarView()
+            6 -> {
                 updateSecurityView()
                 renderCallHistoryView()
             }
@@ -612,6 +635,24 @@ class MainActivity : AppCompatActivity(), LocationListener {
                     connectedPeersList.add(PeerNode(senderId, senderName, "Peer", location = location))
                 }
                 updateRadarView()
+            }
+        }
+
+        com.offline.calling.transfer.MeshFileTransferManager.instance.onProgressUpdate = { progress ->
+            runOnUiThread {
+                if (currentTabIndex == 3) {
+                    renderTransfersList()
+                }
+            }
+        }
+
+        com.offline.calling.transfer.MeshFileTransferManager.instance.onFileCompleted = { progress, file ->
+            runOnUiThread {
+                logEvent("[File Transfer] Received complete file: ${progress.fileName} (${progress.fileSize / 1024} KB) CRC32: ${progress.crc32Hex}")
+                Toast.makeText(this, "📁 File Received: ${progress.fileName}", Toast.LENGTH_LONG).show()
+                if (currentTabIndex == 3) {
+                    renderTransfersList()
+                }
             }
         }
 
@@ -918,9 +959,16 @@ class MainActivity : AppCompatActivity(), LocationListener {
         tabRoster.setOnClickListener { switchScreen(0) }
         tabComms.setOnClickListener { switchScreen(1) }
         tabChat.setOnClickListener { switchScreen(2) }
-        tabRadar.setOnClickListener { switchScreen(3) }
-        tabChannels.setOnClickListener { switchScreen(4) }
-        tabLogs.setOnClickListener { switchScreen(5) }
+        tabFiles.setOnClickListener { switchScreen(3) }
+        tabRadar.setOnClickListener { switchScreen(4) }
+        tabChannels.setOnClickListener { switchScreen(5) }
+        tabLogs.setOnClickListener { switchScreen(6) }
+
+        // File Sharing Actions
+        btnSendPhoto.setOnClickListener { dispatchSampleMedia("PHOTO") }
+        btnSendMap.setOnClickListener { dispatchSampleMedia("MAP") }
+        btnSendVoiceNote.setOnClickListener { dispatchSampleMedia("VOICE") }
+        btnPickCustomFile.setOnClickListener { pickFileFromDevice() }
 
         // Radio Power Toggle Listeners
         btnToggleBluetooth.setOnClickListener { toggleBluetoothRadio() }
@@ -1849,6 +1897,200 @@ class MainActivity : AppCompatActivity(), LocationListener {
             String.format(Locale.US, "%.2f km", distMeters / 1000)
         } else {
             String.format(Locale.US, "%.0f m", distMeters)
+        }
+    }
+
+    // =========================================================================
+    // 📁 OFFLINE P2P FILE & MEDIA TRANSFER ENGINE
+    // =========================================================================
+    private fun renderTransfersList() {
+        llTransfersContainer.removeAllViews()
+        val transfers = com.offline.calling.transfer.MeshFileTransferManager.instance.getAllTransfers()
+        if (transfers.isEmpty()) {
+            tvNoTransfersPlaceholder.visibility = View.VISIBLE
+            llTransfersContainer.addView(tvNoTransfersPlaceholder)
+            tvTransfersCountBadge.text = "0 Transfers"
+            return
+        }
+
+        tvNoTransfersPlaceholder.visibility = View.GONE
+        tvTransfersCountBadge.text = "${transfers.size} Files • CRC32 Verified"
+
+        for (tx in transfers) {
+            val card = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                val bg = if (isDarkMode) Color.parseColor("#0A0E17") else Color.parseColor("#F1F5F9")
+                setBackgroundColor(bg)
+                setPadding(14, 12, 14, 12)
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(0, 0, 0, 8) }
+                layoutParams = lp
+            }
+
+            val headerRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+            val icon = if (tx.fileName.endsWith(".jpg", true) || tx.fileName.endsWith(".png", true)) "🖼️"
+            else if (tx.fileName.endsWith(".geojson", true) || tx.fileName.endsWith(".mbtiles", true)) "🗺️"
+            else if (tx.fileName.endsWith(".opus", true) || tx.fileName.endsWith(".wav", true)) "🎙️"
+            else "📄"
+
+            val tvIcon = TextView(this).apply {
+                text = icon
+                textSize = 18f
+                setPadding(0, 0, 10, 0)
+            }
+
+            val infoLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val tvName = TextView(this).apply {
+                text = tx.fileName
+                textSize = 12f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextColor(if (isDarkMode) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A"))
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+            }
+
+            val sizeKb = tx.fileSize / 1024
+            val tvMeta = TextView(this).apply {
+                text = "$sizeKb KB • ${if (tx.isOutgoing) "Sent by YOU" else "From: ${tx.senderName}"} • ${tx.hops} hop"
+                textSize = 10f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextColor(Color.parseColor("#94A3B8"))
+            }
+
+            infoLayout.addView(tvName)
+            infoLayout.addView(tvMeta)
+
+            val tvStatusBadge = TextView(this).apply {
+                text = if (tx.isCompleted) "✓ DONE" else "${tx.progressPercent}%"
+                textSize = 10f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(if (tx.isCompleted) Color.parseColor("#10B981") else Color.parseColor("#38BDF8"))
+                setPadding(10, 4, 10, 4)
+                setBackgroundColor(if (tx.isCompleted) Color.parseColor("#064E3B") else Color.parseColor("#083344"))
+            }
+
+            headerRow.addView(tvIcon)
+            headerRow.addView(infoLayout)
+            headerRow.addView(tvStatusBadge)
+            card.addView(headerRow)
+
+            // Progress Bar
+            val progressBar = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
+                max = 100
+                progress = tx.progressPercent
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    12
+                ).apply { setMargins(0, 8, 0, 6) }
+            }
+            card.addView(progressBar)
+
+            val footerRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+            val tvCrc = TextView(this).apply {
+                text = "CRC32: ${tx.crc32Hex}"
+                textSize = 9f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextColor(Color.parseColor("#64748B"))
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val tvSpeed = TextView(this).apply {
+                text = if (tx.isCompleted) "100% Reassembled" else String.format(Locale.US, "%.1f kB/s", tx.speedKbps)
+                textSize = 10f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextColor(Color.parseColor("#38BDF8"))
+            }
+
+            footerRow.addView(tvCrc)
+            footerRow.addView(tvSpeed)
+            card.addView(footerRow)
+
+            llTransfersContainer.addView(card)
+        }
+    }
+
+    private fun dispatchSampleMedia(type: String) {
+        val (name, sampleContent) = when (type) {
+            "PHOTO" -> Pair("recon_image_${System.currentTimeMillis().toString().takeLast(4)}.jpg", "OFFLINE_MESH_CAMERA_IMAGE_SAMPLE_DATA_BINARY_PAYLOAD_".toByteArray() + ByteArray(2048) { (it % 256).toByte() })
+            "MAP" -> Pair("tactical_grid_${System.currentTimeMillis().toString().takeLast(4)}.geojson", "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[$currentLongitude,$currentLatitude]},\"properties\":{\"title\":\"Rally Point\"}}]}".toByteArray())
+            "VOICE" -> Pair("sitrep_${System.currentTimeMillis().toString().takeLast(4)}.opus", "OFFLINE_OPUS_VOICE_MEMO_PAYLOAD_".toByteArray() + ByteArray(1536) { (it % 256).toByte() })
+            else -> Pair("document_${System.currentTimeMillis().toString().takeLast(4)}.txt", "Tactical Mesh Document Data".toByteArray())
+        }
+
+        bridge.sendFile(
+            fileBytes = sampleContent,
+            fileName = name,
+            senderName = "Android (${Build.MODEL})",
+            targetPeerId = "BROADCAST",
+            onChunkSent = { current, total ->
+                runOnUiThread {
+                    renderTransfersList()
+                }
+            }
+        )
+        Toast.makeText(this, "🚀 Broadcasting $name across BLE L2CAP / Wi-Fi mesh...", Toast.LENGTH_SHORT).show()
+        renderTransfersList()
+    }
+
+    private fun pickFileFromDevice() {
+        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            type = "*/*"
+            addCategory(Intent.CATEGORY_OPENABLE)
+        }
+        try {
+            startActivityForResult(Intent.createChooser(intent, "Select File to Share over Mesh"), 2002)
+        } catch (e: Exception) {
+            Toast.makeText(this, "No file manager found: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == 2002 && resultCode == RESULT_OK && data?.data != null) {
+            val uri = data.data ?: return
+            try {
+                contentResolver.openInputStream(uri)?.use { stream ->
+                    val bytes = stream.readBytes()
+                    var name = "mesh_file_${System.currentTimeMillis()}"
+                    val cursor = contentResolver.query(uri, null, null, null, null)
+                    cursor?.use {
+                        if (it.moveToFirst()) {
+                            val nameIdx = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                            if (nameIdx >= 0) {
+                                name = it.getString(nameIdx)
+                            }
+                        }
+                    }
+
+                    bridge.sendFile(
+                        fileBytes = bytes,
+                        fileName = name,
+                        senderName = "Android (${Build.MODEL})",
+                        targetPeerId = "BROADCAST",
+                        onChunkSent = { _, _ ->
+                            runOnUiThread { renderTransfersList() }
+                        }
+                    )
+                    Toast.makeText(this, "🚀 Dispatching $name (${bytes.size / 1024} KB) to Mesh...", Toast.LENGTH_SHORT).show()
+                    renderTransfersList()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(this, "Failed to read file: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }

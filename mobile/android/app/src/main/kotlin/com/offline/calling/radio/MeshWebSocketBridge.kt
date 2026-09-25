@@ -690,6 +690,40 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                     val loc = PeerLocation(lat, lng, alt, accuracy, System.currentTimeMillis())
                     onLocationReceived?.invoke(senderId, senderName, loc)
                 }
+                "FILE_CHUNK" -> {
+                    val transferId = json.optString("transferId")
+                    val fileName = json.optString("fileName")
+                    val fileSize = json.optLong("fileSize")
+                    val totalChunks = json.optInt("totalChunks")
+                    val chunkIndex = json.optInt("chunkIndex")
+                    val chunkCrc32 = json.optLong("chunkCrc32")
+                    val base64Data = json.optString("data")
+                    val senderId = json.optString("senderId", "node-peer")
+                    val senderName = json.optString("senderName", "Mesh Peer")
+                    val hops = json.optInt("hops", 1)
+
+                    if (senderId != localNodeId && base64Data.isNotEmpty()) {
+                        try {
+                            val chunkBytes = android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
+                            val chunk = com.offline.calling.transfer.FileChunk(
+                                transferId = transferId,
+                                fileName = fileName,
+                                fileSize = fileSize,
+                                totalChunks = totalChunks,
+                                chunkIndex = chunkIndex,
+                                chunkCrc32 = chunkCrc32,
+                                data = chunkBytes,
+                                senderId = senderId,
+                                senderName = senderName,
+                                hops = hops
+                            )
+                            val storageDir = appContext?.getExternalFilesDir(null) ?: appContext?.filesDir ?: java.io.File("/data/local/tmp")
+                            com.offline.calling.transfer.MeshFileTransferManager.instance.processIncomingChunk(chunk, storageDir)
+                        } catch (e: Exception) {
+                            Log.e("MeshBridge", "Error processing incoming file chunk: ${e.message}")
+                        }
+                    }
+                }
             }
         } catch (e: Exception) {
             Log.e("MeshBridge", "Error parsing message: ${e.message}")
@@ -805,6 +839,47 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
             put("longitude", longitude)
             put("timestamp", System.currentTimeMillis())
         })
+    }
+
+    fun sendFile(
+        fileBytes: ByteArray,
+        fileName: String,
+        senderName: String = "Android Phone",
+        targetPeerId: String = "BROADCAST",
+        onChunkSent: ((Int, Int) -> Unit)? = null
+    ) {
+        val chunks = com.offline.calling.transfer.MeshFileTransferManager.instance.chunkFile(
+            fileBytes = fileBytes,
+            fileName = fileName,
+            senderId = localNodeId,
+            senderName = senderName,
+            targetPeerId = targetPeerId
+        )
+
+        Thread {
+            for ((idx, chunk) in chunks.withIndex()) {
+                val base64Data = android.util.Base64.encodeToString(chunk.data, android.util.Base64.NO_WRAP)
+                val chunkJson = JSONObject().apply {
+                    put("type", "FILE_CHUNK")
+                    put("transferId", chunk.transferId)
+                    put("fileName", chunk.fileName)
+                    put("fileSize", chunk.fileSize)
+                    put("totalChunks", chunk.totalChunks)
+                    put("chunkIndex", chunk.chunkIndex)
+                    put("chunkCrc32", chunk.chunkCrc32)
+                    put("data", base64Data)
+                    put("senderId", chunk.senderId)
+                    put("senderName", chunk.senderName)
+                    put("targetId", targetPeerId)
+                    put("hops", chunk.hops)
+                }
+                sendJson(chunkJson)
+                onChunkSent?.invoke(idx + 1, chunks.size)
+                try {
+                    Thread.sleep(25) // 25ms pace for reliable BLE/RFCOMM L2CAP packet pacing
+                } catch (e: Exception) {}
+            }
+        }.start()
     }
 
     private fun sendJson(json: JSONObject) {
