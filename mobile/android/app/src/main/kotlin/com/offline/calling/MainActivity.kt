@@ -9,11 +9,13 @@ import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
@@ -1171,6 +1173,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                     gravity = Gravity.CENTER_VERTICAL
                     setPadding(12, 10, 12, 10)
                     background = GradientDrawable().apply {
+                        shape = GradientDrawable.RECTANGLE
                         setColor(Color.parseColor("#0F172A"))
                         cornerRadius = 10f
                         setStroke(1, Color.parseColor("#1E293B"))
@@ -3034,6 +3037,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 orientation = LinearLayout.VERTICAL
                 setPadding(24, 20, 24, 20)
                 background = GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
                     setColor(Color.parseColor("#0F172A"))
                     cornerRadius = 18f
                     setStroke(2, Color.parseColor("#38BDF8"))
