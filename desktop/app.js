@@ -638,29 +638,29 @@ class TacticalMeshDesktop {
       sliderMicGain.addEventListener('input', (e) => {
         const val = e.target.value;
         micGainValue.innerText = `${val}%`;
+        this.micGainMultiplier = parseInt(val, 10) / 100;
       });
     }
 
-    let isTestingMic = false;
     if (btnTestMic) {
       btnTestMic.addEventListener('click', async () => {
-        if (!isTestingMic) {
-          isTestingMic = true;
-          btnTestMic.innerText = '⏹️ Stop Test';
+        if (!this.isTestingMic) {
+          this.isTestingMic = true;
+          btnTestMic.innerText = '⏹️ Stop Mic Test';
           btnTestMic.style.background = 'var(--rose-primary)';
+          await this.playChime();
           await this.startMicCapture();
-          this.testMicTimer = setInterval(() => {
-            const vuBar = document.getElementById('micVuBar');
-            const settingVuBar = document.getElementById('settingVuBar');
-            if (vuBar && settingVuBar) {
-              settingVuBar.style.width = vuBar.style.width;
-            }
-          }, 100);
+          if (this.monitorGainNode) {
+            this.monitorGainNode.gain.value = 0.9;
+          }
+          this.log('[Microphone Test] 🎙️ Mic loopback active: Speak now to hear your voice through your speakers/headphones');
         } else {
-          isTestingMic = false;
+          this.isTestingMic = false;
           btnTestMic.innerText = '🎙️ Test Microphone';
           btnTestMic.style.background = '';
-          clearInterval(this.testMicTimer);
+          if (this.monitorGainNode) {
+            this.monitorGainNode.gain.value = 0;
+          }
           if (!this.isCalling && !this.isPttActive) this.stopMicCapture();
           const settingVuBar = document.getElementById('settingVuBar');
           if (settingVuBar) settingVuBar.style.width = '0%';
@@ -727,54 +727,55 @@ class TacticalMeshDesktop {
     }
   }
 
-  playPttStartTone() {
+  async playPttStartTone() {
     try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioCtx = await this.initAudioContext();
+      if (!audioCtx) return;
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
       const now = audioCtx.currentTime;
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-      gain.gain.setValueAtTime(0.15, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
       osc.type = 'sine';
       osc.frequency.setValueAtTime(800, now);
       osc.frequency.setValueAtTime(1400, now + 0.04);
       osc.connect(gain);
       gain.connect(audioCtx.destination);
       osc.start(now);
-      osc.stop(now + 0.08);
+      osc.stop(now + 0.1);
     } catch (e) {}
   }
 
-  playRogerBeep() {
+  async playRogerBeep() {
     try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioCtx = await this.initAudioContext();
+      if (!audioCtx) return;
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
       const now = audioCtx.currentTime;
-
       const osc1 = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-
-      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.setValueAtTime(0.25, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
-
       osc1.type = 'sine';
       osc1.frequency.setValueAtTime(1000, now);
       osc1.frequency.setValueAtTime(1200, now + 0.08);
-
       osc1.connect(gain);
       gain.connect(audioCtx.destination);
-
       osc1.start(now);
       osc1.stop(now + 0.16);
     } catch (e) {}
   }
 
-  playChime() {
+  async playChime() {
     try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioCtx = await this.initAudioContext();
+      if (!audioCtx) return;
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
       const now = audioCtx.currentTime;
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.setValueAtTime(0.2, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(587.33, now); // D5
@@ -786,13 +787,15 @@ class TacticalMeshDesktop {
     } catch (e) {}
   }
 
-  playSosAlarm() {
+  async playSosAlarm() {
     try {
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const audioCtx = await this.initAudioContext();
+      if (!audioCtx) return;
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
       const now = audioCtx.currentTime;
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
-      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.setValueAtTime(0.3, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(440, now);
@@ -969,14 +972,23 @@ class TacticalMeshDesktop {
         this.sendControlPacket({ type: 'JOIN_ROOM', room: this.currentRoom });
       };
 
-      this.ws.onmessage = (event) => {
-        if (event.data instanceof ArrayBuffer) {
-          this.playAudioFrame(new Uint8Array(event.data));
+      this.ws.onmessage = async (event) => {
+        let rawData = event.data;
+        if (rawData instanceof Blob) {
+          try {
+            rawData = await rawData.arrayBuffer();
+          } catch (e) {
+            return;
+          }
+        }
+
+        if (rawData instanceof ArrayBuffer) {
+          this.playAudioFrame(new Uint8Array(rawData));
           return;
         }
 
         try {
-          const json = JSON.parse(event.data);
+          const json = typeof rawData === 'string' ? JSON.parse(rawData) : JSON.parse(new TextDecoder().decode(rawData));
           this.handleIncomingControl(json);
         } catch (e) {}
       };
@@ -1033,7 +1045,7 @@ class TacticalMeshDesktop {
 
   sendAudioBuffer(uint8Buf) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(uint8Buf.buffer);
+      this.ws.send(uint8Buf);
     }
   }
 
@@ -1257,11 +1269,16 @@ class TacticalMeshDesktop {
   async initAudioContext() {
     if (!this.audioCtx) {
       const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-      this.audioCtx = new AudioCtxClass({ sampleRate: 16000, latencyHint: 'interactive' });
+      try {
+        this.audioCtx = new AudioCtxClass({ latencyHint: 'interactive' });
+      } catch (e) {
+        this.audioCtx = new AudioCtxClass();
+      }
     }
-    if (this.audioCtx.state === 'suspended') {
+    if (this.audioCtx && this.audioCtx.state === 'suspended') {
       try { await this.audioCtx.resume(); } catch (e) {}
     }
+    return this.audioCtx;
   }
 
   async startMicCapture() {
@@ -1278,20 +1295,27 @@ class TacticalMeshDesktop {
         }
       });
 
+      if (this.audioCtx && this.audioCtx.state === 'suspended') {
+        try { await this.audioCtx.resume(); } catch (e) {}
+      }
+
       const source = this.audioCtx.createMediaStreamSource(this.micStream);
-      const processor = this.audioCtx.createScriptProcessor(512, 1, 1);
-      const sampleRate = this.audioCtx.sampleRate || 16000;
+      // Use 1024 buffer size for smooth, low-latency cross-platform audio streaming
+      const processor = this.audioCtx.createScriptProcessor(1024, 1, 1);
+      const sampleRate = this.audioCtx.sampleRate || 48000;
 
       processor.onaudioprocess = (e) => {
-        if (!this.isCalling && !this.isPttActive) return;
+        if (!this.isCalling && !this.isPttActive && !this.isTestingMic) return;
 
         const inputData = e.inputBuffer.getChannelData(0);
         let sum = 0;
+        const gain = this.micGainMultiplier || 1.0;
         
-        // Convert Float32Array to 16-bit PCM
+        // Convert Float32Array to 16-bit PCM with configurable microphone gain
         const pcm16 = new Int16Array(inputData.length);
         for (let i = 0; i < inputData.length; i++) {
-          const s = Math.max(-1, Math.min(1, inputData[i]));
+          let s = inputData[i] * gain;
+          s = Math.max(-1, Math.min(1, s));
           pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
           sum += Math.abs(inputData[i]);
         }
@@ -1300,6 +1324,12 @@ class TacticalMeshDesktop {
         const avg = sum / inputData.length;
         const vuBar = document.getElementById('micVuBar');
         if (vuBar) vuBar.style.width = `${Math.min(100, avg * 350)}%`;
+        const settingVuBar = document.getElementById('settingVuBar');
+        if (settingVuBar && this.isTestingMic) {
+          settingVuBar.style.width = `${Math.min(100, avg * 350)}%`;
+        }
+
+        if (!this.isCalling && !this.isPttActive) return;
 
         // Frame header: [0xAA, 0x55, SampleRate_H, SampleRate_L] + PCM bytes
         const packet = new Uint8Array(4 + pcm16.buffer.byteLength);
@@ -1321,8 +1351,18 @@ class TacticalMeshDesktop {
       this.processorNode = processor;
       this.sourceNode = source;
       this.silentGainNode = silentGain;
+
+      // Local loopback monitor node for microphone testing
+      const monitorGain = this.audioCtx.createGain();
+      monitorGain.gain.value = this.isTestingMic ? 0.9 : 0;
+      source.connect(monitorGain);
+      monitorGain.connect(this.audioCtx.destination);
+      this.monitorGainNode = monitorGain;
+
+      this.log('[Microphone] 🎙️ Microphone capture active & streaming');
     } catch (e) {
-      this.log(`Microphone access: ${e.message}`);
+      this.log(`Microphone access error: ${e.message}`);
+      console.error('[Microphone Access Error]', e);
     }
   }
 
@@ -1343,6 +1383,10 @@ class TacticalMeshDesktop {
       try { this.silentGainNode.disconnect(); } catch(e){}
       this.silentGainNode = null;
     }
+    if (this.monitorGainNode) {
+      try { this.monitorGainNode.disconnect(); } catch(e){}
+      this.monitorGainNode = null;
+    }
     const vuBar = document.getElementById('micVuBar');
     if (vuBar) vuBar.style.width = '0%';
   }
@@ -1353,6 +1397,9 @@ class TacticalMeshDesktop {
     try {
       await this.initAudioContext();
       if (!this.audioCtx) return;
+      if (this.audioCtx.state === 'suspended') {
+        try { await this.audioCtx.resume(); } catch (e) {}
+      }
 
       let pcmBytes = uint8Frame;
       let senderRate = 16000;
@@ -1370,7 +1417,8 @@ class TacticalMeshDesktop {
         float32[i] = dataView.getInt16(i * 2, true) / 32768.0;
       }
 
-      const audioBuffer = this.audioCtx.createBuffer(1, numSamples, senderRate || 16000);
+      const safeRate = (senderRate >= 8000 && senderRate <= 96000) ? senderRate : 16000;
+      const audioBuffer = this.audioCtx.createBuffer(1, numSamples, safeRate);
       audioBuffer.getChannelData(0).set(float32);
 
       const source = this.audioCtx.createBufferSource();
@@ -1378,14 +1426,16 @@ class TacticalMeshDesktop {
       source.connect(this.audioCtx.destination);
 
       const currentTime = this.audioCtx.currentTime;
-      // Clamp drift to 40ms max to prevent accumulating lag
-      if (!this.nextAudioPlayTime || this.nextAudioPlayTime < currentTime || (this.nextAudioPlayTime - currentTime > 0.04)) {
+      // Clamp drift to 50ms max to prevent accumulating lag
+      if (!this.nextAudioPlayTime || this.nextAudioPlayTime < currentTime || (this.nextAudioPlayTime - currentTime > 0.05)) {
         this.nextAudioPlayTime = currentTime + 0.005; // 5ms ultra-low jitter buffer
       }
 
       source.start(this.nextAudioPlayTime);
       this.nextAudioPlayTime += audioBuffer.duration;
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[Audio Playback Error]', e);
+    }
   }
 
   acceptIncomingCall(peerId = '') {
@@ -1397,6 +1447,7 @@ class TacticalMeshDesktop {
       btnCall.innerText = '[ 🔴 END ACTIVE VOICE CALL ]';
       btnCall.className = 'btn-end';
     }
+    this.playChime();
     this.startMicCapture();
     const target = peerId || this.activeCallPeer?.id || '';
     this.sendControlPacket({
@@ -1416,6 +1467,7 @@ class TacticalMeshDesktop {
       btnCall.innerText = '[ 🔴 END ACTIVE VOICE CALL ]';
       btnCall.className = 'btn-end';
     }
+    this.playChime();
     this.startMicCapture();
     this.sendControlPacket({
       type: 'CALL_INVITE',
@@ -1438,6 +1490,9 @@ class TacticalMeshDesktop {
     }
     if (!this.isPttActive) {
       this.stopMicCapture();
+    }
+    if (wasCalling && document.getElementById('toggleRogerBeep')?.checked !== false) {
+      this.playRogerBeep();
     }
     if (notifyRemote && wasCalling) {
       this.sendControlPacket({
@@ -1633,8 +1688,13 @@ class TacticalMeshDesktop {
       const timerLabel = document.getElementById('chatVoiceTimer');
       if (hud) hud.style.display = 'flex';
 
-      this.voiceMemoChunks = [];
       this.voiceMemoStartTime = Date.now();
+      this.voiceMemoPcmSamples = [];
+
+      await this.initAudioContext();
+      if (this.audioCtx && this.audioCtx.state === 'suspended') {
+        try { await this.audioCtx.resume(); } catch (e) {}
+      }
 
       // Request actual microphone input
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -1647,49 +1707,30 @@ class TacticalMeshDesktop {
       });
       this.voiceMemoStream = stream;
 
-      // Detect supported audio mimeType for crystal-clear real voice capture
-      let mimeType = '';
-      const candidateTypes = [
-        'audio/webm;codecs=opus',
-        'audio/webm',
-        'audio/ogg;codecs=opus',
-        'audio/ogg',
-        'audio/mp4',
-        'audio/wav'
-      ];
-      for (const t of candidateTypes) {
-        if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported(t)) {
-          mimeType = t;
-          break;
-        }
-      }
+      const audioSource = this.audioCtx.createMediaStreamSource(stream);
+      const analyser = this.audioCtx.createAnalyser();
+      analyser.fftSize = 64;
+      audioSource.connect(analyser);
 
-      const recorderOptions = mimeType ? { mimeType } : {};
-      const mediaRecorder = new MediaRecorder(stream, recorderOptions);
-      this.voiceMediaRecorder = mediaRecorder;
-      this.recordedMimeType = mediaRecorder.mimeType || mimeType || 'audio/webm';
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data && e.data.size > 0) {
-          this.voiceMemoChunks.push(e.data);
+      const processor = this.audioCtx.createScriptProcessor(1024, 1, 1);
+      processor.onaudioprocess = (e) => {
+        const inputData = e.inputBuffer.getChannelData(0);
+        for (let i = 0; i < inputData.length; i++) {
+          this.voiceMemoPcmSamples.push(inputData[i]);
         }
       };
 
-      // Real audio visualizer hook for live waveform amplitude
-      try {
-        await this.initAudioContext();
-        if (this.audioCtx && this.audioCtx.state === 'suspended') {
-          await this.audioCtx.resume();
-        }
-        const audioSource = this.audioCtx.createMediaStreamSource(stream);
-        const analyser = this.audioCtx.createAnalyser();
-        analyser.fftSize = 64;
-        audioSource.connect(analyser);
-        this.voiceMemoAnalyser = analyser;
-        this.voiceMemoAudioSource = audioSource;
-      } catch (e) {}
+      const silentGain = this.audioCtx.createGain();
+      silentGain.gain.value = 0;
+      audioSource.connect(processor);
+      processor.connect(silentGain);
+      silentGain.connect(this.audioCtx.destination);
 
-      mediaRecorder.start(100);
+      this.voiceMemoAudioSource = audioSource;
+      this.voiceMemoProcessor = processor;
+      this.voiceMemoSilentGain = silentGain;
+      this.voiceMemoAnalyser = analyser;
+
       this.log('[Voice Log] 🎙️ Recording real voice from microphone...');
 
       // Live Timer & Waveform Animation reacting to real speaker voice
@@ -1730,9 +1771,6 @@ class TacticalMeshDesktop {
       clearInterval(this.voiceMemoTimer);
       this.voiceMemoTimer = null;
     }
-    if (this.voiceMediaRecorder && this.voiceMediaRecorder.state !== 'inactive') {
-      try { this.voiceMediaRecorder.stop(); } catch (e) {}
-    }
     if (this.voiceMemoStream) {
       this.voiceMemoStream.getTracks().forEach(t => t.stop());
       this.voiceMemoStream = null;
@@ -1741,14 +1779,21 @@ class TacticalMeshDesktop {
       try { this.voiceMemoAudioSource.disconnect(); } catch (e) {}
       this.voiceMemoAudioSource = null;
     }
-    this.voiceMemoChunks = [];
+    if (this.voiceMemoProcessor) {
+      try { this.voiceMemoProcessor.disconnect(); } catch (e) {}
+      this.voiceMemoProcessor = null;
+    }
+    if (this.voiceMemoSilentGain) {
+      try { this.voiceMemoSilentGain.disconnect(); } catch (e) {}
+      this.voiceMemoSilentGain = null;
+    }
+    this.voiceMemoPcmSamples = [];
     const hud = document.getElementById('chatVoiceHud');
     if (hud) hud.style.display = 'none';
     this.log('[Voice Log] Recording cancelled.');
   }
 
   stopAndSendVoiceMemo() {
-    if (!this.voiceMediaRecorder) return;
     const durationSec = Math.max(1, Math.round((Date.now() - (this.voiceMemoStartTime || Date.now())) / 1000));
 
     if (this.voiceMemoTimer) {
@@ -1756,34 +1801,41 @@ class TacticalMeshDesktop {
       this.voiceMemoTimer = null;
     }
 
-    this.voiceMediaRecorder.onstop = () => {
-      const mime = this.voiceMediaRecorder.mimeType || this.recordedMimeType || 'audio/webm';
-      const blob = new Blob(this.voiceMemoChunks, { type: mime });
-      if (this.voiceMemoStream) {
-        this.voiceMemoStream.getTracks().forEach(t => t.stop());
-        this.voiceMemoStream = null;
-      }
-      if (this.voiceMemoAudioSource) {
-        try { this.voiceMemoAudioSource.disconnect(); } catch (e) {}
-        this.voiceMemoAudioSource = null;
-      }
-      this.voiceMemoChunks = [];
-
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const audioDataUrl = e.target.result;
-        this.sendChatVoiceLog(audioDataUrl, durationSec);
-      };
-      reader.readAsDataURL(blob);
-
-      const hud = document.getElementById('chatVoiceHud');
-      if (hud) hud.style.display = 'none';
-    };
-
-    try { this.voiceMediaRecorder.requestData(); } catch (e) {}
-    if (this.voiceMediaRecorder.state !== 'inactive') {
-      this.voiceMediaRecorder.stop();
+    if (this.voiceMemoStream) {
+      this.voiceMemoStream.getTracks().forEach(t => t.stop());
+      this.voiceMemoStream = null;
     }
+    if (this.voiceMemoAudioSource) {
+      try { this.voiceMemoAudioSource.disconnect(); } catch (e) {}
+      this.voiceMemoAudioSource = null;
+    }
+    if (this.voiceMemoProcessor) {
+      try { this.voiceMemoProcessor.disconnect(); } catch (e) {}
+      this.voiceMemoProcessor = null;
+    }
+    if (this.voiceMemoSilentGain) {
+      try { this.voiceMemoSilentGain.disconnect(); } catch (e) {}
+      this.voiceMemoSilentGain = null;
+    }
+
+    const samples = this.voiceMemoPcmSamples || [];
+    this.voiceMemoPcmSamples = [];
+
+    const hud = document.getElementById('chatVoiceHud');
+    if (hud) hud.style.display = 'none';
+
+    if (samples.length === 0) return;
+
+    const sampleRate = this.audioCtx?.sampleRate || 48000;
+    const wavBuffer = this.encodeWavBuffer(samples, sampleRate);
+    const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const audioDataUrl = e.target.result;
+      this.sendChatVoiceLog(audioDataUrl, durationSec);
+    };
+    reader.readAsDataURL(blob);
   }
 
   // --- Chat Dispatch Methods ---
@@ -2151,38 +2203,29 @@ class TacticalMeshDesktop {
       this.activeVoiceId = msgId;
       startWaveformAnim();
 
-      // Play the actual user voice recording
-      const audio = new Audio();
-      audio.src = audioDataUrl;
-      audio.volume = 1.0;
-      this.activeVoiceAudio = audio;
+      // Convert Data URL to ArrayBuffer and play directly with Web Audio API for flawless cross-platform sound
+      const base64Data = audioDataUrl.split(',')[1] || audioDataUrl;
+      const binStr = atob(base64Data);
+      const bytes = new Uint8Array(binStr.length);
+      for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
 
-      audio.onended = () => {
-        stopWaveformAnim();
-      };
+      this.audioCtx.decodeAudioData(bytes.buffer.slice(0), (decodedBuf) => {
+        const source = this.audioCtx.createBufferSource();
+        source.buffer = decodedBuf;
+        source.connect(this.audioCtx.destination);
+        this.activeVoiceAudio = source;
+        source.onended = () => stopWaveformAnim();
+        source.start(0);
+      }, (err) => {
+        // Fallback to HTML5 audio element
+        const audio = new Audio();
+        audio.src = audioDataUrl;
+        audio.volume = 1.0;
+        this.activeVoiceAudio = audio;
+        audio.onended = () => stopWaveformAnim();
+        audio.play().catch(() => stopWaveformAnim());
+      });
 
-      audio.onerror = (err) => {
-        this.log(`HTML5 Audio error. Falling back to Web Audio direct decode...`);
-        try {
-          const base64Data = audioDataUrl.split(',')[1] || audioDataUrl;
-          const binStr = atob(base64Data);
-          const bytes = new Uint8Array(binStr.length);
-          for (let i = 0; i < binStr.length; i++) bytes[i] = binStr.charCodeAt(i);
-
-          this.audioCtx.decodeAudioData(bytes.buffer.slice(0), (decodedBuf) => {
-            const source = this.audioCtx.createBufferSource();
-            source.buffer = decodedBuf;
-            source.connect(this.audioCtx.destination);
-            this.activeVoiceAudio = source;
-            source.onended = () => stopWaveformAnim();
-            source.start(0);
-          }, () => stopWaveformAnim());
-        } catch (de) {
-          stopWaveformAnim();
-        }
-      };
-
-      await audio.play();
     } catch (e) {
       this.log(`Voice playback: ${e.message}`);
       stopWaveformAnim();

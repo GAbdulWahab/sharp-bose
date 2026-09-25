@@ -11,6 +11,7 @@ let electron = null;
 let app = null;
 let BrowserWindow = null;
 let ipcMain = null;
+let session = null;
 
 try {
   electron = require('electron');
@@ -18,6 +19,7 @@ try {
     app = electron.app;
     BrowserWindow = electron.BrowserWindow;
     ipcMain = electron.ipcMain;
+    session = electron.session;
   }
 } catch (e) {
   // Pure Node.js environment
@@ -675,6 +677,17 @@ function createWindow() {
   });
 
   mainWindow.setMenuBarVisibility(false);
+
+  // Automatically approve microphone and audio capture permissions
+  if (mainWindow.webContents && mainWindow.webContents.session) {
+    mainWindow.webContents.session.setPermissionRequestHandler((webContents, permission, callback) => {
+      callback(true);
+    });
+    if (mainWindow.webContents.session.setPermissionCheckHandler) {
+      mainWindow.webContents.session.setPermissionCheckHandler(() => true);
+    }
+  }
+
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
   mainWindow.on('closed', () => {
@@ -748,6 +761,15 @@ if (!app || IS_HEADLESS) {
     });
 
     app.whenReady().then(() => {
+      if (session && session.defaultSession) {
+        session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+          callback(true);
+        });
+        if (session.defaultSession.setPermissionCheckHandler) {
+          session.defaultSession.setPermissionCheckHandler(() => true);
+        }
+      }
+
       startEmbeddedHub();
       startUdpBeacon();
       startWindowsBluetoothService();
