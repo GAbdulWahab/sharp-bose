@@ -672,8 +672,154 @@
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
                 android:background="#1E293B"
-                android:layout_marginTop="6dp"
-                android:layout_marginBottom="6dp" />
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="4dp" />
+
+            <!-- Voice Recording HUD (Real Microphone Sitrep Memo) -->
+            <LinearLayout
+                android:id="@+id/llChatVoiceHud"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="#1C0F14"
+                android:padding="8dp"
+                android:visibility="gone"
+                android:layout_marginBottom="4dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/tvChatVoiceTimer"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="🔴 [ RECORDING REAL VOICE 00:00 ]"
+                        android:textColor="@color/accent_rose"
+                        android:textSize="11sp"
+                        android:textStyle="bold"
+                        android:fontFamily="monospace" />
+
+                    <Button
+                        android:id="@+id/btnCancelVoiceRecord"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:text="[ ✕ CANCEL ]"
+                        android:textColor="@color/accent_rose"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:fontFamily="monospace"
+                        android:background="@drawable/retro_card_bg"
+                        app:backgroundTint="#0F172A"
+                        android:layout_marginEnd="6dp" />
+
+                    <Button
+                        android:id="@+id/btnConfirmVoiceSend"
+                        android:layout_width="wrap_content"
+                        android:layout_height="32dp"
+                        android:text="[ 🚀 SEND SITREP ]"
+                        android:textColor="#FFFFFF"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:fontFamily="monospace"
+                        android:background="@drawable/retro_card_bg"
+                        app:backgroundTint="@color/accent_emerald" />
+                </LinearLayout>
+
+                <!-- Live Waveform Simulated Visualizer -->
+                <LinearLayout
+                    android:id="@+id/llChatLiveWaveform"
+                    android:layout_width="match_parent"
+                    android:layout_height="18dp"
+                    android:orientation="horizontal"
+                    android:gravity="center"
+                    android:layout_marginTop="4dp">
+
+                    <View android:id="@+id/vWave1" android:layout_width="4dp" android:layout_height="8dp" android:background="@color/accent_rose" android:layout_margin="2dp" />
+                    <View android:id="@+id/vWave2" android:layout_width="4dp" android:layout_height="14dp" android:background="@color/accent_rose" android:layout_margin="2dp" />
+                    <View android:id="@+id/vWave3" android:layout_width="4dp" android:layout_height="6dp" android:background="@color/accent_rose" android:layout_margin="2dp" />
+                    <View android:id="@+id/vWave4" android:layout_width="4dp" android:layout_height="16dp" android:background="@color/accent_rose" android:layout_margin="2dp" />
+                    <View android:id="@+id/vWave5" android:layout_width="4dp" android:layout_height="10dp" android:background="@color/accent_rose" android:layout_margin="2dp" />
+                    <View android:id="@+id/vWave6" android:layout_width="4dp" android:layout_height="18dp" android:background="@color/accent_rose" android:layout_margin="2dp" />
+                    <View android:id="@+id/vWave7" android:layout_width="4dp" android:layout_height="12dp" android:background="@color/accent_rose" android:layout_margin="2dp" />
+                    <View android:id="@+id/vWave8" android:layout_width="4dp" android:layout_height="15dp" android:background="@color/accent_rose" android:layout_margin="2dp" />
+                    <View android:id="@+id/vWave9" android:layout_width="4dp" android:layout_height="7dp" android:background="@color/accent_rose" android:layout_margin="2dp" />
+                    <View android:id="@+id/vWave10" android:layout_width="4dp" android:layout_height="13dp" android:background="@color/accent_rose" android:layout_margin="2dp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Quick Attachment Selector Bar -->
+            <LinearLayout
+                android:id="@+id/llChatMediaToolbar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:paddingBottom="4dp">
+
+                <Button
+                    android:id="@+id/btnChatPhoto"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:text="📷 Photo"
+                    android:textColor="@color/neon_cyan"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace"
+                    android:background="@drawable/retro_card_bg"
+                    app:backgroundTint="#0C233C"
+                    android:layout_marginEnd="2dp" />
+
+                <Button
+                    android:id="@+id/btnChatMap"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:text="🗺️ Map"
+                    android:textColor="@color/neon_emerald"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace"
+                    android:background="@drawable/retro_card_bg"
+                    app:backgroundTint="#062E24"
+                    android:layout_marginStart="2dp"
+                    android:layout_marginEnd="2dp" />
+
+                <Button
+                    android:id="@+id/btnChatVoice"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:text="🎙️ Voice"
+                    android:textColor="@color/accent_rose"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace"
+                    android:background="@drawable/retro_card_bg"
+                    app:backgroundTint="#2E0C14"
+                    android:layout_marginStart="2dp"
+                    android:layout_marginEnd="2dp" />
+
+                <Button
+                    android:id="@+id/btnChatFile"
+                    android:layout_width="0dp"
+                    android:layout_height="36dp"
+                    android:layout_weight="1"
+                    android:text="📁 Doc"
+                    android:textColor="@color/text_primary"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace"
+                    android:background="@drawable/retro_card_bg"
+                    app:backgroundTint="#1E293B"
+                    android:layout_marginStart="2dp" />
+            </LinearLayout>
 
             <!-- Terminal Input Prompt -->
             <LinearLayout
@@ -698,13 +844,13 @@
                     android:layout_width="0dp"
                     android:layout_height="42dp"
                     android:layout_weight="1"
-                    android:hint="Type encrypted broadcast..."
+                    android:hint="Type message or select Photo/Map/Voice above..."
                     android:textColorHint="#64748B"
                     android:textColor="@color/neon_emerald"
                     android:background="#0A0E17"
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
-                    android:textSize="12sp"
+                    android:textSize="11sp"
                     android:fontFamily="monospace"
                     android:singleLine="true" />
 

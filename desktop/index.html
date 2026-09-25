@@ -209,19 +209,58 @@
     <section class="screen-view" id="viewChat">
       <div class="tactical-card" style="margin-bottom: 0;">
         <div class="card-title">
-          <span>Encrypted Mesh BBS Chat</span>
+          <span>Encrypted Mesh BBS &amp; Tactical Media</span>
           <span style="color: var(--emerald-primary); font-weight: 600;">Noise-XX • 256-Bit E2EE</span>
         </div>
         
         <div class="chat-window" id="chatMessages">
           <div class="chat-bubble peer">
             <div class="chat-sender peer">System Mesh Router</div>
-            <div>Tactical BBS initialized. All messages routed over local P2P mesh network with zero cloud storage.</div>
+            <div>Tactical BBS initialized. All messages, photos, vector maps &amp; voice logs routed over local P2P mesh network with zero cloud storage.</div>
           </div>
         </div>
 
+        <!-- In-Chat Voice Recording Live HUD -->
+        <div class="chat-recording-hud" id="chatVoiceHud">
+          <div style="display: flex; align-items: center;">
+            <span class="recording-pulse-dot"></span>
+            <span style="font-size: 12px; font-weight: 700; color: #F43F5E;" id="chatVoiceTimer">RECORDING 00:00</span>
+          </div>
+          <div class="chat-audio-waveform" style="max-width: 160px; height: 18px; margin: 0 12px;" id="chatLiveWaveform">
+            <div class="waveform-bar active" style="height: 60%;"></div>
+            <div class="waveform-bar active" style="height: 90%;"></div>
+            <div class="waveform-bar active" style="height: 40%;"></div>
+            <div class="waveform-bar active" style="height: 100%;"></div>
+            <div class="waveform-bar active" style="height: 70%;"></div>
+            <div class="waveform-bar active" style="height: 50%;"></div>
+            <div class="waveform-bar active" style="height: 80%;"></div>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn-tactical-sm" id="btnCancelVoiceRecord" style="color: var(--rose-primary); border-color: rgba(244, 63, 94, 0.4); padding: 4px 10px;">✕ Cancel</button>
+            <button class="btn-tactical-sm" id="btnConfirmVoiceSend" style="background: var(--emerald-primary); color: #000; font-weight: 700; padding: 4px 12px;">🚀 Send Voice Memo</button>
+          </div>
+        </div>
+
+        <!-- Quick Attachment Selector Bar -->
+        <div class="chat-media-toolbar">
+          <button class="btn-chat-media" id="btnChatPhoto">
+            📷 Photo
+          </button>
+          <button class="btn-chat-media" id="btnChatMap" style="color: var(--emerald-primary); border-color: rgba(16, 185, 129, 0.3);">
+            🗺️ Vector Map
+          </button>
+          <button class="btn-chat-media" id="btnChatVoice" style="color: var(--rose-primary); border-color: rgba(244, 63, 94, 0.3);">
+            🎙️ Record Voice Log
+          </button>
+          <button class="btn-chat-media" id="btnChatFile">
+            📁 Document
+          </button>
+          <input type="file" id="chatImageInput" accept="image/*" style="display: none;" />
+          <input type="file" id="chatDocInput" style="display: none;" />
+        </div>
+
         <div class="chat-input-bar">
-          <input type="text" class="chat-input" id="chatInput" placeholder="Type a message and press Enter..." />
+          <input type="text" class="chat-input" id="chatInput" placeholder="Type a message or select Photo / Vector Map / Voice Log above..." />
           <button class="btn-bbs" id="btnSendChat" style="padding: 0 24px;">Send</button>
         </div>
       </div>
@@ -658,6 +697,61 @@
           <button class="btn-call" id="btnAcceptIncoming" style="flex: 1; height: 48px; font-size: 13px;">📞 Accept</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Vector Map Rally Point Modal -->
+  <div class="tactical-modal-backdrop" id="vectorMapModal">
+    <div class="tactical-modal" style="width: 480px;">
+      <div class="card-title" style="margin-bottom: 12px;">
+        <span>🗺️ Dispatch Tactical Vector Map</span>
+        <button class="btn-tactical-sm" id="btnCloseMapModal" style="padding: 2px 8px; font-size: 11px;">✕</button>
+      </div>
+      <div class="card-subtitle" style="margin-bottom: 14px;">
+        Broadcast GPS rally coordinates and waypoint vectors over local P2P mesh network.
+      </div>
+
+      <div class="settings-field" style="margin-bottom: 12px;">
+        <label class="settings-label">WAYPOINT / RALLY POINT NAME</label>
+        <input type="text" class="chat-input" id="mapPointName" value="RALLY-POINT-ALPHA-01" />
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+        <div class="settings-field">
+          <label class="settings-label">LATITUDE</label>
+          <input type="text" class="chat-input" id="mapLatInput" value="28.613900" />
+        </div>
+        <div class="settings-field">
+          <label class="settings-label">LONGITUDE</label>
+          <input type="text" class="chat-input" id="mapLngInput" value="77.209000" />
+        </div>
+      </div>
+
+      <div class="settings-field" style="margin-bottom: 16px;">
+        <label class="settings-label">QUICK TACTICAL PRESETS</label>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px;">
+          <button class="btn-tactical-sm btn-map-preset" data-name="BASE-CAMP-HQ" data-lat="28.6139" data-lng="77.2090">🏛️ Base HQ</button>
+          <button class="btn-tactical-sm btn-map-preset" data-name="EVAC-LZ-01" data-lat="28.6250" data-lng="77.2180">🚁 Evac LZ</button>
+          <button class="btn-tactical-sm btn-map-preset" data-name="SECTOR-9-RECON" data-lat="28.6010" data-lng="77.1950">🎯 Sector 9</button>
+          <button class="btn-tactical-sm btn-map-preset" data-name="SUPPLY-DEPOT" data-lat="28.6300" data-lng="77.2250">📦 Depot</button>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 10px;">
+        <button class="btn-tactical-sm" id="btnCancelMapModal" style="flex: 1; justify-content: center; height: 42px;">Cancel</button>
+        <button class="btn-tactical-sm" id="btnSendMapModal" style="flex: 2; justify-content: center; height: 42px; background: var(--emerald-primary); color: #000; font-weight: 700;">
+          🚀 Dispatch Vector Map to Mesh
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image Lightbox Modal -->
+  <div class="tactical-modal-backdrop" id="imageLightboxModal">
+    <div style="position: relative; max-width: 90vw; max-height: 90vh; background: rgba(0,0,0,0.9); border: 1px solid var(--border-glass); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; align-items: center;">
+      <button class="btn-tactical-sm" id="btnCloseLightbox" style="position: absolute; top: 12px; right: 12px; z-index: 10;">✕ Close</button>
+      <img id="lightboxImg" src="" style="max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 8px;" />
+      <div id="lightboxCaption" style="margin-top: 10px; font-size: 12px; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace;"></div>
     </div>
   </div>
 

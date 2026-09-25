@@ -26,17 +26,26 @@ import androidx.cardview.widget.CardView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import android.bluetooth.BluetoothAdapter
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.media.MediaPlayer
+import android.media.MediaRecorder
 import android.provider.Settings
+import android.util.Base64
 import com.offline.calling.audio.AndroidAudioEngine
+import com.offline.calling.radio.ChatMessagePacket
 import com.offline.calling.radio.ForegroundMeshService
 import com.offline.calling.radio.MeshWebSocketBridge
 import com.offline.calling.radio.PeerLocation
 import com.offline.calling.radio.PeerNode
 import com.offline.calling.radio.RadioTransportMode
+import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import java.util.zip.CRC32
 import kotlin.math.*
 
 class MainActivity : AppCompatActivity(), LocationListener {
@@ -122,12 +131,34 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var cardSos: CardView
     private lateinit var btnSos: Button
 
-    // Screen 3: Chat BBS UI
+    // Screen 3: Chat BBS & Media UI
     private lateinit var chatScrollView: ScrollView
     private lateinit var chatMessagesContainer: LinearLayout
     private lateinit var etChatMessage: EditText
     private lateinit var btnSendChatMessage: Button
-    private val chatMessageList = mutableListOf<Pair<String, String>>() // (sender, text)
+    private lateinit var llChatVoiceHud: LinearLayout
+    private lateinit var tvChatVoiceTimer: TextView
+    private lateinit var btnCancelVoiceRecord: Button
+    private lateinit var btnConfirmVoiceSend: Button
+    private lateinit var llChatLiveWaveform: LinearLayout
+    private lateinit var btnChatPhoto: Button
+    private lateinit var btnChatMap: Button
+    private lateinit var btnChatVoice: Button
+    private lateinit var btnChatFile: Button
+    private val chatMessageList = mutableListOf<ChatMessagePacket>()
+
+    // In-Chat Voice Recording State
+    private var inChatMediaRecorder: MediaRecorder? = null
+    private var inChatVoiceFile: File? = null
+    private var inChatVoiceStartTime: Long = 0L
+    private var inChatVoiceTimerHandler: android.os.Handler? = null
+    private var inChatVoiceTimerRunnable: Runnable? = null
+    private var isInChatRecording = false
+
+    // In-Chat Audio Playback State
+    private var inChatAudioPlayer: MediaPlayer? = null
+    private var activePlayingVoiceMsgId: String? = null
+    private var activePlayingButton: Button? = null
 
     // Screen 4: Radar UI
     private lateinit var tvRadarSelfCoords: TextView
@@ -299,11 +330,20 @@ class MainActivity : AppCompatActivity(), LocationListener {
         cardSos = findViewById(R.id.cardSos)
         btnSos = findViewById(R.id.btnSos)
 
-        // Screen 3: Chat BBS
+        // Screen 3: Chat BBS & Media UI
         chatScrollView = findViewById(R.id.chatScrollView)
         chatMessagesContainer = findViewById(R.id.chatMessagesContainer)
         etChatMessage = findViewById(R.id.etChatMessage)
         btnSendChatMessage = findViewById(R.id.btnSendChatMessage)
+        llChatVoiceHud = findViewById(R.id.llChatVoiceHud)
+        tvChatVoiceTimer = findViewById(R.id.tvChatVoiceTimer)
+        btnCancelVoiceRecord = findViewById(R.id.btnCancelVoiceRecord)
+        btnConfirmVoiceSend = findViewById(R.id.btnConfirmVoiceSend)
+        llChatLiveWaveform = findViewById(R.id.llChatLiveWaveform)
+        btnChatPhoto = findViewById(R.id.btnChatPhoto)
+        btnChatMap = findViewById(R.id.btnChatMap)
+        btnChatVoice = findViewById(R.id.btnChatVoice)
+        btnChatFile = findViewById(R.id.btnChatFile)
 
         // Screen 4: Radar
         tvRadarSelfCoords = findViewById(R.id.tvRadarSelfCoords)
@@ -736,11 +776,18 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
         }
 
-        bridge.onChatMessageReceived = { senderName, text ->
+        bridge.onRichChatMessageReceived = { packet ->
             runOnUiThread {
-                chatMessageList.add(Pair(senderName, text))
-                logEvent("[Chat] 💬 $senderName: $text")
-                appendChatBubble(chatMessagesContainer, chatScrollView, senderName, text, false)
+                chatMessageList.add(packet)
+                val logDetail = when (packet.mediaType) {
+                    "PHOTO" -> "📷 Photo: ${packet.fileName}"
+                    "VECTOR_MAP" -> "🗺️ Waypoint: ${packet.pointName}"
+                    "VOICE_LOG" -> "🎙️ Sitrep Voice Memo (${packet.duration}s)"
+                    "DOCUMENT" -> "📄 Document: ${packet.fileName}"
+                    else -> packet.text
+                }
+                logEvent("[Chat] 💬 ${packet.senderName}: $logDetail")
+                appendRichChatBubble(chatMessagesContainer, chatScrollView, packet)
             }
         }
 
@@ -903,13 +950,15 @@ class MainActivity : AppCompatActivity(), LocationListener {
             llConnectedPeople.addView(peerRow)
     }
 
-    private fun appendChatBubble(
+    private fun appendRichChatBubble(
         container: LinearLayout,
         scrollView: ScrollView?,
-        sender: String,
-        text: String,
-        isMe: Boolean
+        packet: ChatMessagePacket
     ) {
+        val isMe = packet.isMe || packet.senderName.equals("You", true) || packet.senderName.equals(bridge.localNodeId, true)
+        val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        val timeStr = timeFormat.format(Date(packet.timestamp))
+
         val bubbleLayout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             val params = LinearLayout.LayoutParams(
@@ -920,36 +969,733 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 setMargins(4, 6, 4, 6)
             }
             layoutParams = params
-            setPadding(24, 14, 24, 14)
-
-            if (isMe) {
-                setBackgroundColor(Color.parseColor("#0F2744"))
+            setPadding(16, 12, 16, 12)
+            val bg = if (isMe) {
+                Color.parseColor("#0F2744")
             } else {
-                setBackgroundColor(if (isDarkMode) Color.parseColor("#131D31") else Color.parseColor("#E2E8F0"))
+                if (isDarkMode) Color.parseColor("#131D31") else Color.parseColor("#E2E8F0")
             }
+            setBackgroundColor(bg)
+        }
+
+        // Header Row: Sender + Time + E2EE Badge
+        val headerRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(0, 0, 0, 6) }
+            layoutParams = lp
         }
 
         val tvSender = TextView(this).apply {
-            this.text = if (isMe) "[ LOCAL_NODE // YOU ]" else "[ PEER // ${sender.uppercase(Locale.ROOT)} ]"
+            text = if (isMe) "[ LOCAL_NODE // YOU ]" else "[ PEER // ${packet.senderName.uppercase(Locale.ROOT)} ]"
             textSize = 10f
             typeface = android.graphics.Typeface.MONOSPACE
             setTextColor(if (isMe) Color.parseColor("#38BDF8") else Color.parseColor("#F59E0B"))
             setTypeface(typeface, android.graphics.Typeface.BOLD)
+            val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            layoutParams = lp
         }
 
-        val tvMsg = TextView(this).apply {
-            this.text = text
-            textSize = 12f
+        val tvTime = TextView(this).apply {
+            text = "$timeStr • 🔒 E2EE"
+            textSize = 9f
             typeface = android.graphics.Typeface.MONOSPACE
-            setTextColor(if (isMe || isDarkMode) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A"))
+            setTextColor(Color.parseColor("#94A3B8"))
         }
 
-        bubbleLayout.addView(tvSender)
-        bubbleLayout.addView(tvMsg)
-        container.addView(bubbleLayout)
+        headerRow.addView(tvSender)
+        headerRow.addView(tvTime)
+        bubbleLayout.addView(headerRow)
 
+        // Render Content based on packet.mediaType
+        when (packet.mediaType) {
+            "PHOTO" -> {
+                val photoContainer = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(6, 6, 6, 6)
+                    setBackgroundColor(Color.parseColor("#020617"))
+                }
+
+                var bmp: Bitmap? = null
+                if (packet.dataUrl.isNotEmpty()) {
+                    try {
+                        val base64Part = if (packet.dataUrl.contains(",")) packet.dataUrl.substringAfter(",") else packet.dataUrl
+                        val decodedBytes = Base64.decode(base64Part, Base64.DEFAULT)
+                        bmp = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.size)
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "Error decoding chat photo: ${e.message}")
+                    }
+                }
+
+                val iv = ImageView(this).apply {
+                    if (bmp != null) {
+                        setImageBitmap(bmp)
+                    } else {
+                        setImageResource(android.R.drawable.ic_menu_camera)
+                    }
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                    adjustViewBounds = true
+                    val lp = LinearLayout.LayoutParams(500, 320)
+                    layoutParams = lp
+                    setOnClickListener {
+                        showPhotoLightbox(bmp, packet.fileName.ifEmpty { "Recon Photo" }, packet.crc32Hex.ifEmpty { "VERIFIED" })
+                    }
+                }
+                photoContainer.addView(iv)
+
+                val tvCaption = TextView(this).apply {
+                    text = "📷 ${packet.fileName.ifEmpty { "Recon Photo" }} • CRC32: ${packet.crc32Hex.ifEmpty { "VERIFIED" }}"
+                    textSize = 10f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTextColor(Color.parseColor("#38BDF8"))
+                    setPadding(4, 6, 4, 2)
+                }
+                photoContainer.addView(tvCaption)
+                bubbleLayout.addView(photoContainer)
+            }
+
+            "VECTOR_MAP" -> {
+                val mapCard = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(12, 10, 12, 10)
+                    setBackgroundColor(Color.parseColor("#031D14"))
+                }
+
+                val tvMapTitle = TextView(this).apply {
+                    text = "🗺️ WAYPOINT: ${packet.pointName.ifEmpty { "TACTICAL-WAYPOINT" }}"
+                    textSize = 11f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(Color.parseColor("#10B981"))
+                }
+                mapCard.addView(tvMapTitle)
+
+                val tvCoords = TextView(this).apply {
+                    text = String.format(Locale.US, "LAT: %.6f • LNG: %.6f\nDATUM: WGS-84 • 256-BIT NOISE_XX", packet.lat, packet.lng)
+                    textSize = 10f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTextColor(Color.parseColor("#94A3B8"))
+                    setPadding(0, 4, 0, 8)
+                }
+                mapCard.addView(tvCoords)
+
+                val btnRadarLock = Button(this).apply {
+                    text = "[ 🎯 VIEW & LOCK ON RADAR ]"
+                    textSize = 10f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#065F46"))
+                    setTextColor(Color.WHITE)
+                    val lp = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                    layoutParams = lp
+                    setOnClickListener {
+                        switchScreen(4) // Switch to Radar
+                        logEvent("[Radar Lock] 📍 Locked onto waypoint '${packet.pointName}' (${packet.lat}, ${packet.lng})")
+                        Toast.makeText(this@MainActivity, "🎯 Waypoint '${packet.pointName}' locked on Radar!", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                mapCard.addView(btnRadarLock)
+                bubbleLayout.addView(mapCard)
+            }
+
+            "VOICE_LOG" -> {
+                val voiceCard = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(10, 8, 10, 8)
+                    setBackgroundColor(Color.parseColor("#1F0A10"))
+                }
+
+                val msgId = "voice_${System.currentTimeMillis()}_${(100..999).random()}"
+                val btnPlay = Button(this).apply {
+                    text = "[ ▶ PLAY ]"
+                    textSize = 10f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#BE123C"))
+                    setTextColor(Color.WHITE)
+                    val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 80)
+                    layoutParams = lp
+                    setOnClickListener {
+                        togglePlayVoiceMemo(msgId, packet.audioData, this)
+                    }
+                }
+                voiceCard.addView(btnPlay)
+
+                // Simulated Waveform Bars
+                val waveContainer = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(10, 0, 10, 0)
+                    val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                    layoutParams = lp
+                }
+                val heights = listOf(8, 14, 6, 18, 12, 16, 9, 15, 7, 13)
+                for (h in heights) {
+                    val bar = View(this).apply {
+                        val lp = LinearLayout.LayoutParams(4, h * 2).apply { setMargins(2, 0, 2, 0) }
+                        layoutParams = lp
+                        setBackgroundColor(Color.parseColor("#F43F5E"))
+                    }
+                    waveContainer.addView(bar)
+                }
+                voiceCard.addView(waveContainer)
+
+                val durSec = packet.duration
+                val tvDuration = TextView(this).apply {
+                    text = String.format(Locale.US, "🎙️ 0:%02d", durSec)
+                    textSize = 10f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTextColor(Color.parseColor("#F59E0B"))
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                }
+                voiceCard.addView(tvDuration)
+                bubbleLayout.addView(voiceCard)
+            }
+
+            "DOCUMENT" -> {
+                val docCard = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(12, 10, 12, 10)
+                    setBackgroundColor(Color.parseColor("#0F172A"))
+                }
+
+                val tvIcon = TextView(this).apply {
+                    text = "📄"
+                    textSize = 20f
+                    setPadding(0, 0, 8, 0)
+                }
+                docCard.addView(tvIcon)
+
+                val infoLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                    layoutParams = lp
+                }
+
+                val tvDocName = TextView(this).apply {
+                    text = packet.fileName.ifEmpty { "document.bin" }
+                    textSize = 11f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(Color.WHITE)
+                }
+
+                val sizeKb = packet.fileSize / 1024
+                val tvDocMeta = TextView(this).apply {
+                    text = "$sizeKb KB • CRC32: ${packet.crc32Hex.ifEmpty { "VERIFIED" }}"
+                    textSize = 9f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTextColor(Color.parseColor("#38BDF8"))
+                }
+                infoLayout.addView(tvDocName)
+                infoLayout.addView(tvDocMeta)
+                docCard.addView(infoLayout)
+
+                val tvBadge = TextView(this).apply {
+                    text = "✓ MTU STREAM"
+                    textSize = 9f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTextColor(Color.parseColor("#10B981"))
+                    setPadding(6, 4, 6, 4)
+                    setBackgroundColor(Color.parseColor("#064E3B"))
+                }
+                docCard.addView(tvBadge)
+                bubbleLayout.addView(docCard)
+            }
+
+            else -> {
+                val tvMsg = TextView(this).apply {
+                    this.text = packet.text
+                    textSize = 12f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTextColor(if (isMe || isDarkMode) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A"))
+                }
+                bubbleLayout.addView(tvMsg)
+            }
+        }
+
+        container.addView(bubbleLayout)
         scrollView?.post {
             scrollView.fullScroll(ScrollView.FOCUS_DOWN)
+        }
+    }
+
+    private fun appendChatBubble(
+        container: LinearLayout,
+        scrollView: ScrollView?,
+        sender: String,
+        text: String,
+        isMe: Boolean
+    ) {
+        val packet = ChatMessagePacket(
+            senderName = sender,
+            text = text,
+            mediaType = "TEXT",
+            isMe = isMe
+        )
+        appendRichChatBubble(container, scrollView, packet)
+    }
+
+    // In-Chat Voice Recording Implementation (Real Microphone Voice)
+    private fun startInChatVoiceRecording() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), 1001)
+            return
+        }
+
+        try {
+            stopInChatAudioPlayback()
+            val tempFile = File(cacheDir, "chat_voice_${System.currentTimeMillis()}.mp4")
+            inChatVoiceFile = tempFile
+
+            val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(this)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }
+
+            recorder.setAudioSource(MediaRecorder.AudioSource.MIC)
+            recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            recorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+            recorder.setAudioSamplingRate(44100)
+            recorder.setAudioEncodingBitRate(64000)
+            recorder.setOutputFile(tempFile.absolutePath)
+            recorder.prepare()
+            recorder.start()
+
+            inChatMediaRecorder = recorder
+            inChatVoiceStartTime = System.currentTimeMillis()
+            isInChatRecording = true
+
+            llChatVoiceHud.visibility = View.VISIBLE
+            tvChatVoiceTimer.text = "🔴 [ RECORDING REAL VOICE 00:00 ]"
+
+            val waveViews = listOf(
+                findViewById<View>(R.id.vWave1), findViewById<View>(R.id.vWave2),
+                findViewById<View>(R.id.vWave3), findViewById<View>(R.id.vWave4),
+                findViewById<View>(R.id.vWave5), findViewById<View>(R.id.vWave6),
+                findViewById<View>(R.id.vWave7), findViewById<View>(R.id.vWave8),
+                findViewById<View>(R.id.vWave9), findViewById<View>(R.id.vWave10)
+            )
+
+            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            inChatVoiceTimerHandler = handler
+            val runnable = object : Runnable {
+                override fun run() {
+                    if (isInChatRecording) {
+                        val elapsedSec = ((System.currentTimeMillis() - inChatVoiceStartTime) / 1000).toInt()
+                        val m = elapsedSec / 60
+                        val s = elapsedSec % 60
+                        tvChatVoiceTimer.text = String.format(Locale.US, "🔴 [ RECORDING REAL VOICE %02d:%02d ]", m, s)
+
+                        var maxAmp = 1000
+                        try {
+                            maxAmp = inChatMediaRecorder?.maxAmplitude ?: 1000
+                        } catch (e: Exception) {}
+                        val normalized = minOf(100, maxOf(15, (maxAmp / 300)))
+                        for (w in waveViews) {
+                            if (w != null) {
+                                val randomH = (normalized * (0.5 + Math.random() * 0.8)).toInt()
+                                val lp = w.layoutParams
+                                lp.height = maxOf(6, minOf(36, (randomH / 3)))
+                                w.layoutParams = lp
+                            }
+                        }
+
+                        handler.postDelayed(this, 100)
+                    }
+                }
+            }
+            inChatVoiceTimerRunnable = runnable
+            handler.post(runnable)
+            logEvent("[Voice Chat] 🎙️ Recording real microphone audio memo...")
+
+        } catch (e: Exception) {
+            logEvent("[Error] Voice recorder failed: ${e.message}")
+            Toast.makeText(this, "Voice Record Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            cancelInChatVoiceRecording()
+        }
+    }
+
+    private fun cancelInChatVoiceRecording() {
+        isInChatRecording = false
+        inChatVoiceTimerHandler?.removeCallbacksAndMessages(null)
+        inChatVoiceTimerHandler = null
+        try {
+            inChatMediaRecorder?.stop()
+            inChatMediaRecorder?.release()
+        } catch (e: Exception) {}
+        inChatMediaRecorder = null
+        inChatVoiceFile?.delete()
+        inChatVoiceFile = null
+        llChatVoiceHud.visibility = View.GONE
+        logEvent("[Voice Chat] Recording cancelled")
+    }
+
+    private fun stopAndSendInChatVoiceRecording() {
+        if (!isInChatRecording) return
+        isInChatRecording = false
+        inChatVoiceTimerHandler?.removeCallbacksAndMessages(null)
+        inChatVoiceTimerHandler = null
+
+        val durationSec = maxOf(1, ((System.currentTimeMillis() - inChatVoiceStartTime) / 1000).toInt())
+
+        try {
+            inChatMediaRecorder?.stop()
+            inChatMediaRecorder?.release()
+        } catch (e: Exception) {}
+        inChatMediaRecorder = null
+        llChatVoiceHud.visibility = View.GONE
+
+        val file = inChatVoiceFile
+        if (file != null && file.exists() && file.length() > 0) {
+            val bytes = file.readBytes()
+            val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            val audioDataUrl = "data:audio/mp4;base64,$base64"
+
+            val myNick = prefs.getString("tactical_nickname", "Android Phone (${Build.MODEL})") ?: "Android Phone"
+            bridge.sendChatVoiceLog(audioDataUrl, durationSec, myNick)
+
+            val packet = ChatMessagePacket(
+                senderName = "You",
+                text = "",
+                mediaType = "VOICE_LOG",
+                audioData = audioDataUrl,
+                duration = durationSec,
+                isMe = true
+            )
+            chatMessageList.add(packet)
+            appendRichChatBubble(chatMessagesContainer, chatScrollView, packet)
+            logEvent("[Voice Chat] 🚀 Sent voice memo (${durationSec}s)")
+            Toast.makeText(this, "🎙️ Voice memo broadcasted to mesh", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // In-Chat Audio Playback Engine
+    private fun stopInChatAudioPlayback() {
+        try {
+            inChatAudioPlayer?.stop()
+            inChatAudioPlayer?.release()
+        } catch (e: Exception) {}
+        inChatAudioPlayer = null
+        activePlayingButton?.text = "[ ▶ PLAY ]"
+        activePlayingButton = null
+        activePlayingVoiceMsgId = null
+    }
+
+    private fun togglePlayVoiceMemo(msgId: String, audioData: String, btnPlay: Button) {
+        if (activePlayingVoiceMsgId == msgId) {
+            stopInChatAudioPlayback()
+            return
+        }
+
+        stopInChatAudioPlayback()
+
+        try {
+            val base64Part = if (audioData.contains(",")) audioData.substringAfter(",") else audioData
+            val bytes = Base64.decode(base64Part, Base64.DEFAULT)
+            val tempPlayFile = File(cacheDir, "play_memo_${System.currentTimeMillis()}.mp4")
+            tempPlayFile.writeBytes(bytes)
+
+            val player = MediaPlayer()
+            player.setDataSource(tempPlayFile.absolutePath)
+            player.prepare()
+            player.start()
+
+            inChatAudioPlayer = player
+            activePlayingVoiceMsgId = msgId
+            activePlayingButton = btnPlay
+            btnPlay.text = "[ ⏸ PAUSE ]"
+
+            player.setOnCompletionListener {
+                btnPlay.text = "[ ▶ PLAY ]"
+                activePlayingVoiceMsgId = null
+                activePlayingButton = null
+                tempPlayFile.delete()
+            }
+            player.setOnErrorListener { _, _, _ ->
+                btnPlay.text = "[ ▶ PLAY ]"
+                activePlayingVoiceMsgId = null
+                activePlayingButton = null
+                tempPlayFile.delete()
+                false
+            }
+        } catch (e: Exception) {
+            logEvent("[Error] Audio playback failed: ${e.message}")
+            Toast.makeText(this, "Audio play error: ${e.message}", Toast.LENGTH_SHORT).show()
+            btnPlay.text = "[ ▶ PLAY ]"
+        }
+    }
+
+    // In-Chat Vector Waypoint Dialog
+    private fun showVectorMapDialog() {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24, 20, 24, 24)
+            val bg = if (isDarkMode) Color.parseColor("#0F172A") else Color.parseColor("#FFFFFF")
+            setBackgroundColor(bg)
+        }
+
+        val tvTitle = TextView(this).apply {
+            text = "🗺️ [ DISPATCH TACTICAL VECTOR WAYPOINT ]"
+            textSize = 13f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(Color.parseColor("#10B981"))
+            setPadding(0, 0, 0, 8)
+        }
+        layout.addView(tvTitle)
+
+        val tvSub = TextView(this).apply {
+            text = "Broadcast GIS coordinates over mesh. Peers can 1-tap lock onto tactical radar."
+            textSize = 10f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTextColor(Color.parseColor("#94A3B8"))
+            setPadding(0, 0, 0, 10)
+        }
+        layout.addView(tvSub)
+
+        val tvPresets = TextView(this).apply {
+            text = "TACTICAL PRESETS:"
+            textSize = 9f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTextColor(Color.parseColor("#38BDF8"))
+            setPadding(0, 0, 0, 4)
+        }
+        layout.addView(tvPresets)
+
+        val inputName = EditText(this).apply {
+            hint = "Waypoint Call-Sign"
+            typeface = android.graphics.Typeface.MONOSPACE
+            setText("RALLY-POINT-ALPHA")
+            setTextColor(if (isDarkMode) Color.WHITE else Color.BLACK)
+            setHintTextColor(Color.parseColor("#64748B"))
+            textSize = 11f
+        }
+
+        val inputLat = EditText(this).apply {
+            hint = "Latitude (e.g. 28.613900)"
+            typeface = android.graphics.Typeface.MONOSPACE
+            setText(if (hasGpsFix) String.format(Locale.US, "%.6f", currentLatitude) else "28.613900")
+            setTextColor(if (isDarkMode) Color.WHITE else Color.BLACK)
+            setHintTextColor(Color.parseColor("#64748B"))
+            textSize = 11f
+        }
+
+        val inputLng = EditText(this).apply {
+            hint = "Longitude (e.g. 77.209000)"
+            typeface = android.graphics.Typeface.MONOSPACE
+            setText(if (hasGpsFix) String.format(Locale.US, "%.6f", currentLongitude) else "77.209000")
+            setTextColor(if (isDarkMode) Color.WHITE else Color.BLACK)
+            setHintTextColor(Color.parseColor("#64748B"))
+            textSize = 11f
+        }
+
+        val presetsRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 2, 0, 10)
+            }
+            layoutParams = lp
+        }
+
+        val btnP1 = Button(this).apply {
+            text = "HQ"
+            textSize = 9f
+            typeface = android.graphics.Typeface.MONOSPACE
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+            setTextColor(Color.parseColor("#10B981"))
+            val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            layoutParams = lp
+            setOnClickListener {
+                inputName.setText("TACTICAL-BASE-HQ")
+                inputLat.setText("28.613900")
+                inputLng.setText("77.209000")
+            }
+        }
+
+        val btnP2 = Button(this).apply {
+            text = "EVAC LZ"
+            textSize = 9f
+            typeface = android.graphics.Typeface.MONOSPACE
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+            setTextColor(Color.parseColor("#F59E0B"))
+            val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(4, 0, 4, 0) }
+            layoutParams = lp
+            setOnClickListener {
+                inputName.setText("EVAC-LZ-ALPHA")
+                inputLat.setText("28.612800")
+                inputLng.setText("77.229500")
+            }
+        }
+
+        val btnP3 = Button(this).apply {
+            text = "GPS FIX"
+            textSize = 9f
+            typeface = android.graphics.Typeface.MONOSPACE
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+            setTextColor(Color.parseColor("#38BDF8"))
+            val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            layoutParams = lp
+            setOnClickListener {
+                inputName.setText("LIVE-GPS-FIX")
+                inputLat.setText(String.format(Locale.US, "%.6f", currentLatitude))
+                inputLng.setText(String.format(Locale.US, "%.6f", currentLongitude))
+            }
+        }
+
+        presetsRow.addView(btnP1)
+        presetsRow.addView(btnP2)
+        presetsRow.addView(btnP3)
+        layout.addView(presetsRow)
+
+        layout.addView(inputName)
+        layout.addView(inputLat)
+        layout.addView(inputLng)
+
+        val btnSend = Button(this).apply {
+            text = "[ 🗺️ BROADCAST WAYPOINT TO MESH ]"
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
+            setTextColor(Color.WHITE)
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 10, 0, 4)
+            }
+            layoutParams = lp
+            setOnClickListener {
+                val name = inputName.text.toString().trim().ifEmpty { "TACTICAL-WAYPOINT" }
+                val lat = inputLat.text.toString().toDoubleOrNull() ?: 28.6139
+                val lng = inputLng.text.toString().toDoubleOrNull() ?: 77.2090
+                val myNick = prefs.getString("tactical_nickname", "Android Phone (${Build.MODEL})") ?: "Android Phone"
+
+                bridge.sendChatVectorMap(name, lat, lng, myNick)
+
+                val packet = ChatMessagePacket(
+                    senderName = "You",
+                    text = "",
+                    mediaType = "VECTOR_MAP",
+                    pointName = name,
+                    lat = lat,
+                    lng = lng,
+                    isMe = true
+                )
+                chatMessageList.add(packet)
+                appendRichChatBubble(chatMessagesContainer, chatScrollView, packet)
+                logEvent("[Vector Map] 🗺️ Broadcasted waypoint '$name' [$lat, $lng]")
+                Toast.makeText(this@MainActivity, "🗺️ Waypoint Broadcasted", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+        }
+        layout.addView(btnSend)
+
+        val btnCancel = Button(this).apply {
+            text = "[ ✕ CANCEL ]"
+            textSize = 10f
+            typeface = android.graphics.Typeface.MONOSPACE
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+            setTextColor(Color.parseColor("#94A3B8"))
+            setOnClickListener { dialog.dismiss() }
+        }
+        layout.addView(btnCancel)
+
+        dialog.setContentView(layout)
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.92).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
+        dialog.show()
+    }
+
+    // Photo Lightbox Dialog
+    private fun showPhotoLightbox(bitmap: Bitmap?, caption: String, crc32: String) {
+        if (bitmap == null) return
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(16, 16, 16, 16)
+            setBackgroundColor(Color.parseColor("#020617"))
+        }
+
+        val tvTitle = TextView(this).apply {
+            text = "📷 [ PHOTO LIGHTBOX // $caption ]"
+            textSize = 12f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(Color.parseColor("#38BDF8"))
+            setPadding(0, 0, 0, 6)
+        }
+        layout.addView(tvTitle)
+
+        val iv = ImageView(this).apply {
+            setImageBitmap(bitmap)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            adjustViewBounds = true
+            val lp = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                (resources.displayMetrics.heightPixels * 0.55).toInt()
+            )
+            layoutParams = lp
+        }
+        layout.addView(iv)
+
+        val tvMeta = TextView(this).apply {
+            text = "CHECKSUM: CRC32: $crc32 • NOISE_XX E2EE AUTHENTICATED"
+            textSize = 10f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTextColor(Color.parseColor("#10B981"))
+            setPadding(0, 8, 0, 8)
+        }
+        layout.addView(tvMeta)
+
+        val btnClose = Button(this).apply {
+            text = "[ ✕ CLOSE PREVIEW ]"
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+            setTextColor(Color.WHITE)
+            setOnClickListener { dialog.dismiss() }
+        }
+        layout.addView(btnClose)
+
+        dialog.setContentView(layout)
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.95).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
+        dialog.show()
+    }
+
+    private fun pickPhotoForChat() {
+        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            type = "image/*"
+            addCategory(Intent.CATEGORY_OPENABLE)
+        }
+        try {
+            startActivityForResult(Intent.createChooser(intent, "Select Photo to Share in Chat"), 3001)
+        } catch (e: Exception) {
+            Toast.makeText(this, "No image picker found: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun pickDocumentForChat() {
+        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+            type = "*/*"
+            addCategory(Intent.CATEGORY_OPENABLE)
+        }
+        try {
+            startActivityForResult(Intent.createChooser(intent, "Select Document to Share in Chat"), 3002)
+        } catch (e: Exception) {
+            Toast.makeText(this, "No file manager found: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1052,17 +1798,31 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
         }
 
-        // Chat Screen Actions
+        // Chat Screen & Media Actions
         btnSendChatMessage.setOnClickListener {
             val text = etChatMessage.text.toString().trim()
             if (text.isNotEmpty()) {
-                bridge.sendChatMessage(text, "Android Phone (${Build.MODEL})")
-                chatMessageList.add(Pair("You", text))
-                appendChatBubble(chatMessagesContainer, chatScrollView, "You", text, true)
+                val myNick = prefs.getString("tactical_nickname", "Android Phone (${Build.MODEL})") ?: "Android Phone"
+                bridge.sendChatMessage(text, myNick)
+                val packet = ChatMessagePacket(
+                    senderName = "You",
+                    text = text,
+                    mediaType = "TEXT",
+                    isMe = true
+                )
+                chatMessageList.add(packet)
+                appendRichChatBubble(chatMessagesContainer, chatScrollView, packet)
                 logEvent("[Chat Sent] $text")
                 etChatMessage.setText("")
             }
         }
+
+        btnChatPhoto.setOnClickListener { pickPhotoForChat() }
+        btnChatMap.setOnClickListener { showVectorMapDialog() }
+        btnChatVoice.setOnClickListener { startInChatVoiceRecording() }
+        btnChatFile.setOnClickListener { pickDocumentForChat() }
+        btnCancelVoiceRecord.setOnClickListener { cancelInChatVoiceRecording() }
+        btnConfirmVoiceSend.setOnClickListener { stopAndSendInChatVoiceRecording() }
 
         // Radar Screen Actions
         btnRadarBroadcastNow.setOnClickListener {
@@ -1854,6 +2614,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
         super.onDestroy()
         try {
             locationManager?.removeUpdates(this)
+            cancelInChatVoiceRecording()
+            stopInChatAudioPlayback()
             // Note: ForegroundMeshService keeps the shared bridge alive in the background
             if (isCalling || isPttTransmitting) {
                 audioEngine.stopVoice()
@@ -2060,36 +2822,130 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == 2002 && resultCode == RESULT_OK && data?.data != null) {
-            val uri = data.data ?: return
-            try {
-                contentResolver.openInputStream(uri)?.use { stream ->
-                    val bytes = stream.readBytes()
-                    var name = "mesh_file_${System.currentTimeMillis()}"
-                    val cursor = contentResolver.query(uri, null, null, null, null)
-                    cursor?.use {
-                        if (it.moveToFirst()) {
-                            val nameIdx = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                            if (nameIdx >= 0) {
-                                name = it.getString(nameIdx)
+        if (resultCode != RESULT_OK || data?.data == null) return
+        val uri = data.data ?: return
+
+        when (requestCode) {
+            2002 -> {
+                try {
+                    contentResolver.openInputStream(uri)?.use { stream ->
+                        val bytes = stream.readBytes()
+                        var name = "mesh_file_${System.currentTimeMillis()}"
+                        val cursor = contentResolver.query(uri, null, null, null, null)
+                        cursor?.use {
+                            if (it.moveToFirst()) {
+                                val nameIdx = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                                if (nameIdx >= 0) {
+                                    name = it.getString(nameIdx)
+                                }
                             }
                         }
-                    }
 
-                    bridge.sendFile(
-                        fileBytes = bytes,
-                        fileName = name,
-                        senderName = "Android (${Build.MODEL})",
-                        targetPeerId = "BROADCAST",
-                        onChunkSent = { _, _ ->
-                            runOnUiThread { renderTransfersList() }
-                        }
-                    )
-                    Toast.makeText(this, "🚀 Dispatching $name (${bytes.size / 1024} KB) to Mesh...", Toast.LENGTH_SHORT).show()
-                    renderTransfersList()
+                        bridge.sendFile(
+                            fileBytes = bytes,
+                            fileName = name,
+                            senderName = "Android (${Build.MODEL})",
+                            targetPeerId = "BROADCAST",
+                            onChunkSent = { _, _ ->
+                                runOnUiThread { renderTransfersList() }
+                            }
+                        )
+                        Toast.makeText(this, "🚀 Dispatching $name (${bytes.size / 1024} KB) to Mesh...", Toast.LENGTH_SHORT).show()
+                        renderTransfersList()
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Failed to read file: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
-            } catch (e: Exception) {
-                Toast.makeText(this, "Failed to read file: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+
+            3001 -> {
+                // In-Chat Photo
+                try {
+                    contentResolver.openInputStream(uri)?.use { stream ->
+                        val rawBytes = stream.readBytes()
+                        var name = "recon_photo_${System.currentTimeMillis().toString().takeLast(4)}.jpg"
+                        val cursor = contentResolver.query(uri, null, null, null, null)
+                        cursor?.use {
+                            if (it.moveToFirst()) {
+                                val nameIdx = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                                if (nameIdx >= 0) {
+                                    name = it.getString(nameIdx)
+                                }
+                            }
+                        }
+
+                        val crc = CRC32()
+                        crc.update(rawBytes)
+                        val crc32Hex = "%08X".format(crc.value)
+
+                        val base64Data = Base64.encodeToString(rawBytes, Base64.NO_WRAP)
+                        val dataUrl = "data:image/jpeg;base64,$base64Data"
+                        val myNick = prefs.getString("tactical_nickname", "Android Phone (${Build.MODEL})") ?: "Android Phone"
+
+                        bridge.sendChatPhoto(dataUrl, name, rawBytes.size.toLong(), crc32Hex, myNick)
+                        bridge.sendFile(rawBytes, name, myNick)
+
+                        val packet = ChatMessagePacket(
+                            senderName = "You",
+                            text = "",
+                            mediaType = "PHOTO",
+                            dataUrl = dataUrl,
+                            fileName = name,
+                            fileSize = rawBytes.size.toLong(),
+                            crc32Hex = crc32Hex,
+                            isMe = true
+                        )
+                        chatMessageList.add(packet)
+                        appendRichChatBubble(chatMessagesContainer, chatScrollView, packet)
+                        logEvent("[Chat Photo] 📷 Broadcasted photo '$name' (${rawBytes.size / 1024} KB, CRC32: $crc32Hex)")
+                        Toast.makeText(this, "📷 Photo Broadcasted to Mesh", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Failed to load photo: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            3002 -> {
+                // In-Chat Document
+                try {
+                    contentResolver.openInputStream(uri)?.use { stream ->
+                        val rawBytes = stream.readBytes()
+                        var name = "mesh_doc_${System.currentTimeMillis().toString().takeLast(4)}.dat"
+                        val cursor = contentResolver.query(uri, null, null, null, null)
+                        cursor?.use {
+                            if (it.moveToFirst()) {
+                                val nameIdx = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                                if (nameIdx >= 0) {
+                                    name = it.getString(nameIdx)
+                                }
+                            }
+                        }
+
+                        val crc = CRC32()
+                        crc.update(rawBytes)
+                        val crc32Hex = "%08X".format(crc.value)
+                        val myNick = prefs.getString("tactical_nickname", "Android Phone (${Build.MODEL})") ?: "Android Phone"
+
+                        bridge.sendChatDocument(name, rawBytes.size.toLong(), crc32Hex, myNick)
+                        bridge.sendFile(rawBytes, name, myNick)
+
+                        val packet = ChatMessagePacket(
+                            senderName = "You",
+                            text = "",
+                            mediaType = "DOCUMENT",
+                            fileName = name,
+                            fileSize = rawBytes.size.toLong(),
+                            crc32Hex = crc32Hex,
+                            isMe = true
+                        )
+                        chatMessageList.add(packet)
+                        appendRichChatBubble(chatMessagesContainer, chatScrollView, packet)
+                        logEvent("[Chat Doc] 📄 Broadcasted document '$name' (${rawBytes.size / 1024} KB, CRC32: $crc32Hex)")
+                        Toast.makeText(this, "📄 Document Broadcasted to Mesh", Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Failed to load document: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }

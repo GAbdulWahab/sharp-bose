@@ -39,6 +39,23 @@ data class PeerNode(
     val transport: String = "AUTO_P2P"
 )
 
+data class ChatMessagePacket(
+    val senderName: String,
+    val text: String = "",
+    val mediaType: String = "TEXT", // "TEXT", "PHOTO", "VECTOR_MAP", "VOICE_LOG", "DOCUMENT"
+    val dataUrl: String = "",
+    val audioData: String = "",
+    val duration: Int = 0,
+    val pointName: String = "",
+    val lat: Double = 0.0,
+    val lng: Double = 0.0,
+    val fileName: String = "",
+    val fileSize: Long = 0L,
+    val crc32Hex: String = "",
+    val isMe: Boolean = false,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 enum class RadioTransportMode {
     BLUETOOTH_ONLY,
     WIFI_ONLY,
@@ -87,6 +104,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
     var onPttStarted: ((speakerName: String) -> Unit)? = null
     var onPttStopped: (() -> Unit)? = null
     var onChatMessageReceived: ((senderName: String, text: String) -> Unit)? = null
+    var onRichChatMessageReceived: ((ChatMessagePacket) -> Unit)? = null
     var onMeshStatusChanged: ((String) -> Unit)? = null
     var onStatusChanged: ((status: String, isConnected: Boolean) -> Unit)? = null
     var onPeersUpdated: ((List<PeerNode>) -> Unit)? = null
@@ -642,12 +660,38 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                     if (cipherText.isNotEmpty()) {
                         msgText = crypto.decryptText(cipherText)
                     }
-                    if (msgText.isNotEmpty()) {
-                        val sig = "${senderName}_${msgText}_${System.currentTimeMillis() / 2500}"
-                        if (recentChatSignatures.add(sig)) {
-                            if (recentChatSignatures.size > 200) recentChatSignatures.clear()
-                            onChatMessageReceived?.invoke(senderName, msgText)
-                        }
+                    val mediaType = json.optString("mediaType", if (json.has("dataUrl")) "PHOTO" else if (json.has("pointName")) "VECTOR_MAP" else if (json.has("audioData")) "VOICE_LOG" else if (json.has("fileName")) "DOCUMENT" else "TEXT")
+                    val dataUrl = json.optString("dataUrl", "")
+                    val audioData = json.optString("audioData", "")
+                    val duration = json.optInt("duration", 0)
+                    val pointName = json.optString("pointName", "")
+                    val lat = json.optDouble("lat", 0.0)
+                    val lng = json.optDouble("lng", 0.0)
+                    val fileName = json.optString("fileName", "")
+                    val fileSize = json.optLong("fileSize", 0L)
+                    val crc32Hex = json.optString("crc32Hex", "")
+
+                    val sigKey = if (mediaType != "TEXT") "${senderName}_${mediaType}_${fileName}_${pointName}_${duration}" else "${senderName}_${msgText}"
+                    val sig = "${sigKey}_${System.currentTimeMillis() / 2500}"
+                    if (recentChatSignatures.add(sig)) {
+                        if (recentChatSignatures.size > 200) recentChatSignatures.clear()
+                        val packet = ChatMessagePacket(
+                            senderName = senderName,
+                            text = msgText,
+                            mediaType = mediaType,
+                            dataUrl = dataUrl,
+                            audioData = audioData,
+                            duration = duration,
+                            pointName = pointName,
+                            lat = lat,
+                            lng = lng,
+                            fileName = fileName,
+                            fileSize = fileSize,
+                            crc32Hex = crc32Hex,
+                            isMe = false
+                        )
+                        onRichChatMessageReceived?.invoke(packet)
+                        onChatMessageReceived?.invoke(senderName, msgText.ifEmpty { "[$mediaType]" })
                     }
                 }
                 "PEER_LIST" -> {
@@ -750,8 +794,57 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
         val cipherText = crypto.encryptText(text)
         sendJson(JSONObject().apply {
             put("type", "CHAT_MSG")
+            put("mediaType", "TEXT")
             put("text", text)
             put("cipherText", cipherText)
+            put("senderName", senderName)
+            put("isE2ee", true)
+        })
+    }
+
+    fun sendChatPhoto(dataUrl: String, fileName: String, fileSize: Long, crc32: String, senderName: String = "Android Phone") {
+        sendJson(JSONObject().apply {
+            put("type", "CHAT_MSG")
+            put("mediaType", "PHOTO")
+            put("dataUrl", dataUrl)
+            put("fileName", fileName)
+            put("fileSize", fileSize)
+            put("crc32Hex", crc32)
+            put("senderName", senderName)
+            put("isE2ee", true)
+        })
+    }
+
+    fun sendChatVectorMap(pointName: String, lat: Double, lng: Double, senderName: String = "Android Phone") {
+        sendJson(JSONObject().apply {
+            put("type", "CHAT_MSG")
+            put("mediaType", "VECTOR_MAP")
+            put("pointName", pointName)
+            put("lat", lat)
+            put("lng", lng)
+            put("senderName", senderName)
+            put("isE2ee", true)
+        })
+    }
+
+    fun sendChatVoiceLog(audioDataUrl: String, durationSec: Int, senderName: String = "Android Phone") {
+        sendJson(JSONObject().apply {
+            put("type", "CHAT_MSG")
+            put("mediaType", "VOICE_LOG")
+            put("audioData", audioDataUrl)
+            put("duration", durationSec)
+            put("senderName", senderName)
+            put("isE2ee", true)
+        })
+    }
+
+    fun sendChatDocument(fileName: String, fileSize: Long, crc32: String, senderName: String = "Android Phone") {
+        sendJson(JSONObject().apply {
+            put("type", "CHAT_MSG")
+            put("mediaType", "DOCUMENT")
+            put("fileName", fileName)
+            put("fileSize", fileSize)
+            put("crc32Hex", crc32)
             put("senderName", senderName)
             put("isE2ee", true)
         })
