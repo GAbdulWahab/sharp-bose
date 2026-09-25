@@ -82,8 +82,15 @@ class AndroidMeshServer(
                 } catch (e: Exception) {}
                 val input = socket.getInputStream()
                 val output = socket.getOutputStream()
-                val defaultId = "node-" + Math.random().toString().substring(2, 7)
-                val info = ClientInfo(defaultId, "Android Peer", "Android")
+                val remoteIp = socket.inetAddress?.hostAddress ?: "peer"
+                val ipHash = try {
+                    val md5 = MessageDigest.getInstance("MD5").digest(remoteIp.toByteArray())
+                    md5.joinToString("") { "%02x".format(it) }.take(6)
+                } catch (e: Exception) {
+                    "client"
+                }
+                val defaultId = "node-$ipHash"
+                val info = ClientInfo(defaultId, "Mesh Companion", "Desktop")
                 val session = ClientSession(socket, input, output, info)
 
                 // Perform WebSocket HTTP Handshake
@@ -118,10 +125,44 @@ class AndroidMeshServer(
         val request = String(buffer, 0, bytesRead)
         val lines = request.split("\r\n")
 
+        // Parse GET request line for permanent nodeId parameter
+        if (lines.isNotEmpty()) {
+            val reqLine = lines[0]
+            val parts = reqLine.split(" ")
+            if (parts.size >= 2) {
+                val uri = parts[1]
+                val qIdx = uri.indexOf('?')
+                if (qIdx != -1 && qIdx < uri.length - 1) {
+                    val query = uri.substring(qIdx + 1)
+                    val params = query.split("&")
+                    for (p in params) {
+                        val kv = p.split("=")
+                        if (kv.size == 2 && (kv[0].equals("nodeId", true) || kv[0].equals("id", true))) {
+                            try {
+                                val decoded = java.net.URLDecoder.decode(kv[1], "UTF-8").trim()
+                                if (decoded.isNotEmpty()) {
+                                    session.info.id = decoded
+                                }
+                            } catch (e: Exception) {}
+                        }
+                    }
+                }
+            }
+        }
+
         var wsKey = ""
         for (line in lines) {
             if (line.startsWith("Sec-WebSocket-Key:", ignoreCase = true)) {
                 wsKey = line.substring(18).trim()
+            } else if (line.startsWith("User-Agent:", ignoreCase = true)) {
+                val ua = line.substring(11).trim()
+                if (ua.contains("Android", true)) {
+                    session.info.deviceType = "Android"
+                    session.info.nickname = "Android Phone"
+                } else {
+                    session.info.deviceType = "Desktop"
+                    session.info.nickname = "Desktop Terminal"
+                }
             }
         }
 
@@ -241,6 +282,10 @@ class AndroidMeshServer(
             }
 
             if (type == "SET_NICKNAME") {
+                val preferredId = data.optString("id", data.optString("nodeId", ""))
+                if (preferredId.isNotEmpty()) {
+                    sender.info.id = preferredId
+                }
                 sender.info.nickname = data.optString("nickname", sender.info.nickname)
                 sender.info.deviceType = data.optString("deviceType", sender.info.deviceType)
                 if (data.has("room")) sender.info.room = data.optString("room")

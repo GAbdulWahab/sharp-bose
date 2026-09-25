@@ -374,7 +374,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
         tvLogsHeader = findViewById(R.id.tvLogsHeader)
         tvLogs = findViewById(R.id.tvLogs)
 
-        tvPeerId.text = "NODE ID: $localPeerId • CIPHER: NOISE_XX"
+        val cleanId = localPeerId.replace("node-", "")
+        val anonSuffix = if (cleanId.length >= 4) cleanId.takeLast(4).uppercase(Locale.ROOT) else cleanId.uppercase(Locale.ROOT)
+        tvPeerId.text = "NODE ID: ANON-$anonSuffix ($localPeerId) • CIPHER: NOISE_XX"
     }
 
     private fun switchScreen(tabIndex: Int) {
@@ -699,7 +701,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
         bridge.onMeshStatusChanged = { status ->
             runOnUiThread {
                 tvStatus.text = status
-                tvPeerId.text = "NODE ID: $localPeerId • CIPHER: NOISE_XX"
+                val cleanId = localPeerId.replace("node-", "")
+                val anonSuffix = if (cleanId.length >= 4) cleanId.takeLast(4).uppercase(Locale.ROOT) else cleanId.uppercase(Locale.ROOT)
+                tvPeerId.text = "NODE ID: ANON-$anonSuffix ($localPeerId) • CIPHER: NOISE_XX"
                 if (status.contains("Online", true) || status.contains("Connected", true) || status.contains("Active", true)) {
                     tvStatus.setTextColor(ContextCompat.getColor(this, R.color.neon_emerald))
                 } else {
@@ -713,7 +717,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         bridge.onPeersUpdated = { peers ->
             runOnUiThread {
-                tvPeerId.text = "NODE ID: $localPeerId • CIPHER: NOISE_XX"
+                val cleanId = localPeerId.replace("node-", "")
+                val anonSuffix = if (cleanId.length >= 4) cleanId.takeLast(4).uppercase(Locale.ROOT) else cleanId.uppercase(Locale.ROOT)
+                tvPeerId.text = "NODE ID: ANON-$anonSuffix ($localPeerId) • CIPHER: NOISE_XX"
                 connectedPeersList = peers.toMutableList()
                 if (currentTabIndex == 0) {
                     renderConnectedPeopleList(connectedPeersList)
@@ -1164,7 +1170,19 @@ class MainActivity : AppCompatActivity(), LocationListener {
                     orientation = LinearLayout.HORIZONTAL
                     gravity = Gravity.CENTER_VERTICAL
                     setPadding(12, 10, 12, 10)
-                    setBackgroundColor(Color.parseColor("#0F172A"))
+                    background = GradientDrawable().apply {
+                        setColor(Color.parseColor("#0F172A"))
+                        cornerRadius = 10f
+                        setStroke(1, Color.parseColor("#1E293B"))
+                    }
+                    isClickable = true
+                    isFocusable = true
+                    setOnClickListener {
+                        val rawBytes = if (packet.fileData.isNotEmpty()) {
+                            try { android.util.Base64.decode(packet.fileData, android.util.Base64.DEFAULT) } catch(e: Exception) { null }
+                        } else null
+                        showDocumentViewerDialog(packet.fileName, rawBytes, packet.crc32Hex.ifEmpty { "VERIFIED" })
+                    }
                 }
 
                 val tvIcon = TextView(this).apply {
@@ -1199,15 +1217,23 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 infoLayout.addView(tvDocMeta)
                 docCard.addView(infoLayout)
 
-                val tvBadge = TextView(this).apply {
-                    text = "✓ MTU STREAM"
+                val btnOpen = Button(this).apply {
+                    text = "[ 📂 OPEN ]"
                     textSize = 9f
                     typeface = android.graphics.Typeface.MONOSPACE
-                    setTextColor(Color.parseColor("#10B981"))
-                    setPadding(6, 4, 6, 4)
-                    setBackgroundColor(Color.parseColor("#064E3B"))
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
+                    setTextColor(Color.WHITE)
+                    val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 72)
+                    layoutParams = lp
+                    setOnClickListener {
+                        val rawBytes = if (packet.fileData.isNotEmpty()) {
+                            try { android.util.Base64.decode(packet.fileData, android.util.Base64.DEFAULT) } catch(e: Exception) { null }
+                        } else null
+                        showDocumentViewerDialog(packet.fileName, rawBytes, packet.crc32Hex.ifEmpty { "VERIFIED" })
+                    }
                 }
-                docCard.addView(tvBadge)
+                docCard.addView(btnOpen)
                 bubbleLayout.addView(docCard)
             }
 
@@ -2744,6 +2770,23 @@ class MainActivity : AppCompatActivity(), LocationListener {
             headerRow.addView(tvIcon)
             headerRow.addView(infoLayout)
             headerRow.addView(tvStatusBadge)
+
+            if (tx.isCompleted) {
+                val btnOpenTx = Button(this).apply {
+                    text = "[ 📂 OPEN ]"
+                    textSize = 9f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
+                    setTextColor(Color.WHITE)
+                    val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 72).apply { setMargins(8, 0, 0, 0) }
+                    layoutParams = lp
+                    setOnClickListener {
+                        showDocumentViewerDialog(tx.fileName, null, tx.crc32Hex)
+                    }
+                }
+                headerRow.addView(btnOpenTx)
+            }
             card.addView(headerRow)
 
             // Progress Bar
@@ -2926,7 +2969,17 @@ class MainActivity : AppCompatActivity(), LocationListener {
                         val crc32Hex = "%08X".format(crc.value)
                         val myNick = prefs.getString("tactical_nickname", "Android Phone (${Build.MODEL})") ?: "Android Phone"
 
-                        bridge.sendChatDocument(name, rawBytes.size.toLong(), crc32Hex, myNick)
+                        val fileBase64 = if (rawBytes.size <= 1024 * 1024) {
+                            android.util.Base64.encodeToString(rawBytes, android.util.Base64.NO_WRAP)
+                        } else ""
+
+                        try {
+                            val docsDir = File(cacheDir, "mesh_docs").apply { mkdirs() }
+                            val targetFile = File(docsDir, name)
+                            FileOutputStream(targetFile).use { it.write(rawBytes) }
+                        } catch (e: Exception) {}
+
+                        bridge.sendChatDocument(name, rawBytes.size.toLong(), crc32Hex, myNick, fileBase64)
                         bridge.sendFile(rawBytes, name, myNick)
 
                         val packet = ChatMessagePacket(
@@ -2936,6 +2989,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                             fileName = name,
                             fileSize = rawBytes.size.toLong(),
                             crc32Hex = crc32Hex,
+                            fileData = fileBase64,
                             isMe = true
                         )
                         chatMessageList.add(packet)
@@ -2947,6 +3001,150 @@ class MainActivity : AppCompatActivity(), LocationListener {
                     Toast.makeText(this, "Failed to load document: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
             }
+        }
+    }
+
+    private fun showDocumentViewerDialog(fileName: String, rawBytes: ByteArray? = null, crc32Hex: String = "VERIFIED") {
+        try {
+            val docsDir = File(cacheDir, "mesh_docs").apply { mkdirs() }
+            val targetFile = File(docsDir, fileName)
+
+            var bytes = rawBytes
+            if (bytes == null && targetFile.exists()) {
+                bytes = targetFile.readBytes()
+            }
+            if (bytes == null) {
+                val transferDir = File(getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS), "mesh_transfers")
+                val existing = File(transferDir, fileName)
+                if (existing.exists()) {
+                    bytes = existing.readBytes()
+                }
+            }
+            if (bytes != null && (!targetFile.exists() || targetFile.length() == 0L)) {
+                try {
+                    FileOutputStream(targetFile).use { it.write(bytes) }
+                } catch (e: Exception) {}
+            }
+
+            val dialog = Dialog(this)
+            dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+            dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+
+            val modalRoot = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(24, 20, 24, 20)
+                background = GradientDrawable().apply {
+                    setColor(Color.parseColor("#0F172A"))
+                    cornerRadius = 18f
+                    setStroke(2, Color.parseColor("#38BDF8"))
+                }
+                val lp = LinearLayout.LayoutParams(
+                    (resources.displayMetrics.widthPixels * 0.90).toInt(),
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+                layoutParams = lp
+            }
+
+            val tvTitle = TextView(this).apply {
+                text = "📄 TACTICAL DOCUMENT VIEWER"
+                textSize = 14f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(Color.parseColor("#38BDF8"))
+                setPadding(0, 0, 0, 4)
+            }
+            modalRoot.addView(tvTitle)
+
+            val sizeKb = (bytes?.size?.toLong() ?: targetFile.length()) / 1024
+            val tvMeta = TextView(this).apply {
+                text = "FILE: $fileName • SIZE: $sizeKb KB • CRC32: $crc32Hex"
+                textSize = 10f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextColor(Color.parseColor("#94A3B8"))
+                setPadding(0, 0, 0, 10)
+            }
+            modalRoot.addView(tvMeta)
+
+            val previewScroll = ScrollView(this).apply {
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    360
+                )
+                layoutParams = lp
+                setBackgroundColor(Color.parseColor("#020617"))
+                setPadding(12, 10, 12, 10)
+            }
+
+            val tvPreview = TextView(this).apply {
+                textSize = 11f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextColor(Color.parseColor("#F8FAFC"))
+                val contentStr = if (bytes != null && bytes.isNotEmpty()) {
+                    val isText = fileName.endsWith(".txt", true) || fileName.endsWith(".json", true) || fileName.endsWith(".geojson", true) || fileName.endsWith(".log", true) || fileName.endsWith(".md", true) || fileName.endsWith(".csv", true) || fileName.endsWith(".xml", true) || fileName.endsWith(".html", true)
+                    if (isText) {
+                        try { String(bytes, Charsets.UTF_8).take(2500) } catch(e: Exception) { "[Binary Payload: ${bytes.size} bytes]" }
+                    } else {
+                        val hex = bytes.take(96).joinToString(" ") { "%02X".format(it) }
+                        "[Tactical Binary File Content]\nCRC32 Checksum: $crc32Hex\nTotal Length: ${bytes.size} bytes\n\nHex View:\n$hex"
+                    }
+                } else {
+                    "[Document cached on device: ${targetFile.name}]"
+                }
+                text = contentStr
+            }
+            previewScroll.addView(tvPreview)
+            modalRoot.addView(previewScroll)
+
+            val btnRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.END
+                setPadding(0, 14, 0, 0)
+            }
+
+            val btnExternalOpen = Button(this).apply {
+                text = "[ 📂 SYSTEM APP ]"
+                textSize = 10f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
+                setTextColor(Color.WHITE)
+                val lp = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f).apply { setMargins(0, 0, 8, 0) }
+                layoutParams = lp
+                setOnClickListener {
+                    try {
+                        val uri = androidx.core.content.FileProvider.getUriForFile(this@MainActivity, "${packageName}.fileprovider", targetFile)
+                        val mime = contentResolver.getType(uri) ?: "*/*"
+                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, mime)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        startActivity(Intent.createChooser(intent, "Open with..."))
+                        dialog.dismiss()
+                    } catch (e: Exception) {
+                        Toast.makeText(this@MainActivity, "No app found to open this document: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+
+            val btnClose = Button(this).apply {
+                text = "[ ✕ CLOSE ]"
+                textSize = 10f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#475569"))
+                setTextColor(Color.WHITE)
+                setOnClickListener { dialog.dismiss() }
+            }
+
+            btnRow.addView(btnExternalOpen)
+            btnRow.addView(btnClose)
+            modalRoot.addView(btnRow)
+
+            dialog.setContentView(modalRoot)
+            dialog.show()
+
+        } catch (e: Exception) {
+            Toast.makeText(this, "Could not open document: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 }

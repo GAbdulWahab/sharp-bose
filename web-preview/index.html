@@ -1209,7 +1209,13 @@
             return; // Heartbeat acknowledged
           }
           if (data.type === 'ASSIGN_ID') {
-            myId = data.id;
+            const savedId = localStorage.getItem('sharp_bose_preview_node_id');
+            if (!savedId) {
+              myId = data.id;
+              localStorage.setItem('sharp_bose_preview_node_id', myId);
+            } else {
+              myId = savedId;
+            }
             myNickname = data.nickname;
             document.getElementById('self-device-title').innerText = `You: ${myNickname}`;
             document.getElementById('self-device-id').innerText = `Node ID: ${myId} • Noise_XX`;

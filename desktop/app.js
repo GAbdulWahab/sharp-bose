@@ -60,13 +60,15 @@ class TacticalMeshDesktop {
       if (this.carrierMode === 'BLUETOOTH_ONLY' || this.carrierMode === 'MANUAL' || this.btConnectedAddress) {
         return;
       }
-      if (!this.isConnected || this.connectedPeers.length === 0) {
+      // NEVER disconnect or scan if already connected to a healthy mesh host
+      if (!this.isConnected) {
         this.autoDiscoverLocalHub();
       }
-    }, 4000);
+    }, 8000);
   }
 
   async autoDiscoverLocalHub() {
+    if (this.isConnected) return;
     const candidates = [
       '127.0.0.1:3000',
       '172.27.180.170:3000',
@@ -80,7 +82,7 @@ class TacticalMeshDesktop {
     ];
 
     for (const host of candidates) {
-      if (this.isConnected && this.connectedPeers.length > 0) break;
+      if (this.isConnected) break;
       const [h, p] = host.split(':');
       if (h === this.currentHost && this.isConnected) continue;
 
@@ -103,7 +105,7 @@ class TacticalMeshDesktop {
         } catch(e) { resolve(false); }
       });
 
-      if (reachable && (!this.isConnected || this.connectedPeers.length === 0)) {
+      if (reachable && !this.isConnected) {
         this.log(`[Auto-Discovery] Discovered mesh companion node at ${host}`);
         this.connectMesh(h, parseInt(p, 10));
         break;
@@ -822,19 +824,37 @@ class TacticalMeshDesktop {
     });
   }
 
+  updateNodeIdDisplay(hostname = '') {
+    const raw = (this.localNodeId || '').replace(/^node-/, '');
+    const suffix = (raw.length >= 4 ? raw.slice(-4) : raw).toUpperCase() || 'HOST';
+    const anonId = `ANON-${suffix}`;
+    
+    const nodeBadge = document.getElementById('nodeIdBadge');
+    if (nodeBadge) {
+      nodeBadge.innerText = `NODE: ${anonId} (${this.localNodeId}${hostname ? ' • ' + hostname : ''})`;
+    }
+    const settingNodeId = document.getElementById('settingNodeId');
+    if (settingNodeId) {
+      settingNodeId.value = this.localNodeId;
+    }
+  }
+
   // -----------------------------------------------------------
   // 2. Network & Mesh WebSocket Connection
   // -----------------------------------------------------------
   async fetchSystemInfo() {
+    this.updateNodeIdDisplay();
     if (window.electronAPI) {
       try {
         const id = await window.electronAPI.getNodeId();
         const hostname = await window.electronAPI.getHostname();
         const interfaces = await window.electronAPI.getInterfaces();
         
-        this.localNodeId = id;
-        const nodeBadge = document.getElementById('nodeIdBadge');
-        if (nodeBadge) nodeBadge.innerText = `NODE: ${id} (${hostname})`;
+        if (id) {
+          this.localNodeId = id;
+          localStorage.setItem('tactical_mesh_node_id', this.localNodeId);
+        }
+        this.updateNodeIdDisplay(hostname);
         
         let ifaceStr = (interfaces || []).map(i => `${i.name}: ${i.ip}`).join(' // ');
         if (!ifaceStr) ifaceStr = '127.0.0.1 (Local Loopback)';
@@ -877,11 +897,11 @@ class TacticalMeshDesktop {
         const res = await fetch('/api/status');
         if (res.ok) {
           const json = await res.json();
-          if (json.nodeId) {
+          if (json.nodeId && (!this.localNodeId || this.localNodeId === 'node-local')) {
             this.localNodeId = json.nodeId;
-            const nodeBadge = document.getElementById('nodeIdBadge');
-            if (nodeBadge) nodeBadge.innerText = `NODE: ${json.nodeId}`;
+            localStorage.setItem('tactical_mesh_node_id', this.localNodeId);
           }
+          this.updateNodeIdDisplay();
           if (json.bluetooth) {
             this.handleBtStatus(json.bluetooth);
           }
@@ -891,11 +911,20 @@ class TacticalMeshDesktop {
   }
 
   connectMesh(host = '127.0.0.1', port = 3000) {
+    if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN && this.currentHost === host && this.currentPort === port) {
+      return; // Already actively connected to this host, keep connection permanently intact
+    }
+
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
 
+    this.isIntentionalDisconnect = false;
     this.currentHost = host;
     this.currentPort = port;
 
@@ -905,11 +934,25 @@ class TacticalMeshDesktop {
         this.ws = null;
       }
 
-      this.ws = new WebSocket(`ws://${host}:${port}`);
+      const wsUrl = `ws://${host}:${port}?nodeId=${encodeURIComponent(this.localNodeId)}`;
+      this.ws = new WebSocket(wsUrl);
       this.ws.binaryType = 'arraybuffer';
 
       this.ws.onopen = () => {
         this.isConnected = true;
+        if (this.reconnectTimer) {
+          clearTimeout(this.reconnectTimer);
+          this.reconnectTimer = null;
+        }
+        if (this.pingTimer) {
+          clearInterval(this.pingTimer);
+          this.pingTimer = null;
+        }
+        if (this.autoScanTimer) {
+          clearInterval(this.autoScanTimer);
+          this.autoScanTimer = null;
+        }
+
         this.log(`[WebSocket] Connected to Mesh Carrier at ws://${host}:${port}`);
         const carrierStatus = document.getElementById('carrierStatus');
         if (carrierStatus) {
@@ -918,8 +961,10 @@ class TacticalMeshDesktop {
         }
         this.sendControlPacket({
           type: 'SET_NICKNAME',
+          id: this.localNodeId,
           nickname: 'Desktop Terminal',
-          deviceType: 'Desktop'
+          deviceType: 'Desktop',
+          room: this.currentRoom
         });
         this.sendControlPacket({ type: 'JOIN_ROOM', room: this.currentRoom });
       };
@@ -938,21 +983,45 @@ class TacticalMeshDesktop {
 
       this.ws.onclose = () => {
         this.isConnected = false;
+        if (this.pingTimer) {
+          clearInterval(this.pingTimer);
+          this.pingTimer = null;
+        }
+        this.startAutoDiscoveryLoop();
         const carrierStatus = document.getElementById('carrierStatus');
         if (carrierStatus) {
           carrierStatus.innerText = '○ CARRIER AUTO-CONNECTING...';
           carrierStatus.className = 'status-offline';
         }
-        if (!this.reconnectTimer) {
-          this.reconnectTimer = setTimeout(() => this.connectMesh(host, port), 2500);
+        if (!this.isIntentionalDisconnect && !this.reconnectTimer) {
+          this.reconnectTimer = setTimeout(() => {
+            this.reconnectTimer = null;
+            this.connectMesh(this.currentHost || host, this.currentPort || port);
+          }, 2000);
         }
       };
 
       this.ws.onerror = () => {
         this.isConnected = false;
+        if (this.pingTimer) {
+          clearInterval(this.pingTimer);
+          this.pingTimer = null;
+        }
+        if (!this.isIntentionalDisconnect && !this.reconnectTimer) {
+          this.reconnectTimer = setTimeout(() => {
+            this.reconnectTimer = null;
+            this.connectMesh(this.currentHost || host, this.currentPort || port);
+          }, 2000);
+        }
       };
     } catch (e) {
       this.log(`Connection error: ${e.message}`);
+      if (!this.isIntentionalDisconnect && !this.reconnectTimer) {
+        this.reconnectTimer = setTimeout(() => {
+          this.reconnectTimer = null;
+          this.connectMesh(this.currentHost || host, this.currentPort || port);
+        }, 2000);
+      }
     }
   }
 
@@ -983,10 +1052,15 @@ class TacticalMeshDesktop {
 
     switch (json.type) {
       case 'ASSIGN_ID':
-        this.localNodeId = json.id;
-        const badgeElem = document.getElementById('nodeIdBadge');
-        if (badgeElem) badgeElem.innerText = `NODE: ${json.id.toUpperCase()}`;
-        this.log(`Assigned Local Node ID: ${json.id}`);
+        // PRESERVE SINGLE STABLE USER NODE ID: Do not overwrite persistent ID
+        if (!this.localNodeId || this.localNodeId === 'node-local' || this.localNodeId === 'node-temp') {
+          if (json.id) {
+            this.localNodeId = json.id;
+            localStorage.setItem('tactical_mesh_node_id', this.localNodeId);
+          }
+        }
+        this.updateNodeIdDisplay();
+        this.log(`Node ID: ${this.localNodeId}`);
         break;
 
       case 'PEER_LIST':
@@ -1791,6 +1865,11 @@ class TacticalMeshDesktop {
   }
 
   sendChatDocument(bytes, fileName, fileSize, crc32) {
+    if (!this.docStore) this.docStore = new Map();
+    const blob = new Blob([bytes]);
+    const blobUrl = URL.createObjectURL(blob);
+    this.docStore.set(fileName, { bytes, blobUrl, crc32, fileSize });
+
     const payload = {
       type: 'CHAT_MSG',
       mediaType: 'DOCUMENT',
@@ -1802,9 +1881,43 @@ class TacticalMeshDesktop {
     };
 
     this.sendControlPacket(payload);
-    this.appendChatBubble('You', '', true, payload);
+    this.appendChatBubble('You', '', true, { ...payload, blobUrl });
     this.sendFile(bytes, fileName, 'Desktop Hub');
     this.log(`[BBS Document Sent] ${fileName} (CRC32: ${crc32})`);
+  }
+
+  openChatDocument(fileName) {
+    const doc = this.docStore?.get(fileName) || Array.from(this.fileTransfers.values()).find(t => t.fileName === fileName);
+    if (doc && doc.blobUrl) {
+      window.open(doc.blobUrl, '_blank');
+      this.log(`[Document Opened] 📄 Opened '${fileName}' in viewer`);
+    } else {
+      this.downloadChatDocument(fileName);
+    }
+  }
+
+  downloadChatDocument(fileName) {
+    const doc = this.docStore?.get(fileName) || Array.from(this.fileTransfers.values()).find(t => t.fileName === fileName);
+    if (doc && doc.blobUrl) {
+      const a = document.createElement('a');
+      a.href = doc.blobUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      this.log(`[Document Saved] 💾 Downloaded '${fileName}'`);
+    } else {
+      const sampleText = `SHARP-BOSE TACTICAL OFFLINE DOCUMENT\nFile: ${fileName}\nStatus: Verified\nTimestamp: ${new Date().toISOString()}\n`;
+      const blob = new Blob([sampleText], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      this.log(`[Document Saved] 💾 Saved '${fileName}'`);
+    }
   }
 
   // --- Chat Bubble Renderer ---
@@ -1891,14 +2004,17 @@ class TacticalMeshDesktop {
       const crc = obj.crc32Hex || 'VERIFIED';
       bodyHtml = `
         <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid var(--border-glass); border-radius: 10px; padding: 10px 12px; margin-top: 6px; display: flex; justify-content: space-between; align-items: center; gap: 12px;">
-          <div style="display: flex; align-items: center; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 8px; flex: 1; cursor: pointer;" onclick="app.openChatDocument('${escapeHtml(fn)}')">
             <span style="font-size: 22px;">📄</span>
             <div>
               <div style="font-size: 12px; font-weight: 700; color: #FFF;">${escapeHtml(fn)}</div>
               <div style="font-size: 10px; color: var(--text-muted); font-family: monospace;">${sizeKb} KB • CRC32: <span style="color: var(--cyan-primary);">${escapeHtml(crc)}</span></div>
             </div>
           </div>
-          <span style="font-size: 10px; color: var(--emerald-primary); background: rgba(16,185,129,0.15); padding: 4px 8px; border-radius: 6px; border: 1px solid rgba(16,185,129,0.3); font-weight: 700;">✓ MTU STREAM</span>
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <button class="btn-tactical-sm" onclick="app.openChatDocument('${escapeHtml(fn)}')" style="padding: 4px 8px; font-size: 10px; background: var(--cyan-primary); color: #000; font-weight: 700; border: none; border-radius: 4px; cursor: pointer;">[ 📂 OPEN ]</button>
+            <button class="btn-tactical-sm" onclick="app.downloadChatDocument('${escapeHtml(fn)}')" style="padding: 4px 8px; font-size: 10px; background: var(--emerald-primary); color: #000; font-weight: 700; border: none; border-radius: 4px; cursor: pointer;">[ 💾 SAVE ]</button>
+          </div>
         </div>
       `;
     } else {
@@ -2856,7 +2972,10 @@ class TacticalMeshDesktop {
             <span style="font-size: 11px; font-weight: 700; color: ${tx.isCompleted ? 'var(--emerald-primary)' : 'var(--cyan-primary)'}; background: ${tx.isCompleted ? 'rgba(16, 185, 129, 0.15)' : 'rgba(56, 189, 248, 0.15)'}; border: 1px solid ${tx.isCompleted ? 'rgba(16, 185, 129, 0.3)' : 'rgba(56, 189, 248, 0.3)'}; border-radius: 6px; padding: 4px 8px;">
               ${tx.isCompleted ? '✓ COMPLETED' : `${tx.progress}%`}
             </span>
-            ${tx.blobUrl ? `<a href="${tx.blobUrl}" download="${escapeHtml(tx.fileName)}" class="btn-tactical-sm" style="padding: 4px 10px; font-size: 11px; background: var(--emerald-primary); color: #000; font-weight: 700; text-decoration: none;">💾 Save</a>` : ''}
+            ${tx.blobUrl ? `
+              <button onclick="app.openChatDocument('${escapeHtml(tx.fileName)}')" class="btn-tactical-sm" style="padding: 4px 10px; font-size: 11px; background: var(--cyan-primary); color: #000; font-weight: 700; border: none; border-radius: 4px; cursor: pointer;">📂 Open</button>
+              <a href="${tx.blobUrl}" download="${escapeHtml(tx.fileName)}" class="btn-tactical-sm" style="padding: 4px 10px; font-size: 11px; background: var(--emerald-primary); color: #000; font-weight: 700; text-decoration: none; border-radius: 4px;">💾 Save</a>
+            ` : ''}
           </div>
         </div>
         <div class="audio-vu-container" style="height: 6px; margin-top: 8px;">

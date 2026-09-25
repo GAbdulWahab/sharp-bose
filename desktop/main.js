@@ -338,10 +338,19 @@ function startEmbeddedHub() {
 
       const isMobile = /Android|iPhone|iPad/i.test(req.headers['user-agent'] || '');
       const remoteIp = req.socket?.remoteAddress || '';
-      const isLoopback = remoteIp === '127.0.0.1' || remoteIp === '::1' || remoteIp === '::ffff:127.0.0.1';
+      const isLoopback = remoteIp === '127.0.0.1' || remoteIp === '::1' || remoteIp === '::ffff:127.0.0.1' || !remoteIp;
+
+      let queryNodeId = null;
+      try {
+        const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+        queryNodeId = parsedUrl.searchParams.get('nodeId') || parsedUrl.searchParams.get('id');
+      } catch (e) {}
+
+      const ipHash = crypto.createHash('md5').update(remoteIp || 'peer').digest('hex').substring(0, 6);
+      const stableId = queryNodeId || (isLoopback ? LOCAL_NODE_ID : (`node-${ipHash}`));
 
       const clientInfo = {
-        id: 'node-' + Math.random().toString(36).substring(2, 7),
+        id: stableId,
         nickname: isMobile ? 'Android Phone' : (isLoopback ? 'Desktop Local' : 'Desktop/Laptop Peer'),
         deviceType: isMobile ? 'Android' : 'Desktop',
         status: 'Online',
@@ -383,8 +392,10 @@ function startEmbeddedHub() {
 
           switch (json.type) {
             case 'SET_NICKNAME':
+              if (json.id || json.nodeId) clientInfo.id = json.id || json.nodeId;
               if (json.nickname) clientInfo.nickname = json.nickname;
               if (json.deviceType) clientInfo.deviceType = json.deviceType;
+              if (json.room) clientInfo.room = json.room.toUpperCase();
               broadcastPeerList();
               break;
 
@@ -498,6 +509,10 @@ function startUdpBeacon() {
     });
 
     udpBeaconTimer = setInterval(() => {
+      // Zero Idle Data Consumption: Stop broadcasting UDP packets once peers are connected
+      const hasRemoteClients = Array.from(clients.values()).some(c => !c.isLocal);
+      if (hasRemoteClients) return;
+
       const beaconJson = Buffer.from(JSON.stringify({
         type: 'MESH_BEACON',
         id: LOCAL_NODE_ID,
@@ -505,9 +520,8 @@ function startUdpBeacon() {
         port: HTTP_PORT,
         timestamp: Date.now()
       }));
-      const beaconText = Buffer.from(`MESH_BEACON:${LOCAL_NODE_ID}|Desktop Hub (${os.hostname()})|${HTTP_PORT}`);
 
-      const broadcastAddrs = ['255.255.255.255', '192.168.43.255', '192.168.137.255', '172.27.180.255', '10.19.238.255'];
+      const broadcastAddrs = ['255.255.255.255'];
       try {
         const ifaces = os.networkInterfaces();
         for (const name of Object.keys(ifaces)) {
@@ -527,11 +541,10 @@ function startUdpBeacon() {
         try {
           if (udpSocket) {
             udpSocket.send(beaconJson, 0, beaconJson.length, UDP_BEACON_PORT, addr, () => {});
-            udpSocket.send(beaconText, 0, beaconText.length, UDP_BEACON_PORT, addr, () => {});
           }
         } catch (e) {}
       }
-    }, 1500);
+    }, 6000);
   } catch (e) {
     console.warn('[UDP Beacon Note]', e.message);
   }

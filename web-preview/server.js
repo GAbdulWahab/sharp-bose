@@ -65,8 +65,18 @@ function handleWsConnection(ws, req) {
   ws.on('pong', () => { ws.isAlive = true; });
 
   const isMobile = /Android|iPhone|iPad/i.test(req.headers['user-agent'] || '');
+  let queryNodeId = null;
+  try {
+    const parsedUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+    queryNodeId = parsedUrl.searchParams.get('nodeId') || parsedUrl.searchParams.get('id');
+  } catch (e) {}
+
+  const remoteIp = req.socket?.remoteAddress || 'peer';
+  const ipHash = crypto.createHash('md5').update(remoteIp).digest('hex').substring(0, 6);
+  const stableId = queryNodeId || (`node-${ipHash}`);
+
   const clientInfo = {
-    id: 'node-' + Math.random().toString(36).substring(2, 7),
+    id: stableId,
     nickname: isMobile ? 'Android Phone' : 'Laptop',
     deviceType: isMobile ? 'Android' : 'Laptop',
     status: 'Online',
@@ -108,7 +118,8 @@ function handleWsConnection(ws, req) {
       }
 
       if (data.type === 'SET_NICKNAME') {
-        clientInfo.nickname = data.nickname;
+        if (data.id || data.nodeId) clientInfo.id = data.id || data.nodeId;
+        if (data.nickname) clientInfo.nickname = data.nickname;
         if (data.deviceType) clientInfo.deviceType = data.deviceType;
         if (data.room) clientInfo.room = data.room;
         broadcastPeerList();

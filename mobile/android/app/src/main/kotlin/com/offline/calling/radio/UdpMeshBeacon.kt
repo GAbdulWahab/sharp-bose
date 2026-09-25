@@ -27,6 +27,7 @@ class UdpMeshBeacon(
     private var multicastLock: android.net.wifi.WifiManager.MulticastLock? = null
 
     var onPeerDiscovered: ((peerIp: String, peerNodeId: String, peerName: String, port: Int) -> Unit)? = null
+    var isConnectedProvider: (() -> Boolean)? = null
 
     fun start() {
         if (isRunning.get()) return
@@ -116,6 +117,11 @@ class UdpMeshBeacon(
                 }.toString().toByteArray(Charsets.UTF_8)
 
                 while (isRunning.get()) {
+                    // Zero Idle Data Consumption: Halt UDP broadcast packets when connected to a peer or carrier
+                    if (isConnectedProvider?.invoke() == true) {
+                        Thread.sleep(5000)
+                        continue
+                    }
                     val targetAddrs = mutableListOf<InetAddress>()
                     try {
                         targetAddrs.add(InetAddress.getByName("255.255.255.255"))
@@ -144,7 +150,7 @@ class UdpMeshBeacon(
                         } catch (e: Exception) {}
                     }
 
-                    Thread.sleep(1000)
+                    Thread.sleep(6000)
                 }
             } catch (e: Exception) {
                 if (isRunning.get()) {

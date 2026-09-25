@@ -45,6 +45,7 @@ data class ChatMessagePacket(
     val mediaType: String = "TEXT", // "TEXT", "PHOTO", "VECTOR_MAP", "VOICE_LOG", "DOCUMENT"
     val dataUrl: String = "",
     val audioData: String = "",
+    val fileData: String = "",
     val duration: Int = 0,
     val pointName: String = "",
     val lat: Double = 0.0,
@@ -74,16 +75,23 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .connectTimeout(3000, TimeUnit.MILLISECONDS)
-        .pingInterval(5, TimeUnit.SECONDS)
+        .pingInterval(0, TimeUnit.MILLISECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
     var appContext: Context? = null
+    var lastConnectedHost: String? = null
+    var isIntentionalDisconnect: Boolean = false
+    private val reconnectHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var reconnectRunnable: Runnable? = null
 
     val crypto = MeshCryptoEngine.instance
     val router = MeshRouter(localNodeId)
 
     val embeddedServer = AndroidMeshServer(3000, localNodeId, "Android Phone (${Build.MODEL})")
-    val udpBeacon = UdpMeshBeacon(localNodeId, "Android Phone (${Build.MODEL})", 3000)
+    val udpBeacon = UdpMeshBeacon(localNodeId, "Android Phone (${Build.MODEL})", 3000).apply {
+        isConnectedProvider = { isConnected || embeddedServer.hasConnectedClients() }
+    }
     var bluetoothMesh: BluetoothMeshTransport? = null
         private set
 
@@ -370,13 +378,38 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
 
     private val isConnecting = AtomicBoolean(false)
 
+    fun cancelScheduledReconnect() {
+        reconnectRunnable?.let { reconnectHandler.removeCallbacks(it) }
+        reconnectRunnable = null
+    }
+
+    fun schedulePermanentAutoReconnect() {
+        if (isIntentionalDisconnect || transportMode == RadioTransportMode.BLUETOOTH_ONLY || isConnected) return
+        cancelScheduledReconnect()
+        reconnectRunnable = Runnable {
+            if (isConnected || isIntentionalDisconnect || transportMode == RadioTransportMode.BLUETOOTH_ONLY) return@Runnable
+            val targetHost = lastConnectedHost ?: currentHost
+            if (!targetHost.isNullOrEmpty()) {
+                Log.d("MeshBridge", "Permanent Mesh Reconnect: Attempting reconnect to $targetHost:3000...")
+                connectDirect(targetHost)
+            } else {
+                Log.d("MeshBridge", "Permanent Mesh Reconnect: Auto-discovering mesh carrier...")
+                autoDiscoverAndConnect()
+            }
+        }
+        reconnectHandler.postDelayed(reconnectRunnable!!, 2000)
+    }
+
     fun connect(host: String? = null, context: Context? = null) {
+        isIntentionalDisconnect = false
+        cancelScheduledReconnect()
         if (context != null) {
             appContext = context.applicationContext
             udpBeacon.context = appContext
         }
         if (host != null && host.isNotEmpty()) {
             currentHost = host
+            lastConnectedHost = host
             connectDirect(host)
             return
         }
@@ -387,6 +420,8 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
     }
 
     fun disconnect() {
+        isIntentionalDisconnect = true
+        cancelScheduledReconnect()
         try {
             webSocket?.close(1000, "User disconnect")
             webSocket = null
@@ -404,15 +439,33 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
             Log.d("MeshBridge", "Skipping connection to local host address: $cleanHost")
             return
         }
+        if (isConnected && currentHost == cleanHost && webSocket != null) {
+            Log.d("MeshBridge", "Already connected to $cleanHost, preserving active connection.")
+            return
+        }
+        lastConnectedHost = cleanHost
         webSocket?.close(1000, "Connecting to new host")
-        val url = "ws://$cleanHost:3000"
+        val encodedNodeId = java.net.URLEncoder.encode(localNodeId, "UTF-8")
+        val url = "ws://$cleanHost:3000?nodeId=$encodedNodeId"
         val request = Request.Builder().url(url).build()
         webSocket = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
                 isConnected = true
                 currentHost = cleanHost
+                lastConnectedHost = cleanHost
+                cancelScheduledReconnect()
                 Log.d("MeshBridge", "Connected to Wi-Fi Mesh at $url")
                 refreshMeshStatus()
+                try {
+                    val handshake = org.json.JSONObject().apply {
+                        put("type", "SET_NICKNAME")
+                        put("id", localNodeId)
+                        put("nickname", "Android Phone (${android.os.Build.MODEL})")
+                        put("deviceType", "Android")
+                        put("room", currentRoom)
+                    }
+                    ws.send(handshake.toString())
+                } catch (e: Exception) {}
                 sendJoinRoom(currentRoom)
             }
 
@@ -432,7 +485,9 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 publishCombinedRoster()
                 Log.w("MeshBridge", "Connection failure on $url: ${t.message}")
                 refreshMeshStatus()
-                // NO auto reconnect loop - deterministic state preserved
+                if (!isIntentionalDisconnect && transportMode != RadioTransportMode.BLUETOOTH_ONLY) {
+                    schedulePermanentAutoReconnect()
+                }
             }
 
             override fun onClosed(ws: WebSocket, code: Int, reason: String) {
@@ -440,7 +495,9 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                 lastWsPeers = emptyList()
                 publishCombinedRoster()
                 refreshMeshStatus()
-                // NO auto reconnect loop - deterministic state preserved
+                if (!isIntentionalDisconnect && transportMode != RadioTransportMode.BLUETOOTH_ONLY) {
+                    schedulePermanentAutoReconnect()
+                }
             }
         })
     }
@@ -536,15 +593,29 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
         val success = AtomicBoolean(false)
         val latch = java.util.concurrent.CountDownLatch(1)
 
-        val request = Request.Builder().url(url).build()
+        val encodedNodeId = java.net.URLEncoder.encode(localNodeId, "UTF-8")
+        val syncUrl = if (url.contains("?")) "$url&nodeId=$encodedNodeId" else "$url?nodeId=$encodedNodeId"
+        val request = Request.Builder().url(syncUrl).build()
         val ws = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(ws: WebSocket, response: Response) {
                 isConnected = true
                 webSocket = ws
                 currentHost = host
+                lastConnectedHost = host
+                cancelScheduledReconnect()
                 success.set(true)
                 Log.d("MeshBridge", "Connected to Mesh at $url")
                 refreshMeshStatus()
+                try {
+                    val handshake = org.json.JSONObject().apply {
+                        put("type", "SET_NICKNAME")
+                        put("id", localNodeId)
+                        put("nickname", "Android Phone (${android.os.Build.MODEL})")
+                        put("deviceType", "Android")
+                        put("room", currentRoom)
+                    }
+                    ws.send(handshake.toString())
+                } catch (e: Exception) {}
                 sendJoinRoom(currentRoom)
                 latch.countDown()
             }
@@ -565,6 +636,10 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                     webSocket = null
                     lastWsPeers = emptyList()
                     publishCombinedRoster()
+                    refreshMeshStatus()
+                    if (!isIntentionalDisconnect && transportMode != RadioTransportMode.BLUETOOTH_ONLY) {
+                        schedulePermanentAutoReconnect()
+                    }
                 }
                 latch.countDown()
             }
@@ -575,6 +650,10 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                     webSocket = null
                     lastWsPeers = emptyList()
                     publishCombinedRoster()
+                    refreshMeshStatus()
+                    if (!isIntentionalDisconnect && transportMode != RadioTransportMode.BLUETOOTH_ONLY) {
+                        schedulePermanentAutoReconnect()
+                    }
                 }
             }
         })
@@ -663,6 +742,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                     val mediaType = json.optString("mediaType", if (json.has("dataUrl")) "PHOTO" else if (json.has("pointName")) "VECTOR_MAP" else if (json.has("audioData")) "VOICE_LOG" else if (json.has("fileName")) "DOCUMENT" else "TEXT")
                     val dataUrl = json.optString("dataUrl", "")
                     val audioData = json.optString("audioData", "")
+                    val fileData = json.optString("fileData", json.optString("mediaData", ""))
                     val duration = json.optInt("duration", 0)
                     val pointName = json.optString("pointName", "")
                     val lat = json.optDouble("lat", 0.0)
@@ -681,6 +761,7 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                             mediaType = mediaType,
                             dataUrl = dataUrl,
                             audioData = audioData,
+                            fileData = fileData,
                             duration = duration,
                             pointName = pointName,
                             lat = lat,
@@ -838,13 +919,16 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
         })
     }
 
-    fun sendChatDocument(fileName: String, fileSize: Long, crc32: String, senderName: String = "Android Phone") {
+    fun sendChatDocument(fileName: String, fileSize: Long, crc32: String, senderName: String = "Android Phone", fileBase64: String = "") {
         sendJson(JSONObject().apply {
             put("type", "CHAT_MSG")
             put("mediaType", "DOCUMENT")
             put("fileName", fileName)
             put("fileSize", fileSize)
             put("crc32Hex", crc32)
+            if (fileBase64.isNotEmpty()) {
+                put("fileData", fileBase64)
+            }
             put("senderName", senderName)
             put("isE2ee", true)
         })
