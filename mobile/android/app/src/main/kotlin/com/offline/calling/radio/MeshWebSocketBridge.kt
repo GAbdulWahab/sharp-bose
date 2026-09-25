@@ -194,6 +194,14 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
         return bluetoothMesh?.getPairedDevices() ?: emptyList()
     }
 
+    fun getConnectingBluetoothDevices(): List<String> {
+        return bluetoothMesh?.getConnectingAddressesList() ?: emptyList()
+    }
+
+    fun isConnectingBluetooth(address: String): Boolean {
+        return bluetoothMesh?.isConnecting(address) ?: false
+    }
+
     fun connectBluetoothDevice(address: String) {
         bluetoothMesh?.connectDevice(address)
     }

@@ -433,22 +433,7 @@ class BluetoothMeshTransport(
         isScanning.set(true)
         onScanStateChanged?.invoke(true)
 
-        // 1. Populate bonded devices immediately
-        val bonded = try { bluetoothAdapter.bondedDevices ?: emptySet() } catch (e: Exception) { emptySet() }
-        for (device in bonded) {
-            val info = BluetoothDiscoveredInfo(
-                address = device.address,
-                name = device.name ?: "Paired Device (${device.address.takeLast(5)})",
-                rssi = -55,
-                isBonded = true,
-                isConnectable = true,
-                transportType = "PAIRED"
-            )
-            discoveredDevicesMap[device.address] = info
-            onDiscoveredDeviceFound?.invoke(info)
-        }
-
-        // 2. Start BLE Scanner
+        // 1. Start BLE Scanner for active advertising mesh nodes
         if (bleScanner == null) {
             bleScanner = bluetoothAdapter.bluetoothLeScanner
         }
@@ -489,7 +474,7 @@ class BluetoothMeshTransport(
             }
         }
 
-        // 3. Start Classic Discovery in parallel
+        // 2. Start Classic Discovery in parallel
         try {
             if (bluetoothAdapter.isDiscovering) {
                 bluetoothAdapter.cancelDiscovery()
@@ -515,7 +500,7 @@ class BluetoothMeshTransport(
     }
 
     // =========================================================================
-    // 6. Explicit Manual Connect (Stable Connection Policy)
+    // 6. Explicit Manual Fast Connect (Instant RFCOMM & L2CAP Policy)
     // =========================================================================
     @SuppressLint("MissingPermission")
     fun connectDevice(address: String) {
@@ -529,61 +514,90 @@ class BluetoothMeshTransport(
         val address = device.address
         if (connectedPeers.any { it.device.address == address } || !connectingAddresses.add(address)) return
 
+        notifyPeerRoster()
+
         Thread {
             try {
-                // Cancel active discovery to ensure maximum RF stability and bandwidth
+                // Cancel active discovery immediately to free Bluetooth RF slots for instant connection
+                try {
+                    if (bluetoothAdapter?.isDiscovering == true) {
+                        bluetoothAdapter.cancelDiscovery()
+                    }
+                } catch (e: Exception) {}
                 stopScan()
 
-                Log.d(TAG, "Explicitly connecting to Bluetooth device ${device.name ?: "Peer"} ($address)...")
+                Log.d(TAG, "Fast-connecting to Bluetooth device ${device.name ?: "Peer"} ($address)...")
 
                 var connected = false
                 var socket: BluetoothSocket? = null
 
-                // Strategy A: Connect over BLE L2CAP CoC if supported
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && l2capPsm > 0) {
+                // Fast Strategy 1: Direct Insecure RFCOMM Channel 1 (<100ms connection without SDP query delay)
+                try {
+                    val m = device.javaClass.getMethod("createInsecureRfcommSocket", Int::class.javaPrimitiveType)
+                    val s = m.invoke(device, 1) as BluetoothSocket
+                    socket = s
+                    s.connect()
+                    connected = true
+                    handleConnectedRfcommSocket(s, isIncoming = false)
+                } catch (e: Exception) {
+                    try { socket?.close() } catch (ex: Exception) {}
+                    socket = null
+                }
+
+                // Fast Strategy 2: Direct Secure RFCOMM Channel 1
+                if (!connected) {
+                    try {
+                        val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
+                        val s = m.invoke(device, 1) as BluetoothSocket
+                        socket = s
+                        s.connect()
+                        connected = true
+                        handleConnectedRfcommSocket(s, isIncoming = false)
+                    } catch (e: Exception) {
+                        try { socket?.close() } catch (ex: Exception) {}
+                        socket = null
+                    }
+                }
+
+                // Strategy 3: MESH_SERVICE_UUID Insecure RFCOMM (Windows PC & Mesh Host)
+                if (!connected) {
+                    try {
+                        val s = device.createInsecureRfcommSocketToServiceRecord(MESH_SERVICE_UUID)
+                        socket = s
+                        s.connect()
+                        connected = true
+                        handleConnectedRfcommSocket(s, isIncoming = false)
+                    } catch (e: Exception) {
+                        try { socket?.close() } catch (ex: Exception) {}
+                        socket = null
+                    }
+                }
+
+                // Strategy 4: Standard SPP_UUID Insecure RFCOMM
+                if (!connected) {
+                    try {
+                        val s = device.createInsecureRfcommSocketToServiceRecord(SPP_UUID)
+                        socket = s
+                        s.connect()
+                        connected = true
+                        handleConnectedRfcommSocket(s, isIncoming = false)
+                    } catch (e: Exception) {
+                        try { socket?.close() } catch (ex: Exception) {}
+                        socket = null
+                    }
+                }
+
+                // Strategy 5: BLE L2CAP CoC if supported
+                if (!connected && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && l2capPsm > 0) {
                     try {
                         val l2capSock = device.createInsecureL2capChannel(l2capPsm)
                         l2capSock.connect()
                         handleConnectedL2capSocket(l2capSock)
                         connected = true
-                    } catch (e: Exception) {
-                        // Fallback to RFCOMM
-                    }
+                    } catch (e: Exception) {}
                 }
 
-                // Strategy B: Connect over Classic RFCOMM SPP
-                if (!connected) {
-                    val strategies: List<() -> BluetoothSocket> = listOf(
-                        { device.createInsecureRfcommSocketToServiceRecord(SPP_UUID) },
-                        { device.createRfcommSocketToServiceRecord(SPP_UUID) },
-                        { device.createInsecureRfcommSocketToServiceRecord(MESH_SERVICE_UUID) },
-                        {
-                            val m = device.javaClass.getMethod("createInsecureRfcommSocket", Int::class.javaPrimitiveType)
-                            m.invoke(device, 1) as BluetoothSocket
-                        },
-                        {
-                            val m = device.javaClass.getMethod("createRfcommSocket", Int::class.javaPrimitiveType)
-                            m.invoke(device, 1) as BluetoothSocket
-                        }
-                    )
-
-                    for (strategy in strategies) {
-                        if (connectedPeers.any { it.device.address == address }) break
-                        try {
-                            val s = strategy()
-                            socket = s
-                            s.connect()
-                            connected = true
-                            handleConnectedRfcommSocket(s, isIncoming = false)
-                            break
-                        } catch (e: Exception) {
-                            try { socket?.close() } catch (ex: Exception) {}
-                            socket = null
-                        }
-                    }
-                }
-
-                // Strategy C: Connect via BLE GATT Client if Classic RFCOMM not available
+                // Strategy 6: Fast BLE GATT Client Connection
                 if (!connected) {
                     connectBleGattClient(device)
                 }
@@ -591,9 +605,10 @@ class BluetoothMeshTransport(
                 Log.w(TAG, "Connection to $address failed: ${e.message}")
             } finally {
                 connectingAddresses.remove(address)
+                notifyPeerRoster()
             }
         }.apply {
-            name = "BtConnect_${address.takeLast(4)}"
+            name = "BtFastConnect_${address.takeLast(4)}"
             start()
         }
     }
@@ -937,6 +952,8 @@ class BluetoothMeshTransport(
     }
 
     fun hasConnectedPeers(): Boolean = connectedPeers.isNotEmpty()
+    fun getConnectingAddressesList(): List<String> = connectingAddresses.toList()
+    fun isConnecting(address: String): Boolean = connectingAddresses.contains(address)
 
     @SuppressLint("MissingPermission")
     fun getDiscoveredDevicesList(): List<BluetoothDiscoveredInfo> {

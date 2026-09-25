@@ -835,7 +835,81 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
         
         val singlePeer = otherPeers.firstOrNull()
-        tvPeopleCount.text = if (singlePeer != null) "1 Connected" else "0 Connected"
+        val connectingDevs = bridge.getConnectingBluetoothDevices()
+        
+        if (singlePeer != null) {
+            tvPeopleCount.text = "1 Connected"
+        } else if (connectingDevs.isNotEmpty()) {
+            tvPeopleCount.text = "${connectingDevs.size} Connecting"
+        } else {
+            tvPeopleCount.text = "0 Connected"
+        }
+
+        // 1. If currently connecting to a Bluetooth device, render the Connecting Card
+        if (connectingDevs.isNotEmpty() && singlePeer == null) {
+            for (addr in connectingDevs) {
+                val connCard = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    val bg = if (isDarkMode) Color.parseColor("#131D31") else Color.parseColor("#F1F5F9")
+                    setBackgroundColor(bg)
+                    setPadding(16, 14, 16, 14)
+                    val lp = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { setMargins(0, 0, 0, 8) }
+                    layoutParams = lp
+                }
+
+                val progressBar = ProgressBar(this).apply {
+                    isIndeterminate = true
+                    val lp = LinearLayout.LayoutParams(48, 48).apply { marginEnd = 14 }
+                    layoutParams = lp
+                }
+                connCard.addView(progressBar)
+
+                val connInfo = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+
+                val tvConnTitle = TextView(this).apply {
+                    text = "🔄 CONNECTING TO BLUETOOTH NODE..."
+                    setTextColor(Color.parseColor("#38BDF8"))
+                    textSize = 12f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                }
+
+                val tvConnMeta = TextView(this).apply {
+                    text = "TARGET: $addr • Direct Fast Hardware Link"
+                    setTextColor(Color.parseColor("#64748B"))
+                    textSize = 10f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                }
+
+                connInfo.addView(tvConnTitle)
+                connInfo.addView(tvConnMeta)
+                connCard.addView(connInfo)
+
+                val btnCancel = Button(this).apply {
+                    text = "CANCEL"
+                    textSize = 10f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#334155"))
+                    setTextColor(Color.WHITE)
+                    setOnClickListener {
+                        bridge.disconnectBluetoothDevice(addr)
+                        renderConnectedPeopleList(connectedPeersList)
+                    }
+                }
+                btnCancel.layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 80)
+                connCard.addView(btnCancel)
+
+                llConnectedPeople.addView(connCard)
+            }
+            return
+        }
 
         if (singlePeer == null) {
             val emptyCard = LinearLayout(this).apply {
@@ -867,82 +941,6 @@ class MainActivity : AppCompatActivity(), LocationListener {
             }
             emptyCard.addView(tvNotice)
             llConnectedPeople.addView(emptyCard)
-
-            // Render Discovered & Paired Bluetooth Devices with 1-click Connect buttons
-            val discoveredList = bridge.getDiscoveredBluetoothDevices()
-            val pairedList = bridge.getPairedBluetoothDevices()
-            val allBtDevs = mutableMapOf<String, Pair<String, Boolean>>() // address -> Pair(name, isPaired)
-            for (d in pairedList) allBtDevs[d.address] = Pair(d.name ?: "Paired PC/Phone", true)
-            for (d in discoveredList) allBtDevs[d.address] = Pair(d.name, d.isBonded)
-
-            if (allBtDevs.isNotEmpty()) {
-                val header = TextView(this).apply {
-                    text = "📡 DISCOVERED / PAIRED BLUETOOTH DEVICES:"
-                    textSize = 11f
-                    typeface = android.graphics.Typeface.MONOSPACE
-                    setTextColor(Color.parseColor("#38BDF8"))
-                    setPadding(4, 16, 4, 8)
-                }
-                llConnectedPeople.addView(header)
-
-                for ((addr, pair) in allBtDevs) {
-                    val devName = pair.first
-                    val isPaired = pair.second
-                    val row = LinearLayout(this).apply {
-                        orientation = LinearLayout.HORIZONTAL
-                        gravity = Gravity.CENTER_VERTICAL
-                        val bg = if (isDarkMode) Color.parseColor("#131D31") else Color.parseColor("#F1F5F9")
-                        setBackgroundColor(bg)
-                        setPadding(14, 12, 14, 12)
-                        val lp = LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.MATCH_PARENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT
-                        ).apply { setMargins(0, 0, 0, 6) }
-                        layoutParams = lp
-                    }
-
-                    val infoLayout = LinearLayout(this).apply {
-                        orientation = LinearLayout.VERTICAL
-                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-                    }
-
-                    val tvDevName = TextView(this).apply {
-                        text = "📱 $devName ${if (isPaired) "[PAIRED]" else ""}"
-                        setTextColor(if (isDarkMode) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A"))
-                        textSize = 12f
-                        typeface = android.graphics.Typeface.MONOSPACE
-                        setTypeface(typeface, android.graphics.Typeface.BOLD)
-                    }
-
-                    val tvDevMeta = TextView(this).apply {
-                        text = "MAC: $addr • BLUETOOTH SPP/BLE"
-                        setTextColor(Color.parseColor("#64748B"))
-                        textSize = 10f
-                        typeface = android.graphics.Typeface.MONOSPACE
-                    }
-
-                    infoLayout.addView(tvDevName)
-                    infoLayout.addView(tvDevMeta)
-                    row.addView(infoLayout)
-
-                    val btnConnect = Button(this).apply {
-                        text = "CONNECT"
-                        textSize = 10f
-                        typeface = android.graphics.Typeface.MONOSPACE
-                        backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
-                        setTextColor(Color.WHITE)
-                        setOnClickListener {
-                            Toast.makeText(this@MainActivity, "Connecting to $devName...", Toast.LENGTH_SHORT).show()
-                            bridge.connectBluetoothDevice(addr)
-                        }
-                    }
-                    val lpBtn = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 80)
-                    btnConnect.layoutParams = lpBtn
-                    row.addView(btnConnect)
-
-                    llConnectedPeople.addView(row)
-                }
-            }
             return
         }
 
@@ -2444,6 +2442,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
                     setTextColor(Color.WHITE)
                     setOnClickListener {
                         bridge.connectBluetoothDevice(devAddr)
+                        renderConnectedPeopleList(connectedPeersList)
                         Toast.makeText(this@MainActivity, "Connecting to $devName...", Toast.LENGTH_SHORT).show()
                         dialog.dismiss()
                     }
