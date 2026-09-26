@@ -2505,7 +2505,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         if (isGroupCall) {
             logEvent("[Wi-Fi Call] 🌐 Initiating Group Call (ALL STATIONS) across Wi-Fi mesh")
-            bridge.autoDiscoverAndConnect(this)
+            bridge.autoDiscoverAndConnect()
             startVoiceCall(targetPeerId = "BROADCAST", targetPeerName = "All Stations (Mesh Broadcast)", targetNumber = "*")
             return
         }
@@ -2531,7 +2531,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
             targetId = trimmed
         } else {
             // Extension dialed but not yet directly connected - trigger auto discovery sweep in background
-            bridge.autoDiscoverAndConnect(this)
+            bridge.autoDiscoverAndConnect()
         }
 
         logEvent("[Wi-Fi Call] 📶 Dialed extension $trimmed ($targetName) via local Wi-Fi mesh")
