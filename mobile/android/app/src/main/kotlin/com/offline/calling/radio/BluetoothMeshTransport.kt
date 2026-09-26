@@ -111,7 +111,7 @@ class BluetoothMeshTransport(
         var rssi: Int = -60,
         val isRunning: AtomicBoolean = AtomicBoolean(true)
     ) {
-        val sendQueue = LinkedBlockingQueue<ByteArray>(20)
+        val sendQueue = LinkedBlockingQueue<ByteArray>(32)
         var writerThread: Thread? = null
     }
 
@@ -869,8 +869,56 @@ class BluetoothMeshTransport(
     }
 
     fun broadcastAudioFrame(frame: ByteArray) {
+        if (connectedPeers.isEmpty()) return
+        val bluetoothFrame = if (frame.size > 300) {
+            downsampleFrameForBluetooth(frame)
+        } else {
+            frame
+        }
         for (session in connectedPeers) {
-            sendRawPacket(session, 0x02 /* Audio PCM Frame */, frame)
+            sendRawPacket(session, 0x02 /* Audio PCM Frame */, bluetoothFrame)
+        }
+    }
+
+    /**
+     * Downsamples 48 kHz uncompressed PCM to 16 kHz HD Voice specifically for Bluetooth RFCOMM/SPP.
+     * Reduces bandwidth from 96 KB/s to 32 KB/s (256 kbps), perfectly fitting Bluetooth physical UART buffers.
+     */
+    private fun downsampleFrameForBluetooth(frame: ByteArray): ByteArray {
+        try {
+            var senderRate = 48000
+            var offset = 0
+            if (frame.size >= 4 && (frame[0].toInt() and 0xFF) == 0xAA && (frame[1].toInt() and 0xFF) == 0x55) {
+                senderRate = ((frame[2].toInt() and 0xFF) shl 8) or (frame[3].toInt() and 0xFF)
+                offset = 4
+            }
+            if (senderRate != 48000) return frame
+
+            val pcmBytes = frame.copyOfRange(offset, frame.size)
+            val numSamples = pcmBytes.size / 2
+            if (numSamples < 3) return frame
+
+            val inBuf = java.nio.ByteBuffer.wrap(pcmBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+            val outSamples = ShortArray(numSamples / 3)
+
+            for (i in 0 until outSamples.size) {
+                val idx = i * 3
+                val s0 = inBuf.get(idx).toFloat()
+                val s1 = if (idx + 1 < numSamples) inBuf.get(idx + 1).toFloat() else s0
+                val s2 = if (idx + 2 < numSamples) inBuf.get(idx + 2).toFloat() else s1
+                val filtered = (s0 * 0.25f + s1 * 0.5f + s2 * 0.25f).toInt().coerceIn(-32768, 32767).toShort()
+                outSamples[i] = filtered
+            }
+
+            val outBytes = ByteArray(4 + outSamples.size * 2)
+            outBytes[0] = 0xAA.toByte()
+            outBytes[1] = 0x55.toByte()
+            outBytes[2] = ((16000 shr 8) and 0xFF).toByte() // 0x3E (16 kHz HD Voice)
+            outBytes[3] = (16000 and 0xFF).toByte()        // 0x80
+            java.nio.ByteBuffer.wrap(outBytes, 4, outSamples.size * 2).order(java.nio.ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(outSamples)
+            return outBytes
+        } catch (e: Exception) {
+            return frame
         }
     }
 
@@ -904,7 +952,7 @@ class BluetoothMeshTransport(
             return
         }
 
-        while (session.sendQueue.size > 2) {
+        while (session.sendQueue.size > 10) {
             session.sendQueue.poll()
         }
         session.sendQueue.offer(packet)

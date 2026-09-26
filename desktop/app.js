@@ -39,6 +39,7 @@ class TacticalMeshDesktop {
     this.btRadioState = 'UNKNOWN';
     this.btAutoReconnect = false; // STRICT: No auto-reconnecting loops
     this.voiceAudioStore = new Map(); // msgId -> audioDataUrl or blobUrl
+    this.myExtension = localStorage.getItem('sharpbose_my_ext') || '100';
     
     this.init();
   }
@@ -292,12 +293,101 @@ class TacticalMeshDesktop {
       });
     }
 
+    // Wi-Fi Number Dialer Keypad Handlers
+    document.querySelectorAll('.btn-desk-key').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const inp = document.getElementById('deskDialInput');
+        if (inp) inp.value += btn.dataset.key;
+      });
+    });
+
+    const btnBksp = document.getElementById('btnDeskDialBackspace');
+    if (btnBksp) {
+      btnBksp.addEventListener('click', () => {
+        const inp = document.getElementById('deskDialInput');
+        if (inp && inp.value.length > 0) inp.value = inp.value.slice(0, -1);
+      });
+    }
+
+    const btnDeskCallNum = document.getElementById('btnDeskCallNumber');
+    if (btnDeskCallNum) {
+      btnDeskCallNum.addEventListener('click', () => {
+        const inp = document.getElementById('deskDialInput');
+        if (inp && inp.value.trim()) {
+          this.dialAndCallWifiNumber(inp.value.trim());
+        } else {
+          this.log('⚠️ Please enter an extension or phone number to call');
+        }
+      });
+    }
+
+    const btnDeskSaveContact = document.getElementById('btnDeskSaveContact');
+    if (btnDeskSaveContact) {
+      btnDeskSaveContact.addEventListener('click', () => {
+        const inp = document.getElementById('deskDialInput');
+        const num = inp ? inp.value.trim() : '';
+        this.openContactModal('', num);
+      });
+    }
+
+    const btnDeskAddContactModal = document.getElementById('btnDeskAddContactModal');
+    if (btnDeskAddContactModal) {
+      btnDeskAddContactModal.addEventListener('click', () => {
+        this.openContactModal();
+      });
+    }
+
+    const btnCloseContactModal = document.getElementById('btnCloseContactModal');
+    const btnCancelContactModal = document.getElementById('btnCancelContactModal');
+    const contactModal = document.getElementById('contactModal');
+    [btnCloseContactModal, btnCancelContactModal].forEach(b => {
+      if (b) b.addEventListener('click', () => {
+        if (contactModal) contactModal.classList.remove('open');
+      });
+    });
+
+    const btnSaveContactModal = document.getElementById('btnSaveContactModal');
+    if (btnSaveContactModal) {
+      btnSaveContactModal.addEventListener('click', () => {
+        const name = document.getElementById('contactInputName')?.value.trim();
+        const number = document.getElementById('contactInputNumber')?.value.trim();
+        const ip = document.getElementById('contactInputIp')?.value.trim() || '';
+        const notes = document.getElementById('contactInputNotes')?.value.trim() || '';
+        const id = document.getElementById('contactInputId')?.value || ('c_' + Date.now());
+
+        if (!name || !number) {
+          alert('Please enter both contact name and extension number');
+          return;
+        }
+
+        this.saveContact({
+          id,
+          name,
+          number,
+          ipOrNodeId: ip,
+          notes,
+          colorHex: ['#38BDF8', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'][Math.floor(Math.random() * 5)]
+        });
+
+        if (contactModal) contactModal.classList.remove('open');
+        this.log(`✅ Contact saved: ${name} (Ext: ${number})`);
+      });
+    }
+
+    this.renderDeskContactsList();
+
     // Comms Controls
     const btnCall = document.getElementById('btnGlobalCall');
     if (btnCall) {
       btnCall.addEventListener('click', () => {
         if (!this.isCalling) {
-          this.startVoiceCall();
+          const inp = document.getElementById('deskDialInput');
+          const dialed = inp ? inp.value.trim() : '';
+          if (dialed) {
+            this.dialAndCallWifiNumber(dialed);
+          } else {
+            this.startVoiceCall();
+          }
         } else {
           this.stopVoiceCall();
         }
@@ -465,11 +555,36 @@ class TacticalMeshDesktop {
           this.sendControlPacket({
             type: 'SET_NICKNAME',
             senderId: this.localNodeId,
-            nickname: val
+            nickname: val,
+            number: this.myExtension
           });
           this.log(`Call-sign updated to: ${val}`);
           alert(`✅ Call-sign updated to: ${val}`);
         }
+      });
+    }
+
+    // Extension Setting Handlers
+    const extInput = document.getElementById('settingMyExtension');
+    if (extInput) extInput.value = this.myExtension;
+    const badgeExt = document.getElementById('deskMyExtBadge');
+    if (badgeExt) badgeExt.innerText = `MY EXT: ${this.myExtension}`;
+
+    const btnSaveExt = document.getElementById('btnSaveExtension');
+    if (btnSaveExt) {
+      btnSaveExt.addEventListener('click', () => {
+        const val = extInput ? extInput.value.trim() : '100';
+        this.myExtension = val || '100';
+        localStorage.setItem('sharpbose_my_ext', this.myExtension);
+        if (badgeExt) badgeExt.innerText = `MY EXT: ${this.myExtension}`;
+        this.sendControlPacket({
+          type: 'SET_NICKNAME',
+          senderId: this.localNodeId,
+          nickname: this.nickname || 'DESKTOP-NODE',
+          number: this.myExtension
+        });
+        this.log(`✅ Extension saved: ${this.myExtension}`);
+        alert(`✅ Tactical extension saved: ${this.myExtension}`);
       });
     }
 
@@ -808,6 +923,51 @@ class TacticalMeshDesktop {
     } catch (e) {}
   }
 
+  startCallRingTone(isIncoming = false) {
+    this.stopCallRingTone();
+    const playTone = async () => {
+      try {
+        const audioCtx = await this.initAudioContext();
+        if (!audioCtx) return;
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
+        const now = audioCtx.currentTime;
+
+        const osc1 = audioCtx.createOscillator();
+        const osc2 = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        // Authentic dual-tone telephony / radio ring tone
+        osc1.type = 'sine';
+        osc2.type = 'sine';
+        osc1.frequency.setValueAtTime(isIncoming ? 520 : 440, now);
+        osc2.frequency.setValueAtTime(isIncoming ? 660 : 480, now);
+
+        gain.gain.setValueAtTime(0.18, now);
+        gain.gain.setValueAtTime(0.18, now + (isIncoming ? 0.8 : 1.2));
+        gain.gain.exponentialRampToValueAtTime(0.001, now + (isIncoming ? 0.9 : 1.3));
+
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc1.start(now);
+        osc2.start(now);
+        osc1.stop(now + (isIncoming ? 0.9 : 1.3));
+        osc2.stop(now + (isIncoming ? 0.9 : 1.3));
+      } catch (e) {}
+    };
+
+    playTone();
+    this.callRingInterval = setInterval(playTone, isIncoming ? 2200 : 3000);
+  }
+
+  stopCallRingTone() {
+    if (this.callRingInterval) {
+      clearInterval(this.callRingInterval);
+      this.callRingInterval = null;
+    }
+  }
+
   setupShortcuts() {
     // Spacebar PTT shortcut
     window.addEventListener('keydown', (e) => {
@@ -1126,24 +1286,38 @@ class TacticalMeshDesktop {
         
         const targetId = (json.targetId || '').toLowerCase().trim();
         const myId = this.localNodeId.toLowerCase().trim();
-        if (targetId && targetId !== myId && targetId !== 'broadcast' && targetId !== 'all') {
+        const targetNumber = (json.targetNumber || '').trim();
+        const senderNumber = (json.senderNumber || '').trim();
+        const myExt = (this.myExtension || '100').trim();
+
+        if (targetNumber && myExt && targetNumber !== myExt && targetNumber !== '000' && targetNumber !== '999' && targetNumber.toLowerCase() !== 'broadcast') {
+          if (targetId && targetId !== myId && targetId !== 'broadcast' && targetId !== 'all') {
+            if (!myId.includes(targetId) && !targetId.includes(myId)) return;
+          }
+        } else if (targetId && targetId !== myId && targetId !== 'broadcast' && targetId !== 'all') {
           if (!myId.includes(targetId) && !targetId.includes(myId)) return;
         }
 
-        this.activeCallPeer = { id: json.senderId, name: json.senderName || 'Companion Node' };
+        const matchedContact = senderNumber ? this.findContactByNumber(senderNumber) : this.findContactByNodeId(senderId);
+        const displayName = matchedContact ? matchedContact.name : (json.senderName || 'Companion Node');
+        const displayMeta = senderNumber ? `EXT: ${senderNumber} • WI-FI CALL • NOISE_XX E2EE` : `ID: ${json.senderId} // E2EE NOISE_XX`;
+
+        this.activeCallPeer = { id: json.senderId, name: displayName, number: senderNumber };
         const incName = document.getElementById('incomingCallerName');
         const incId = document.getElementById('incomingCallerId');
-        if (incName) incName.innerText = `[ NODE: ${(json.senderName || 'PEER').toUpperCase()} ]`;
-        if (incId) incId.innerText = `ID: ${json.senderId} // E2EE NOISE_XX`;
+        if (incName) incName.innerText = `[ ${displayName.toUpperCase()} ]`;
+        if (incId) incId.innerText = displayMeta;
         const modal = document.getElementById('incomingCallModal');
         if (modal) modal.classList.add('open');
-        this.log(`📞 Incoming call from ${json.senderName || 'Peer'} (${json.senderId})`);
+        this.startCallRingTone(true);
+        this.log(`📞 Incoming Wi-Fi call from ${displayName} (${senderNumber ? 'Ext: ' + senderNumber : json.senderId})`);
         break;
       }
 
       case 'CALL_ACCEPT': {
         const senderId = (json.senderId || '').trim();
         if (!senderId || senderId.toLowerCase() === this.localNodeId.toLowerCase()) return;
+        this.stopCallRingTone();
         this.isCalling = true;
         const btnCall = document.getElementById('btnGlobalCall');
         if (btnCall) {
@@ -1157,6 +1331,7 @@ class TacticalMeshDesktop {
 
       case 'CALL_DECLINE':
       case 'CALL_HANGUP': {
+        this.stopCallRingTone();
         const senderId = (json.senderId || '').trim();
         if (!senderId || senderId.toLowerCase() === this.localNodeId.toLowerCase()) return;
         this.log(`Remote peer ended/declined call.`);
@@ -1284,29 +1459,61 @@ class TacticalMeshDesktop {
   async startMicCapture() {
     try {
       await this.initAudioContext();
-      if (this.micStream) return;
+      if (this.micStream) {
+        const activeTracks = this.micStream.getAudioTracks().filter(t => t.readyState === 'live');
+        if (activeTracks.length > 0) return;
+        this.stopMicCapture();
+      }
 
-      this.micStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }
-      });
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        this.log('❌ Web Audio Error: navigator.mediaDevices.getUserMedia is not supported on this origin');
+        return;
+      }
+
+      let stream = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            sampleRate: { ideal: inSampleRate },
+            echoCancellation: { ideal: false }, // Avoid Windows Bluetooth HFP APO audio driver conflict & buffering
+            noiseSuppression: { ideal: false },
+            autoGainControl: { ideal: false },
+            latency: { ideal: 0.010 }
+          }
+        });
+      } catch (errConstraint) {
+        console.warn('Specialized audio constraints rejected, attempting basic fallback:', errConstraint);
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+
+      this.micStream = stream;
 
       if (this.audioCtx && this.audioCtx.state === 'suspended') {
         try { await this.audioCtx.resume(); } catch (e) {}
       }
 
       const source = this.audioCtx.createMediaStreamSource(this.micStream);
-      // Use 1024 buffer size for smooth, low-latency audio capture
-      const processor = this.audioCtx.createScriptProcessor(1024, 1, 1);
+      // Use 512 buffer size for ultra-low latency real-time audio capture (~10ms)
+      const processor = this.audioCtx.createScriptProcessor(512, 1, 1);
       const inSampleRate = this.audioCtx.sampleRate || 48000;
-      const targetSampleRate = 16000; // Standardize mesh voice stream to 16 kHz HD Voice
+      const targetSampleRate = inSampleRate; // Full Studio High Fidelity (48 kHz / Native Audio Rate)
       const ratio = inSampleRate / targetSampleRate;
 
       let resamplePhase = 0;
+      // Pre-allocated circular ring buffer to prevent Windows Chromium V8 GC pauses & audio stutter
+      const RING_SIZE = 96000; // 2 seconds capacity
+      const ringBuffer = new Int16Array(RING_SIZE);
+      let ringWrite = 0;
+      let ringRead = 0;
+
+      const FRAME_SAMPLES = Math.round(targetSampleRate * 0.010); // Exact 10ms frame (480 samples @ 48kHz for zero latency)
+      const outPacket = new Uint8Array(4 + FRAME_SAMPLES * 2);
+      outPacket[0] = 0xAA;
+      outPacket[1] = 0x55;
+      outPacket[2] = (targetSampleRate >> 8) & 0xFF;
+      outPacket[3] = targetSampleRate & 0xFF;
+      const outPcmInt16 = new Int16Array(outPacket.buffer, 4, FRAME_SAMPLES);
 
       processor.onaudioprocess = (e) => {
         if (!this.isCalling && !this.isPttActive && !this.isTestingMic) return;
@@ -1322,56 +1529,52 @@ class TacticalMeshDesktop {
         // VU meter update
         const avg = sum / inputData.length;
         const vuBar = document.getElementById('micVuBar');
-        if (vuBar) vuBar.style.width = `${Math.min(100, avg * 350)}%`;
+        if (vuBar) vuBar.style.width = `${Math.min(100, avg * 450)}%`;
         const settingVuBar = document.getElementById('settingVuBar');
         if (settingVuBar && this.isTestingMic) {
-          settingVuBar.style.width = `${Math.min(100, avg * 350)}%`;
+          settingVuBar.style.width = `${Math.min(100, avg * 450)}%`;
         }
 
         if (!this.isCalling && !this.isPttActive) return;
 
-        // Downsample input from native sampleRate (e.g. 48kHz/44.1kHz) to 16kHz with anti-aliasing
-        let outLen = Math.floor((inputData.length - resamplePhase) / ratio);
-        if (outLen <= 0) return;
-
-        const pcm16 = new Int16Array(outLen);
-        let outIdx = 0;
-        let pos = resamplePhase;
-
-        while (pos < inputData.length && outIdx < outLen) {
-          const i0 = Math.floor(pos);
-          const frac = pos - i0;
-          let s = 0;
-
-          if (ratio > 1.8) {
-            // Anti-aliasing FIR box average
-            const i1 = Math.min(i0 + 1, inputData.length - 1);
-            const i2 = Math.min(i0 + 2, inputData.length - 1);
-            s = (inputData[i0] * 0.25 + inputData[i1] * 0.5 + inputData[i2] * 0.25) * gain;
-          } else {
-            // Linear interpolation
-            const i1 = Math.min(i0 + 1, inputData.length - 1);
-            s = (inputData[i0] * (1 - frac) + inputData[i1] * frac) * gain;
+        // Lossless studio fidelity: convert directly to 16-bit PCM with soft-knee limiting into ring buffer
+        if (Math.abs(ratio - 1.0) < 0.001) {
+          for (let i = 0; i < inputData.length; i++) {
+            let s = inputData[i] * gain;
+            s = s < -1.0 ? -1.0 : (s > 1.0 ? 1.0 : s);
+            const val = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            ringBuffer[ringWrite] = val;
+            ringWrite = (ringWrite + 1) % RING_SIZE;
           }
-
-          // Soft limit and convert to 16-bit PCM
-          s = Math.max(-1, Math.min(1, s));
-          pcm16[outIdx++] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-          pos += ratio;
+        } else {
+          // Accurate fractional phase interpolation if native device rate differs
+          let pos = resamplePhase;
+          while (pos < inputData.length) {
+            const i0 = Math.floor(pos);
+            const frac = pos - i0;
+            const i1 = Math.min(i0 + 1, inputData.length - 1);
+            let s = (inputData[i0] * (1 - frac) + inputData[i1] * frac) * gain;
+            s = s < -1.0 ? -1.0 : (s > 1.0 ? 1.0 : s);
+            const val = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            ringBuffer[ringWrite] = val;
+            ringWrite = (ringWrite + 1) % RING_SIZE;
+            pos += ratio;
+          }
+          resamplePhase = pos - inputData.length;
+          if (resamplePhase < 0 || resamplePhase > ratio) resamplePhase = 0;
         }
 
-        resamplePhase = pos - inputData.length;
-        if (resamplePhase < 0 || resamplePhase > ratio) resamplePhase = 0;
+        // Emit exact 10ms frames directly with zero dynamic allocation
+        let available = (ringWrite - ringRead + RING_SIZE) % RING_SIZE;
+        while (available >= FRAME_SAMPLES) {
+          for (let i = 0; i < FRAME_SAMPLES; i++) {
+            outPcmInt16[i] = ringBuffer[ringRead];
+            ringRead = (ringRead + 1) % RING_SIZE;
+          }
+          available -= FRAME_SAMPLES;
 
-        // Frame header: [0xAA, 0x55, 0x3E, 0x80] (16000 Hz) + PCM bytes
-        const packet = new Uint8Array(4 + pcm16.buffer.byteLength);
-        packet[0] = 0xAA;
-        packet[1] = 0x55;
-        packet[2] = (targetSampleRate >> 8) & 0xFF; // 0x3E
-        packet[3] = targetSampleRate & 0xFF;        // 0x80
-        packet.set(new Uint8Array(pcm16.buffer), 4);
-
-        this.sendAudioBuffer(packet);
+          this.sendAudioBuffer(outPacket.slice(0));
+        }
       };
 
       // Silent sink node so processor runs continuously without local speaker feedback
@@ -1391,9 +1594,9 @@ class TacticalMeshDesktop {
       monitorGain.connect(this.audioCtx.destination);
       this.monitorGainNode = monitorGain;
 
-      this.log('[Microphone] 🎙️ Microphone capture active & streaming (16kHz HD Voice)');
+      this.log(`[Microphone] 🎙️ Ultra Low-Latency Studio HD audio capture active (${targetSampleRate}Hz)`);
     } catch (e) {
-      this.log(`Microphone access error: ${e.message}`);
+      this.log(`❌ Microphone access error: ${e.message}`);
       console.error('[Microphone Access Error]', e);
     }
   }
@@ -1434,7 +1637,7 @@ class TacticalMeshDesktop {
       }
 
       let pcmBytes = uint8Frame;
-      let senderRate = 16000;
+      let senderRate = 48000;
       if (uint8Frame[0] === 0xAA && uint8Frame[1] === 0x55 && uint8Frame.length >= 4) {
         senderRate = ((uint8Frame[2] & 0xFF) << 8) | (uint8Frame[3] & 0xFF);
         pcmBytes = uint8Frame.subarray(4);
@@ -1449,7 +1652,7 @@ class TacticalMeshDesktop {
         float32[i] = dataView.getInt16(i * 2, true) / 32768.0;
       }
 
-      const safeRate = (senderRate >= 8000 && senderRate <= 96000) ? senderRate : 16000;
+      const safeRate = (senderRate >= 8000 && senderRate <= 96000) ? senderRate : 48000;
       const audioBuffer = this.audioCtx.createBuffer(1, numSamples, safeRate);
       audioBuffer.getChannelData(0).set(float32);
 
@@ -1458,19 +1661,23 @@ class TacticalMeshDesktop {
       source.connect(this.audioCtx.destination);
 
       const currentTime = this.audioCtx.currentTime;
-      // Adaptive jitter buffer: clamp drift between 15ms and 80ms
-      if (!this.nextAudioPlayTime || this.nextAudioPlayTime < currentTime || (this.nextAudioPlayTime - currentTime > 0.08)) {
-        this.nextAudioPlayTime = currentTime + 0.015; // 15ms jitter cushion
+      const JITTER_BUFFER_SEC = 0.005; // 5ms instant DAC hardware dispatch (zero perceptual latency)
+
+      // Instantaneous resync: if gap > 40ms or backlog > 60ms, smoothly anchor to immediate timeline
+      if (!this.nextAudioPlayTime || (currentTime - this.nextAudioPlayTime > 0.040) || (this.nextAudioPlayTime - currentTime > 0.060)) {
+        this.nextAudioPlayTime = currentTime + JITTER_BUFFER_SEC;
       }
 
-      source.start(this.nextAudioPlayTime);
-      this.nextAudioPlayTime += audioBuffer.duration;
+      const scheduleTime = Math.max(currentTime, this.nextAudioPlayTime);
+      source.start(scheduleTime);
+      this.nextAudioPlayTime = scheduleTime + audioBuffer.duration;
     } catch (e) {
       console.warn('[Audio Playback Error]', e);
     }
   }
 
   acceptIncomingCall(peerId = '') {
+    this.stopCallRingTone();
     this.isCalling = true;
     const modal = document.getElementById('incomingCallModal');
     if (modal) modal.classList.remove('open');
@@ -1491,26 +1698,197 @@ class TacticalMeshDesktop {
     this.log(`📞 Call accepted with peer (${this.activeCallPeer?.name || target || 'Node'})`);
   }
 
-  startVoiceCall(peerId = '', peerName = 'Mesh Peer') {
+  getContacts() {
+    const raw = localStorage.getItem('sharpbose_contacts');
+    if (!raw) {
+      const defaults = [
+        { id: 'c1', name: 'HQ Base Station', number: '100', ipOrNodeId: '127.0.0.1', notes: 'Command Desktop Terminal', colorHex: '#38BDF8' },
+        { id: 'c2', name: 'Operator Alpha', number: '101', ipOrNodeId: '192.168.43.1', notes: 'Android Phone 1', colorHex: '#10B981' },
+        { id: 'c3', name: 'Operator Bravo', number: '102', ipOrNodeId: '', notes: 'Android Phone 2', colorHex: '#F59E0B' },
+        { id: 'c4', name: 'Emergency Broadcast', number: '999', ipOrNodeId: 'BROADCAST', notes: 'All Mesh Nodes', colorHex: '#F43F5E' }
+      ];
+      localStorage.setItem('sharpbose_contacts', JSON.stringify(defaults));
+      return defaults;
+    }
+    try {
+      return JSON.parse(raw) || [];
+    } catch(e) {
+      return [];
+    }
+  }
+
+  saveContact(contact) {
+    const list = this.getContacts();
+    const idx = list.findIndex(c => c.id === contact.id || c.number === contact.number);
+    if (idx >= 0) {
+      list[idx] = { ...list[idx], ...contact };
+    } else {
+      list.unshift(contact);
+    }
+    localStorage.setItem('sharpbose_contacts', JSON.stringify(list));
+    this.renderDeskContactsList();
+  }
+
+  deleteContact(id) {
+    const list = this.getContacts().filter(c => c.id !== id);
+    localStorage.setItem('sharpbose_contacts', JSON.stringify(list));
+    this.renderDeskContactsList();
+  }
+
+  findContactByNumber(number) {
+    if (!number) return null;
+    const clean = String(number).trim().toLowerCase();
+    return this.getContacts().find(c => String(c.number).trim().toLowerCase() === clean);
+  }
+
+  findContactByNodeId(nodeId) {
+    if (!nodeId) return null;
+    const clean = String(nodeId).trim().toLowerCase();
+    return this.getContacts().find(c => c.ipOrNodeId && (clean.includes(c.ipOrNodeId.toLowerCase()) || c.ipOrNodeId.toLowerCase().includes(clean)));
+  }
+
+  openContactModal(editId = '', defaultNumber = '') {
+    const modal = document.getElementById('contactModal');
+    if (!modal) return;
+    const title = document.getElementById('contactModalTitle');
+    const inputId = document.getElementById('contactInputId');
+    const inputName = document.getElementById('contactInputName');
+    const inputNumber = document.getElementById('contactInputNumber');
+    const inputIp = document.getElementById('contactInputIp');
+    const inputNotes = document.getElementById('contactInputNotes');
+
+    const contact = editId ? this.getContacts().find(c => c.id === editId) : null;
+    if (contact) {
+      if (title) title.innerText = '✏️ Edit Tactical Contact';
+      if (inputId) inputId.value = contact.id;
+      if (inputName) inputName.value = contact.name;
+      if (inputNumber) inputNumber.value = contact.number;
+      if (inputIp) inputIp.value = contact.ipOrNodeId || '';
+      if (inputNotes) inputNotes.value = contact.notes || '';
+    } else {
+      if (title) title.innerText = '➕ Add Tactical Contact';
+      if (inputId) inputId.value = '';
+      if (inputName) inputName.value = '';
+      if (inputNumber) inputNumber.value = defaultNumber || '';
+      if (inputIp) inputIp.value = '';
+      if (inputNotes) inputNotes.value = '';
+    }
+
+    modal.classList.add('open');
+  }
+
+  renderDeskContactsList() {
+    const listEl = document.getElementById('deskContactsList');
+    if (!listEl) return;
+    const contacts = this.getContacts();
+    if (contacts.length === 0) {
+      listEl.innerHTML = `
+        <div class="peer-row" style="padding: 10px;">
+          <div class="peer-info">
+            <div class="peer-name" style="font-size: 11px;">👤 No saved contacts</div>
+            <div class="peer-meta" style="font-size: 10px;">Click '+ Add New' to store extensions &amp; IPs.</div>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    listEl.innerHTML = contacts.map(c => {
+      const isOnline = this.connectedPeers.some(p => p.number === c.number || (c.ipOrNodeId && (p.id.includes(c.ipOrNodeId) || c.ipOrNodeId.includes(p.id))));
+      const initial = (c.name || 'C').charAt(0).toUpperCase();
+      const color = c.colorHex || '#38BDF8';
+      return `
+        <div class="peer-row" style="padding: 8px 12px; display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="width: 30px; height: 30px; border-radius: 50%; background: ${color}; color: #000; font-weight: 700; font-size: 12px; display: flex; align-items: center; justify-content: center; font-family: monospace;">
+              ${initial}
+            </div>
+            <div>
+              <div style="font-size: 12px; font-weight: 700; color: #FFFFFF; display: flex; align-items: center; gap: 6px;">
+                <span>${c.name}</span>
+                <span style="font-size: 9px; font-weight: 600; color: ${isOnline ? 'var(--emerald-primary)' : 'var(--text-muted)'};">
+                  ${isOnline ? '● LIVE' : '○ MESH'}
+                </span>
+              </div>
+              <div style="font-size: 10px; color: var(--cyan-primary); font-family: monospace;">
+                EXT: <strong>${c.number}</strong> ${c.ipOrNodeId ? `• ${c.ipOrNodeId}` : ''} ${c.notes ? `(${c.notes})` : ''}
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 4px;">
+            <button class="btn-tactical-sm btn-call-contact" data-number="${c.number}" style="padding: 4px 10px; font-size: 10px; color: var(--emerald-primary); border-color: rgba(16, 185, 129, 0.4);">
+              📞 Call
+            </button>
+            <button class="btn-tactical-sm btn-delete-contact" data-id="${c.id}" style="padding: 4px 8px; font-size: 10px; color: var(--rose-primary);">
+              ✕
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    listEl.querySelectorAll('.btn-call-contact').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const num = btn.dataset.number;
+        const inp = document.getElementById('deskDialInput');
+        if (inp) inp.value = num;
+        this.dialAndCallWifiNumber(num);
+      });
+    });
+
+    listEl.querySelectorAll('.btn-delete-contact').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.id;
+        this.deleteContact(id);
+      });
+    });
+  }
+
+  dialAndCallWifiNumber(number) {
+    if (!number) {
+      this.log('⚠️ Please enter an extension or phone number to call');
+      return;
+    }
+    const contact = this.findContactByNumber(number);
+    const targetName = contact ? contact.name : `Ext: ${number}`;
+    let targetId = 'BROADCAST';
+
+    const matchedPeer = this.connectedPeers.find(p => p.number === number || (contact && contact.ipOrNodeId && (p.id.includes(contact.ipOrNodeId) || contact.ipOrNodeId.includes(p.id))));
+    if (matchedPeer) {
+      targetId = matchedPeer.id;
+    } else if (contact && contact.ipOrNodeId && contact.ipOrNodeId.includes('.')) {
+      const parts = contact.ipOrNodeId.split(':');
+      this.connectMesh(parts[0], parseInt(parts[1] || '3000', 10));
+      targetId = contact.ipOrNodeId;
+    }
+
+    this.log(`📶 Dialing number ${number} (${targetName}) over local Wi-Fi mesh...`);
+    this.startVoiceCall(targetId, targetName, number);
+  }
+
+  startVoiceCall(peerId = '', peerName = 'Mesh Peer', targetNumber = '') {
     this.isCalling = true;
-    this.activeCallPeer = { id: peerId, name: peerName };
+    this.activeCallPeer = { id: peerId, name: peerName, number: targetNumber };
     const btnCall = document.getElementById('btnGlobalCall');
     if (btnCall) {
       btnCall.innerText = '[ 🔴 END ACTIVE VOICE CALL ]';
       btnCall.className = 'btn-end';
     }
-    this.playChime();
+    this.startCallRingTone(false);
     this.startMicCapture();
     this.sendControlPacket({
       type: 'CALL_INVITE',
-      targetId: peerId,
+      targetId: peerId || 'BROADCAST',
+      targetNumber: targetNumber || '',
+      senderNumber: this.myExtension || '100',
       senderId: this.localNodeId,
       senderName: this.nickname || 'Desktop Terminal'
     });
-    this.log(`📞 Calling ${peerName} (${peerId || 'Broadcast'})...`);
+    this.log(`📞 Calling ${peerName} (${targetNumber ? 'Ext: ' + targetNumber : peerId || 'Broadcast'})...`);
   }
 
   stopVoiceCall(notifyRemote = true) {
+    this.stopCallRingTone();
     const wasCalling = this.isCalling;
     this.isCalling = false;
     const modal = document.getElementById('incomingCallModal');
@@ -1666,7 +2044,7 @@ class TacticalMeshDesktop {
   }
 
   // --- Universal RIFF WAV PCM Audio Engine ---
-  encodeWavBuffer(samples, sampleRate = 16000) {
+  encodeWavBuffer(samples, sampleRate = 48000) {
     const buffer = new ArrayBuffer(44 + samples.length * 2);
     const view = new DataView(buffer);
 

@@ -23,15 +23,15 @@ import kotlin.math.min
 import kotlin.math.tanh
 
 /**
- * Android Ultra-Clear Low-Latency HD Voice Engine (16 kHz PCM Mono).
+ * Android Studio Ultra-Clear HD Voice Engine (48 kHz PCM Mono Full Fidelity).
  * Features:
  * - Hardware AEC, NS, AGC
- * - Adaptive Anti-Jitter Ring Buffer (40ms-120ms dynamic absorption)
- * - Fractional Phase Resampling (Zero sample truncation / click prevention)
- * - Smooth Dynamic AGC & Tanh Soft-Knee Limiter (Loud & clear, zero distortion)
+ * - Adaptive Anti-Jitter Ring Buffer
+ * - Lossless Full 48kHz Bandwidth
+ * - Smooth Dynamic AGC & Tanh Soft-Knee Limiter
  */
 class AndroidAudioEngine(private val context: Context) {
-    val sampleRate = 16000
+    val sampleRate = 48000
     private val channelConfigIn = AudioFormat.CHANNEL_IN_MONO
     private val channelConfigOut = AudioFormat.CHANNEL_OUT_MONO
     private val audioFormat = AudioFormat.ENCODING_PCM_16BIT
@@ -49,8 +49,6 @@ class AndroidAudioEngine(private val context: Context) {
 
     // Adaptive Jitter Buffer: capacity 32 frames (~640ms ceiling)
     private val playbackQueue = LinkedBlockingQueue<ByteArray>(32)
-    private val prebufferCount = 2 // 2 frames (~40ms) prebuffer for initial jitter cushion
-    private var isBuffering = AtomicBoolean(true)
 
     // Persistent resampling phase tracker to eliminate frame boundary clicks
     private var resamplePhase = 0.0
@@ -70,7 +68,7 @@ class AndroidAudioEngine(private val context: Context) {
         startPlaybackOnly()
 
         val inBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfigIn, audioFormat)
-        val actualInBufSize = maxOf(inBufferSize, 2560)
+        val actualInBufSize = maxOf(inBufferSize, 1920)
 
         try {
             var rec: AudioRecord? = null
@@ -138,8 +136,8 @@ class AndroidAudioEngine(private val context: Context) {
 
             recordingThread = Thread {
                 Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
-                // 320 samples = 20ms @ 16kHz 16-bit PCM = 640 bytes
-                val audioBuffer = ByteArray(640)
+                // 480 samples = 10ms @ 48kHz 16-bit PCM = 960 bytes (Ultra-low latency packetization)
+                val audioBuffer = ByteArray(960)
 
                 while (isRecording.get()) {
                     val readBytes = audioRecord?.read(audioBuffer, 0, audioBuffer.size) ?: 0
@@ -168,8 +166,7 @@ class AndroidAudioEngine(private val context: Context) {
         if (isPlaying.get() && audioTrack != null) return
 
         val minTrackBuf = AudioTrack.getMinBufferSize(sampleRate, channelConfigOut, audioFormat)
-        // 2x minimum buffer or at least 2560 bytes (~80ms hardware buffer)
-        val actualOutBufSize = maxOf(minTrackBuf * 2, 2560)
+        val actualOutBufSize = maxOf(minTrackBuf, 1920)
 
         try {
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -199,30 +196,20 @@ class AndroidAudioEngine(private val context: Context) {
             audioTrack = trackBuilder.build()
             audioTrack?.play()
             isPlaying.set(true)
-            isBuffering.set(true)
 
             playbackThread = Thread {
                 Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
                 while (isPlaying.get()) {
                     try {
-                        if (isBuffering.get()) {
-                            if (playbackQueue.size >= prebufferCount) {
-                                isBuffering.set(false)
-                            } else {
-                                Thread.sleep(5)
-                                continue
-                            }
-                        }
-
-                        val chunk = playbackQueue.poll(40, TimeUnit.MILLISECONDS)
+                        val chunk = playbackQueue.poll(20, TimeUnit.MILLISECONDS)
                         if (chunk != null && chunk.isNotEmpty() && isPlaying.get()) {
-                            if (audioTrack?.playState != AudioTrack.PLAYSTATE_PLAYING) {
-                                audioTrack?.play()
+                            val track = audioTrack
+                            if (track != null) {
+                                if (track.playState != AudioTrack.PLAYSTATE_PLAYING) {
+                                    try { track.play() } catch (e: Exception) {}
+                                }
+                                track.write(chunk, 0, chunk.size)
                             }
-                            audioTrack?.write(chunk, 0, chunk.size)
-                        } else if (chunk == null) {
-                            // Buffer underrun occurred, re-enable slight cushion
-                            isBuffering.set(true)
                         }
                     } catch (e: InterruptedException) {
                         break
@@ -254,7 +241,7 @@ class AndroidAudioEngine(private val context: Context) {
             pcmBytes = frame.copyOfRange(4, frame.size)
         } else {
             pcmBytes = frame
-            if (frame.size > 800) {
+            if (frame.size > 400) {
                 senderRate = 48000 // Fallback browser rate
             }
         }
@@ -271,9 +258,8 @@ class AndroidAudioEngine(private val context: Context) {
 
         val clean = applySoftLimiter(processedPcm)
 
-        // Adaptive queue maintenance: if queue exceeds 10 frames (~200ms lag),
-        // gracefully drop the oldest frame to preserve live conversational speed.
-        if (playbackQueue.size > 8) {
+        // Instantaneous playback queue: max 2 frames (~20ms ceiling) to guarantee zero latency
+        while (playbackQueue.size > 2) {
             playbackQueue.poll()
         }
 
