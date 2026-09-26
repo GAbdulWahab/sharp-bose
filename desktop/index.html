@@ -151,6 +151,64 @@
     <!-- SCREEN 1: 📞 COMMS & PTT RADIO                            -->
     <!-- ========================================================= -->
     <section class="screen-view" id="viewComms">
+      <!-- 00. Wi-Fi Number Dialer & Tactical Contacts -->
+      <div class="tactical-card" style="margin-bottom: 16px;">
+        <div class="card-title">
+          <span>📶 Wi-Fi Number Dialer &amp; Contacts Directory</span>
+          <span id="deskMyExtBadge" style="color: var(--cyan-primary); font-weight: 700; background: rgba(56, 189, 248, 0.15); padding: 2px 8px; border-radius: 4px; font-size: 11px;">MY EXT: 100</span>
+        </div>
+        <div class="card-subtitle">
+          Dial any extension or phone number to call directly across local Wi-Fi mesh, Hotspot, or Bluetooth.
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1.2fr 1.8fr; gap: 16px; margin-top: 14px;">
+          <!-- Left: Keypad & Input -->
+          <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="display: flex; gap: 6px; background: rgba(15, 23, 42, 0.8); border: 1px solid var(--border-glass); border-radius: 8px; padding: 6px 10px; align-items: center;">
+              <input type="text" class="chat-input" id="deskDialInput" placeholder="Enter Number (e.g. 101, 102)" style="border: none; background: transparent; font-size: 18px; color: var(--emerald-primary); font-weight: 700; font-family: monospace; letter-spacing: 1px;" />
+              <button class="btn-tactical-sm" id="btnDeskDialBackspace" style="padding: 6px 12px; font-size: 14px;">⌫</button>
+            </div>
+
+            <!-- Keypad Matrix -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;">
+              <button class="btn-tactical-sm btn-desk-key" data-key="1" style="justify-content: center; padding: 10px; font-weight: 700;">1</button>
+              <button class="btn-tactical-sm btn-desk-key" data-key="2" style="justify-content: center; padding: 10px; font-weight: 700;">2</button>
+              <button class="btn-tactical-sm btn-desk-key" data-key="3" style="justify-content: center; padding: 10px; font-weight: 700;">3</button>
+              <button class="btn-tactical-sm btn-desk-key" data-key="4" style="justify-content: center; padding: 10px; font-weight: 700;">4</button>
+              <button class="btn-tactical-sm btn-desk-key" data-key="5" style="justify-content: center; padding: 10px; font-weight: 700;">5</button>
+              <button class="btn-tactical-sm btn-desk-key" data-key="6" style="justify-content: center; padding: 10px; font-weight: 700;">6</button>
+              <button class="btn-tactical-sm btn-desk-key" data-key="7" style="justify-content: center; padding: 10px; font-weight: 700;">7</button>
+              <button class="btn-tactical-sm btn-desk-key" data-key="8" style="justify-content: center; padding: 10px; font-weight: 700;">8</button>
+              <button class="btn-tactical-sm btn-desk-key" data-key="9" style="justify-content: center; padding: 10px; font-weight: 700;">9</button>
+              <button class="btn-tactical-sm btn-desk-key" data-key="*" style="justify-content: center; padding: 10px; font-weight: 700; color: var(--amber-primary);">*</button>
+              <button class="btn-tactical-sm btn-desk-key" data-key="0" style="justify-content: center; padding: 10px; font-weight: 700;">0</button>
+              <button class="btn-tactical-sm btn-desk-key" data-key="#" style="justify-content: center; padding: 10px; font-weight: 700; color: var(--amber-primary);">#</button>
+            </div>
+
+            <div style="display: flex; gap: 6px; margin-top: 2px;">
+              <button class="btn-call" id="btnDeskCallNumber" style="flex: 2; height: 42px; font-size: 12px;">
+                📞 Call Number via Wi-Fi
+              </button>
+              <button class="btn-tactical-sm" id="btnDeskSaveContact" style="flex: 1; justify-content: center; height: 42px; color: var(--amber-primary); border-color: rgba(245, 158, 11, 0.4);">
+                ➕ Save
+              </button>
+            </div>
+          </div>
+
+          <!-- Right: Tactical Contacts List -->
+          <div style="display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 11px; color: var(--text-secondary); font-weight: 700;">SAVED CONTACTS DIRECTORY</span>
+              <button class="btn-tactical-sm" id="btnDeskAddContactModal" style="padding: 2px 8px; font-size: 10px; color: var(--emerald-primary);">+ Add New</button>
+            </div>
+
+            <div id="deskContactsList" style="max-height: 230px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px;">
+              <!-- Populated dynamically via JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="comms-grid">
         <!-- Duplex Call Box -->
         <div class="tactical-card">
@@ -442,6 +500,14 @@
             <div style="display: flex; gap: 8px;">
               <input type="text" class="chat-input" id="settingNickname" placeholder="e.g. ALPHA-OPERATOR-01" style="flex: 1;">
               <button class="btn-tactical-sm" id="btnSaveNickname" style="padding: 0 16px; background: var(--cyan-primary); color: #000; font-weight: 700;">Save</button>
+            </div>
+          </div>
+
+          <div class="settings-field">
+            <label class="settings-label">MY TACTICAL EXTENSION / NUMBER</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" class="chat-input" id="settingMyExtension" placeholder="e.g. 100" style="flex: 1; color: var(--emerald-primary); font-weight: 700;">
+              <button class="btn-tactical-sm" id="btnSaveExtension" style="padding: 0 16px; background: var(--emerald-primary); color: #000; font-weight: 700;">Save</button>
             </div>
           </div>
 
@@ -752,6 +818,48 @@
       <button class="btn-tactical-sm" id="btnCloseLightbox" style="position: absolute; top: 12px; right: 12px; z-index: 10;">✕ Close</button>
       <img id="lightboxImg" src="" style="max-width: 100%; max-height: 80vh; object-fit: contain; border-radius: 8px;" />
       <div id="lightboxCaption" style="margin-top: 10px; font-size: 12px; color: var(--text-secondary); font-family: 'JetBrains Mono', monospace;"></div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Contact Modal -->
+  <div class="tactical-modal-backdrop" id="contactModal">
+    <div class="tactical-modal" style="width: 440px;">
+      <div class="card-title" style="margin-bottom: 12px;">
+        <span id="contactModalTitle">➕ Add Tactical Contact</span>
+        <button class="btn-tactical-sm" id="btnCloseContactModal" style="padding: 2px 8px; font-size: 11px;">✕</button>
+      </div>
+      <div class="card-subtitle" style="margin-bottom: 14px;">
+        Save companion extension, phone number, and node address for 1-tap direct Wi-Fi calling.
+      </div>
+
+      <input type="hidden" id="contactInputId" value="" />
+
+      <div class="settings-field" style="margin-bottom: 10px;">
+        <label class="settings-label">CONTACT NAME / CALL-SIGN</label>
+        <input type="text" class="chat-input" id="contactInputName" placeholder="e.g. Field Unit Alpha" />
+      </div>
+
+      <div class="settings-field" style="margin-bottom: 10px;">
+        <label class="settings-label">EXTENSION / PHONE NUMBER</label>
+        <input type="text" class="chat-input" id="contactInputNumber" placeholder="e.g. 101 or 9876" />
+      </div>
+
+      <div class="settings-field" style="margin-bottom: 10px;">
+        <label class="settings-label">OPTIONAL NODE IP / ID</label>
+        <input type="text" class="chat-input" id="contactInputIp" placeholder="e.g. 192.168.1.50" />
+      </div>
+
+      <div class="settings-field" style="margin-bottom: 14px;">
+        <label class="settings-label">NOTES</label>
+        <input type="text" class="chat-input" id="contactInputNotes" placeholder="e.g. Android Mobile Operator" />
+      </div>
+
+      <div style="display: flex; gap: 10px;">
+        <button class="btn-tactical-sm" id="btnCancelContactModal" style="flex: 1; justify-content: center; height: 40px;">Cancel</button>
+        <button class="btn-tactical-sm" id="btnSaveContactModal" style="flex: 2; justify-content: center; height: 40px; background: var(--emerald-primary); color: #000; font-weight: 700;">
+          💾 Save Contact
+        </button>
+      </div>
     </div>
   </div>
 

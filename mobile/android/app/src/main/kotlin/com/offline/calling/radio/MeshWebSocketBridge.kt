@@ -36,7 +36,8 @@ data class PeerNode(
     val location: PeerLocation? = null,
     val hopCount: Int = 0,
     val relayPath: List<String> = emptyList(),
-    val transport: String = "AUTO_P2P"
+    val transport: String = "AUTO_P2P",
+    val number: String = ""
 )
 
 data class ChatMessagePacket(
@@ -103,8 +104,10 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
 
     private val allDiscoveredPeers = CopyOnWriteArrayList<PeerNode>()
 
+    var localExtensionNumber: String = "101"
     var onAudioFrameReceived: ((ByteArray) -> Unit)? = null
     var onIncomingCall: ((callerName: String, callerId: String) -> Unit)? = null
+    var onIncomingCallWithDetails: ((callerName: String, callerId: String, callerNumber: String, targetNumber: String) -> Unit)? = null
     var onCallAccepted: ((peerName: String) -> Unit)? = null
     var onCallDeclined: ((peerId: String) -> Unit)? = null
     var onCallTerminated: (() -> Unit)? = null
@@ -711,8 +714,21 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                     val senderName = json.optString("senderName", "Mesh Peer")
                     val senderId = json.optString("senderId", "node-peer")
                     val targetId = json.optString("targetId", "")
+                    val senderNumber = json.optString("senderNumber", "")
+                    val targetNumber = json.optString("targetNumber", "")
+
                     if (senderId == localNodeId || senderId.equals(localNodeId, true)) return
-                    if (targetId.isNotEmpty() && targetId != localNodeId && !targetId.equals(localNodeId, true) && targetId != "BROADCAST") return
+                    
+                    val myNum = localExtensionNumber.trim()
+                    if (targetNumber.isNotEmpty() && myNum.isNotEmpty() && targetNumber != myNum && targetNumber != "000" && targetNumber != "999" && targetNumber != "BROADCAST") {
+                        if (targetId.isNotEmpty() && targetId != localNodeId && !targetId.equals(localNodeId, true) && targetId != "BROADCAST") {
+                            return
+                        }
+                    } else if (targetId.isNotEmpty() && targetId != localNodeId && !targetId.equals(localNodeId, true) && targetId != "BROADCAST") {
+                        return
+                    }
+
+                    onIncomingCallWithDetails?.invoke(senderName, senderId, senderNumber, targetNumber)
                     onIncomingCall?.invoke(senderName, senderId)
                 }
                 "CALL_ACCEPT" -> {
@@ -809,7 +825,8 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                                     timestamp = locObj.optLong("timestamp", System.currentTimeMillis())
                                 )
                             }
-                            val p = PeerNode(id, nickname, deviceType, status, loc, hopCount)
+                            val number = pObj.optString("number", "")
+                            val p = PeerNode(id, nickname, deviceType, status, loc, hopCount, number = number)
                             if (isValidRemotePeer(p)) {
                                 list.add(p)
                             }
@@ -957,11 +974,13 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
         })
     }
 
-    fun sendSetNickname(nickname: String, deviceType: String = "Android") {
+    fun sendSetNickname(nickname: String, deviceType: String = "Android", number: String = "") {
         sendJson(JSONObject().apply {
             put("type", "SET_NICKNAME")
             put("nickname", nickname)
             put("deviceType", deviceType)
+            val num = number.ifEmpty { localExtensionNumber }
+            if (num.isNotEmpty()) put("number", num)
         })
     }
 
@@ -972,12 +991,15 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
         })
     }
 
-    fun sendCallInvite(targetId: String, senderName: String = "Android Phone") {
+    fun sendCallInvite(targetId: String = "", senderName: String = "Android Phone", targetNumber: String = "", senderNumber: String = "") {
         sendJson(JSONObject().apply {
             put("type", "CALL_INVITE")
-            put("targetId", targetId)
+            put("targetId", targetId.ifEmpty { "BROADCAST" })
             put("senderId", localNodeId)
             put("senderName", senderName)
+            if (targetNumber.isNotEmpty()) put("targetNumber", targetNumber)
+            val sNum = senderNumber.ifEmpty { localExtensionNumber }
+            if (sNum.isNotEmpty()) put("senderNumber", sNum)
         })
     }
 

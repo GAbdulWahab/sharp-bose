@@ -55,6 +55,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private lateinit var audioEngine: AndroidAudioEngine
     private val bridge get() = ForegroundMeshService.getSharedBridge(this)
     private lateinit var callHistoryManager: CallHistoryManager
+    private lateinit var contactsManager: ContactsManager
+    private var myExtensionNumber: String = "101"
     private var isCalling = false
     private var isSpeakerOn = true
     private var isPttTransmitting = false
@@ -123,6 +125,27 @@ class MainActivity : AppCompatActivity(), LocationListener {
     private var isWifiRadioEnabled = false
 
     // Screen 2: Comms UI
+    private lateinit var cardWifiDialer: CardView
+    private lateinit var tvMyExtensionBadge: TextView
+    private lateinit var etDialNumber: EditText
+    private lateinit var btnDialBackspace: Button
+    private lateinit var btnCallWifiNumber: Button
+    private lateinit var btnSaveContactFromDialer: Button
+    private lateinit var btnOpenContacts: Button
+    private lateinit var llQuickContactsContainer: LinearLayout
+    private lateinit var btnKey1: Button
+    private lateinit var btnKey2: Button
+    private lateinit var btnKey3: Button
+    private lateinit var btnKey4: Button
+    private lateinit var btnKey5: Button
+    private lateinit var btnKey6: Button
+    private lateinit var btnKey7: Button
+    private lateinit var btnKey8: Button
+    private lateinit var btnKey9: Button
+    private lateinit var btnKey0: Button
+    private lateinit var btnKeyStar: Button
+    private lateinit var btnKeyHash: Button
+
     private lateinit var cardCall: CardView
     private lateinit var btnCall: Button
     private lateinit var btnSpeaker: Button
@@ -221,6 +244,9 @@ class MainActivity : AppCompatActivity(), LocationListener {
         isDarkMode = prefs.getBoolean("is_dark_mode", true)
 
         callHistoryManager = CallHistoryManager(this)
+        contactsManager = ContactsManager(this)
+        myExtensionNumber = prefs.getString("my_extension_number", "101") ?: "101"
+        bridge.localExtensionNumber = myExtensionNumber
         audioEngine = AndroidAudioEngine(this)
         try {
             audioEngine.startPlaybackOnly()
@@ -322,6 +348,30 @@ class MainActivity : AppCompatActivity(), LocationListener {
         btnConfigNodeIp = findViewById(R.id.btnConfigNodeIp)
 
         // Screen 2: Comms
+        cardWifiDialer = findViewById(R.id.cardWifiDialer)
+        tvMyExtensionBadge = findViewById(R.id.tvMyExtensionBadge)
+        etDialNumber = findViewById(R.id.etDialNumber)
+        btnDialBackspace = findViewById(R.id.btnDialBackspace)
+        btnCallWifiNumber = findViewById(R.id.btnCallWifiNumber)
+        btnSaveContactFromDialer = findViewById(R.id.btnSaveContactFromDialer)
+        btnOpenContacts = findViewById(R.id.btnOpenContacts)
+        llQuickContactsContainer = findViewById(R.id.llQuickContactsContainer)
+
+        btnKey1 = findViewById(R.id.btnKey1)
+        btnKey2 = findViewById(R.id.btnKey2)
+        btnKey3 = findViewById(R.id.btnKey3)
+        btnKey4 = findViewById(R.id.btnKey4)
+        btnKey5 = findViewById(R.id.btnKey5)
+        btnKey6 = findViewById(R.id.btnKey6)
+        btnKey7 = findViewById(R.id.btnKey7)
+        btnKey8 = findViewById(R.id.btnKey8)
+        btnKey9 = findViewById(R.id.btnKey9)
+        btnKey0 = findViewById(R.id.btnKey0)
+        btnKeyStar = findViewById(R.id.btnKeyStar)
+        btnKeyHash = findViewById(R.id.btnKeyHash)
+
+        tvMyExtensionBadge.text = "MY EXT: $myExtensionNumber"
+
         cardCall = findViewById(R.id.cardCall)
         btnCall = findViewById(R.id.btnCall)
         btnSpeaker = findViewById(R.id.btnSpeaker)
@@ -403,6 +453,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         when (tabIndex) {
             0 -> renderConnectedPeopleList(connectedPeersList)
+            1 -> renderQuickContactsList()
             3 -> renderTransfersList()
             4 -> updateRadarView()
             6 -> {
@@ -432,11 +483,12 @@ class MainActivity : AppCompatActivity(), LocationListener {
         btnThemeToggle.backgroundTintList = android.content.res.ColorStateList.valueOf(bgCard)
         btnThemeToggle.setTextColor(if (dark) Color.parseColor("#38BDF8") else Color.parseColor("#0284C7"))
 
-        val cards = listOf(cardStatus, cardNationwide, cardPeople, cardControls, cardCall, cardPtt, cardSos)
+        val cards = listOf(cardStatus, cardNationwide, cardPeople, cardControls, cardWifiDialer, cardCall, cardPtt, cardSos)
         for (card in cards) {
             card.setCardBackgroundColor(bgCard)
         }
         renderConnectedPeopleList(connectedPeersList)
+        renderQuickContactsList()
     }
 
     private fun initLocationEngine() {
@@ -727,6 +779,12 @@ class MainActivity : AppCompatActivity(), LocationListener {
                     renderConnectedPeopleList(connectedPeersList)
                 }
                 updateRadarView()
+            }
+        }
+
+        bridge.onIncomingCallWithDetails = { callerName, callerId, callerNumber, targetNumber ->
+            runOnUiThread {
+                showIncomingCallDialog(callerName, callerId, callerNumber, targetNumber)
             }
         }
 
@@ -1923,6 +1981,55 @@ class MainActivity : AppCompatActivity(), LocationListener {
 
         updateRadioUiState()
 
+        // Keypad Digit Listeners
+        val appendDigit: (String) -> Unit = { digit ->
+            etDialNumber.append(digit)
+        }
+        btnKey1.setOnClickListener { appendDigit("1") }
+        btnKey2.setOnClickListener { appendDigit("2") }
+        btnKey3.setOnClickListener { appendDigit("3") }
+        btnKey4.setOnClickListener { appendDigit("4") }
+        btnKey5.setOnClickListener { appendDigit("5") }
+        btnKey6.setOnClickListener { appendDigit("6") }
+        btnKey7.setOnClickListener { appendDigit("7") }
+        btnKey8.setOnClickListener { appendDigit("8") }
+        btnKey9.setOnClickListener { appendDigit("9") }
+        btnKey0.setOnClickListener { appendDigit("0") }
+        btnKeyStar.setOnClickListener { appendDigit("*") }
+        btnKeyHash.setOnClickListener { appendDigit("#") }
+
+        btnDialBackspace.setOnClickListener {
+            val cur = etDialNumber.text.toString()
+            if (cur.isNotEmpty()) {
+                etDialNumber.setText(cur.substring(0, cur.length - 1))
+                etDialNumber.setSelection(etDialNumber.text.length)
+            }
+        }
+        btnDialBackspace.setOnLongClickListener {
+            etDialNumber.setText("")
+            true
+        }
+
+        btnCallWifiNumber.setOnClickListener {
+            val num = etDialNumber.text.toString().trim()
+            if (num.isNotEmpty()) {
+                dialAndCallWifiNumber(num)
+            } else {
+                Toast.makeText(this, "Please enter an extension or number to dial", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        btnSaveContactFromDialer.setOnClickListener {
+            val num = etDialNumber.text.toString().trim()
+            showAddContactDialog(defaultNumber = num)
+        }
+
+        btnOpenContacts.setOnClickListener {
+            showContactsBookDialog()
+        }
+
+        renderQuickContactsList()
+
         // Comms Screen Actions
         btnCall.setOnClickListener {
             if (!isCalling) {
@@ -2149,7 +2256,7 @@ class MainActivity : AppCompatActivity(), LocationListener {
         renderConnectedPeopleList(connectedPeersList)
     }
 
-    private fun showIncomingCallDialog(callerName: String, callerId: String) {
+    private fun showIncomingCallDialog(callerName: String, callerId: String, callerNumber: String = "", targetNumber: String = "") {
         if (callerId == localPeerId || callerId == bridge.localNodeId || callerId.isEmpty()) {
             return
         }
@@ -2160,6 +2267,17 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
 
         incomingCallDialog?.dismiss()
+
+        // Match against Contacts Directory
+        val matchedContact = if (callerNumber.isNotEmpty()) contactsManager.findContactByNumber(callerNumber)
+        else contactsManager.findContactByNodeIdOrIp(callerId)
+
+        val displayName = matchedContact?.name ?: callerName
+        val displayRoute = if (callerNumber.isNotEmpty()) {
+            "EXT: $callerNumber • WI-FI CALL • E2EE"
+        } else {
+            "NODE ID: $callerId // NOISE_XX E2EE ACTIVE"
+        }
 
         val dialog = Dialog(this)
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
@@ -2173,16 +2291,16 @@ class MainActivity : AppCompatActivity(), LocationListener {
         val btnDecline = dialog.findViewById<Button>(R.id.btnDeclineCall)
 
         tvCallerName.typeface = android.graphics.Typeface.MONOSPACE
-        tvCallerName.text = ">>> [ ${callerName.uppercase(Locale.ROOT)} ] <<<"
+        tvCallerName.text = ">>> [ ${displayName.uppercase(Locale.ROOT)} ] <<<"
         tvCallerId.typeface = android.graphics.Typeface.MONOSPACE
-        tvCallerId.text = "NODE ID: $callerId // NOISE_XX E2EE ACTIVE"
+        tvCallerId.text = displayRoute
 
         btnAccept.typeface = android.graphics.Typeface.MONOSPACE
         btnAccept.text = "[ 📞 ACCEPT CALL ]"
         btnAccept.setOnClickListener {
             dialog.dismiss()
             incomingCallDialog = null
-            activeCallPeerName = callerName
+            activeCallPeerName = displayName
             activeCallPeerId = callerId
             callStartTime = System.currentTimeMillis()
             isCalling = true
@@ -2192,8 +2310,8 @@ class MainActivity : AppCompatActivity(), LocationListener {
                 btnCall.text = "[ 🔴 END CALL ]"
                 btnCall.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_rose))
                 bridge.sendCallAccept(callerId)
-                logEvent("[Live Call] Call accepted with $callerName ($callerId)")
-                Toast.makeText(this, "Connected with $callerName", Toast.LENGTH_SHORT).show()
+                logEvent("[Live Call] Call accepted with $displayName ($callerId)")
+                Toast.makeText(this, "Connected with $displayName", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 logEvent("[Error] Audio engine error: ${e.message}")
             }
@@ -2208,14 +2326,14 @@ class MainActivity : AppCompatActivity(), LocationListener {
             callHistoryManager.addCallRecord(
                 CallRecord(
                     id = UUID.randomUUID().toString(),
-                    peerName = callerName,
+                    peerName = displayName,
                     peerId = callerId,
                     type = "DECLINED",
                     timestamp = System.currentTimeMillis(),
                     durationSeconds = 0
                 )
             )
-            logEvent("[Live Call] Call declined from $callerName")
+            logEvent("[Live Call] Call declined from $displayName")
         }
 
         incomingCallDialog = dialog
@@ -2250,7 +2368,29 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
     }
 
-    private fun startVoiceCall(targetPeerId: String = "", targetPeerName: String = "Mesh Peer") {
+    private fun dialAndCallWifiNumber(number: String) {
+        val contact = contactsManager.findContactByNumber(number)
+        val targetName = contact?.name ?: "Ext: $number"
+        var targetId = "BROADCAST"
+
+        // Match against online mesh nodes
+        val matchedPeer = connectedPeersList.find {
+            it.number == number || (contact != null && contact.ipOrNodeId.isNotEmpty() && (it.id == contact.ipOrNodeId || it.id.contains(contact.ipOrNodeId)))
+        }
+        if (matchedPeer != null) {
+            targetId = matchedPeer.id
+        } else if (contact != null && contact.ipOrNodeId.isNotEmpty()) {
+            if (contact.ipOrNodeId.contains(".") && !contact.ipOrNodeId.startsWith("node-")) {
+                bridge.connect(contact.ipOrNodeId, this)
+            }
+            targetId = contact.ipOrNodeId
+        }
+
+        logEvent("[Wi-Fi Call] 📶 Dialed number $number ($targetName) via local Wi-Fi mesh")
+        startVoiceCall(targetPeerId = targetId, targetPeerName = targetName, targetNumber = number)
+    }
+
+    private fun startVoiceCall(targetPeerId: String = "", targetPeerName: String = "Mesh Peer", targetNumber: String = "") {
         try {
             audioEngine.startVoice()
             isCalling = true
@@ -2259,12 +2399,450 @@ class MainActivity : AppCompatActivity(), LocationListener {
             activeCallPeerId = targetPeerId
             btnCall.text = "[ 🔴 END CALL ]"
             btnCall.setBackgroundColor(ContextCompat.getColor(this, R.color.accent_rose))
-            bridge.sendCallInvite(targetPeerId)
-            logEvent("[Voice Call] 🔒 Outgoing Call to $activeCallPeerName ($activeCallPeerId)")
+            bridge.sendCallInvite(
+                targetId = targetPeerId,
+                senderName = prefs.getString("tactical_nickname", "Android Phone (${Build.MODEL})") ?: "Android Phone",
+                targetNumber = targetNumber,
+                senderNumber = myExtensionNumber
+            )
+            logEvent("[Voice Call] 🔒 Outgoing Call to $activeCallPeerName (${if (targetNumber.isNotEmpty()) "Ext: $targetNumber" else activeCallPeerId})")
             Toast.makeText(this, "Calling $activeCallPeerName...", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             logEvent("[Error] Could not start audio engine: ${e.message}")
         }
+    }
+
+    private fun renderQuickContactsList() {
+        if (!::llQuickContactsContainer.isInitialized) return
+        llQuickContactsContainer.removeAllViews()
+
+        val contacts = contactsManager.getContacts()
+        if (contacts.isEmpty()) {
+            val tvEmpty = TextView(this).apply {
+                text = "NO SAVED CONTACTS. TAP [➕ SAVE] OR [👥 BOOK] TO ADD."
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextColor(Color.parseColor("#64748B"))
+                textSize = 10f
+                setPadding(0, 8, 0, 8)
+            }
+            llQuickContactsContainer.addView(tvEmpty)
+            return
+        }
+
+        for (contact in contacts.take(5)) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                val bg = if (isDarkMode) Color.parseColor("#0A0E17") else Color.parseColor("#F1F5F9")
+                setBackgroundColor(bg)
+                setPadding(12, 8, 12, 8)
+                val lp = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { setMargins(0, 0, 0, 6) }
+                layoutParams = lp
+            }
+
+            val isOnline = connectedPeersList.any {
+                it.number == contact.number || (contact.ipOrNodeId.isNotEmpty() && (it.id == contact.ipOrNodeId || it.id.contains(contact.ipOrNodeId)))
+            }
+
+            val tvAvatar = TextView(this).apply {
+                text = if (contact.name.isNotEmpty()) contact.name.take(1).uppercase(Locale.ROOT) else "👤"
+                textSize = 12f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(try { Color.parseColor(contact.colorHex) } catch(e: Exception) { Color.parseColor("#0284C7") })
+                }
+                val lp = LinearLayout.LayoutParams(40, 40).apply { marginEnd = 10 }
+                layoutParams = lp
+            }
+            row.addView(tvAvatar)
+
+            val infoLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            val nameRow = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+            val tvName = TextView(this).apply {
+                text = contact.name.uppercase(Locale.ROOT)
+                textSize = 12f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setTextColor(if (isDarkMode) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A"))
+            }
+            nameRow.addView(tvName)
+
+            val tvDot = TextView(this).apply {
+                text = if (isOnline) " ● LIVE" else " ○ MESH"
+                textSize = 9f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextColor(if (isOnline) Color.parseColor("#10B981") else Color.parseColor("#64748B"))
+                setPadding(6, 0, 0, 0)
+            }
+            nameRow.addView(tvDot)
+            infoLayout.addView(nameRow)
+
+            val tvNum = TextView(this).apply {
+                val ipSuffix = if (contact.ipOrNodeId.isNotEmpty()) " • ${contact.ipOrNodeId}" else ""
+                text = "EXT: ${contact.number}$ipSuffix"
+                textSize = 10f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextColor(Color.parseColor("#38BDF8"))
+            }
+            infoLayout.addView(tvNum)
+            row.addView(infoLayout)
+
+            val btnCallContact = Button(this).apply {
+                text = "[ 📞 CALL ]"
+                textSize = 10f
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
+                setTextColor(Color.WHITE)
+                val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 76)
+                layoutParams = lp
+                setOnClickListener {
+                    etDialNumber.setText(contact.number)
+                    dialAndCallWifiNumber(contact.number)
+                }
+            }
+            row.addView(btnCallContact)
+
+            llQuickContactsContainer.addView(row)
+        }
+    }
+
+    private fun showContactsBookDialog() {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+
+        val scrollView = ScrollView(this).apply {
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            isFillViewport = true
+        }
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(20, 18, 20, 20)
+            val bg = if (isDarkMode) Color.parseColor("#0F172A") else Color.parseColor("#FFFFFF")
+            setBackgroundColor(bg)
+        }
+
+        val tvTitle = TextView(this).apply {
+            text = "👥 [ TACTICAL CONTACTS DIRECTORY ]"
+            textSize = 13f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(Color.parseColor("#38BDF8"))
+            setPadding(0, 0, 0, 4)
+        }
+        layout.addView(tvTitle)
+
+        val tvSubtitle = TextView(this).apply {
+            text = "Direct extension & IP contacts for 1-tap encrypted Wi-Fi mesh calling."
+            textSize = 10f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTextColor(Color.parseColor("#94A3B8"))
+            setPadding(0, 0, 0, 10)
+        }
+        layout.addView(tvSubtitle)
+
+        val btnAddNew = Button(this).apply {
+            text = "[ ➕ ADD NEW CONTACT ]"
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
+            setTextColor(Color.WHITE)
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 0, 0, 12)
+            }
+            layoutParams = lp
+            setOnClickListener {
+                dialog.dismiss()
+                showAddContactDialog()
+            }
+        }
+        layout.addView(btnAddNew)
+
+        val contactsListContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+
+        val contacts = contactsManager.getContacts()
+        if (contacts.isEmpty()) {
+            val tvEmpty = TextView(this).apply {
+                text = "No saved contacts in directory."
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextColor(Color.parseColor("#64748B"))
+                textSize = 11f
+                setPadding(0, 20, 0, 20)
+                gravity = Gravity.CENTER
+            }
+            contactsListContainer.addView(tvEmpty)
+        } else {
+            for (contact in contacts) {
+                val card = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    val bg = if (isDarkMode) Color.parseColor("#0A0E17") else Color.parseColor("#F8FAFC")
+                    setBackgroundColor(bg)
+                    setPadding(12, 10, 12, 10)
+                    val lp = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { setMargins(0, 0, 0, 8) }
+                    layoutParams = lp
+                }
+
+                val isOnline = connectedPeersList.any {
+                    it.number == contact.number || (contact.ipOrNodeId.isNotEmpty() && (it.id == contact.ipOrNodeId || it.id.contains(contact.ipOrNodeId)))
+                }
+
+                val tvAvatar = TextView(this).apply {
+                    text = if (contact.name.isNotEmpty()) contact.name.take(1).uppercase(Locale.ROOT) else "👤"
+                    textSize = 13f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(Color.WHITE)
+                    gravity = Gravity.CENTER
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(try { Color.parseColor(contact.colorHex) } catch(e: Exception) { Color.parseColor("#0284C7") })
+                    }
+                    val lp = LinearLayout.LayoutParams(44, 44).apply { marginEnd = 10 }
+                    layoutParams = lp
+                }
+                card.addView(tvAvatar)
+
+                val details = LinearLayout(this).apply {
+                    orientation = LinearLayout.VERTICAL
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+
+                val nameRow = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+
+                val tvName = TextView(this).apply {
+                    text = contact.name.uppercase(Locale.ROOT)
+                    textSize = 12f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(if (isDarkMode) Color.parseColor("#F8FAFC") else Color.parseColor("#0F172A"))
+                }
+                nameRow.addView(tvName)
+
+                val tvStatus = TextView(this).apply {
+                    text = if (isOnline) " ● LIVE" else " ○ MESH"
+                    textSize = 9f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTextColor(if (isOnline) Color.parseColor("#10B981") else Color.parseColor("#64748B"))
+                    setPadding(6, 0, 0, 0)
+                }
+                nameRow.addView(tvStatus)
+                details.addView(nameRow)
+
+                val tvMeta = TextView(this).apply {
+                    val ipStr = if (contact.ipOrNodeId.isNotEmpty()) " • IP/ID: ${contact.ipOrNodeId}" else ""
+                    val notesStr = if (contact.notes.isNotEmpty()) " (${contact.notes})" else ""
+                    text = "NUMBER: ${contact.number}$ipStr$notesStr"
+                    textSize = 10f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTextColor(Color.parseColor("#38BDF8"))
+                }
+                details.addView(tvMeta)
+                card.addView(details)
+
+                // Actions Layout
+                val actionsLayout = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+
+                val btnCall = Button(this).apply {
+                    text = "📞 CALL"
+                    textSize = 10f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
+                    setTextColor(Color.WHITE)
+                    val lp = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, 76).apply { marginEnd = 4 }
+                    layoutParams = lp
+                    setOnClickListener {
+                        dialog.dismiss()
+                        etDialNumber.setText(contact.number)
+                        dialAndCallWifiNumber(contact.number)
+                    }
+                }
+                actionsLayout.addView(btnCall)
+
+                val btnDelete = Button(this).apply {
+                    text = "✕"
+                    textSize = 10f
+                    typeface = android.graphics.Typeface.MONOSPACE
+                    backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+                    setTextColor(Color.parseColor("#F43F5E"))
+                    val lp = LinearLayout.LayoutParams(60, 76)
+                    layoutParams = lp
+                    setOnClickListener {
+                        contactsManager.deleteContact(contact.id)
+                        renderQuickContactsList()
+                        dialog.dismiss()
+                        showContactsBookDialog()
+                        Toast.makeText(this@MainActivity, "Contact deleted", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                actionsLayout.addView(btnDelete)
+
+                card.addView(actionsLayout)
+                contactsListContainer.addView(card)
+            }
+        }
+        layout.addView(contactsListContainer)
+
+        val btnClose = Button(this).apply {
+            text = "[ ✕ CLOSE DIRECTORY ]"
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+            setTextColor(Color.parseColor("#94A3B8"))
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 12, 0, 0)
+            }
+            layoutParams = lp
+            setOnClickListener { dialog.dismiss() }
+        }
+        layout.addView(btnClose)
+
+        scrollView.addView(layout)
+        dialog.setContentView(scrollView)
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.94).toInt(), (resources.displayMetrics.heightPixels * 0.82).toInt())
+        dialog.show()
+    }
+
+    private fun showAddContactDialog(defaultNumber: String = "", editContact: MeshContact? = null) {
+        val dialog = Dialog(this)
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(22, 18, 22, 20)
+            val bg = if (isDarkMode) Color.parseColor("#0F172A") else Color.parseColor("#FFFFFF")
+            setBackgroundColor(bg)
+        }
+
+        val tvTitle = TextView(this).apply {
+            text = if (editContact != null) "✏️ [ EDIT CONTACT ]" else "➕ [ ADD TACTICAL CONTACT ]"
+            textSize = 13f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(Color.parseColor("#10B981"))
+            setPadding(0, 0, 0, 6)
+        }
+        layout.addView(tvTitle)
+
+        val inputName = EditText(this).apply {
+            hint = "Contact Name / Call-Sign (e.g. Base HQ)"
+            typeface = android.graphics.Typeface.MONOSPACE
+            if (editContact != null) setText(editContact.name)
+            setTextColor(if (isDarkMode) Color.WHITE else Color.BLACK)
+            setHintTextColor(Color.parseColor("#64748B"))
+            textSize = 12f
+        }
+        layout.addView(inputName)
+
+        val inputNumber = EditText(this).apply {
+            hint = "Extension / Number (e.g. 100, 101, 9876)"
+            typeface = android.graphics.Typeface.MONOSPACE
+            if (editContact != null) setText(editContact.number)
+            else if (defaultNumber.isNotEmpty()) setText(defaultNumber)
+            setTextColor(if (isDarkMode) Color.WHITE else Color.BLACK)
+            setHintTextColor(Color.parseColor("#64748B"))
+            textSize = 12f
+            inputType = android.text.InputType.TYPE_CLASS_PHONE
+        }
+        layout.addView(inputNumber)
+
+        val inputIp = EditText(this).apply {
+            hint = "Optional Node IP / ID (e.g. 192.168.1.50)"
+            typeface = android.graphics.Typeface.MONOSPACE
+            if (editContact != null) setText(editContact.ipOrNodeId)
+            setTextColor(if (isDarkMode) Color.WHITE else Color.BLACK)
+            setHintTextColor(Color.parseColor("#64748B"))
+            textSize = 12f
+        }
+        layout.addView(inputIp)
+
+        val inputNotes = EditText(this).apply {
+            hint = "Optional Tactical Notes (e.g. Squad Recon)"
+            typeface = android.graphics.Typeface.MONOSPACE
+            if (editContact != null) setText(editContact.notes)
+            setTextColor(if (isDarkMode) Color.WHITE else Color.BLACK)
+            setHintTextColor(Color.parseColor("#64748B"))
+            textSize = 12f
+        }
+        layout.addView(inputNotes)
+
+        val btnSave = Button(this).apply {
+            text = "[ 💾 SAVE CONTACT ]"
+            textSize = 11f
+            typeface = android.graphics.Typeface.MONOSPACE
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#059669"))
+            setTextColor(Color.WHITE)
+            val lp = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 10, 0, 4)
+            }
+            layoutParams = lp
+            setOnClickListener {
+                val name = inputName.text.toString().trim()
+                val num = inputNumber.text.toString().trim()
+                if (name.isEmpty() || num.isEmpty()) {
+                    Toast.makeText(this@MainActivity, "Please enter both name and number", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+
+                val contactToSave = MeshContact(
+                    id = editContact?.id ?: UUID.randomUUID().toString(),
+                    name = name,
+                    number = num,
+                    ipOrNodeId = inputIp.text.toString().trim(),
+                    notes = inputNotes.text.toString().trim(),
+                    colorHex = editContact?.colorHex ?: listOf("#38BDF8", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899").random()
+                )
+                contactsManager.saveContact(contactToSave)
+                renderQuickContactsList()
+                Toast.makeText(this@MainActivity, "✅ Contact saved: $name ($num)", Toast.LENGTH_SHORT).show()
+                dialog.dismiss()
+            }
+        }
+        layout.addView(btnSave)
+
+        val btnCancel = Button(this).apply {
+            text = "[ ✕ CANCEL ]"
+            textSize = 10f
+            typeface = android.graphics.Typeface.MONOSPACE
+            backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#1E293B"))
+            setTextColor(Color.parseColor("#94A3B8"))
+            setOnClickListener { dialog.dismiss() }
+        }
+        layout.addView(btnCancel)
+
+        dialog.setContentView(layout)
+        dialog.window?.setLayout((resources.displayMetrics.widthPixels * 0.92).toInt(), ViewGroup.LayoutParams.WRAP_CONTENT)
+        dialog.show()
     }
 
     private fun stopVoiceCall(recordHistory: Boolean = true, notifyRemote: Boolean = true) {
@@ -2349,19 +2927,35 @@ class MainActivity : AppCompatActivity(), LocationListener {
         }
         layout.addView(inputNickname)
 
+        val inputExt = EditText(this).apply {
+            setText(myExtensionNumber)
+            hint = "My Tactical Extension / Phone Number (e.g. 101)"
+            typeface = android.graphics.Typeface.MONOSPACE
+            setHintTextColor(Color.parseColor("#64748B"))
+            setTextColor(if (isDarkMode) Color.parseColor("#00FF66") else Color.parseColor("#059669"))
+            textSize = 12f
+            inputType = android.text.InputType.TYPE_CLASS_PHONE
+        }
+        layout.addView(inputExt)
+
         val btnSaveNick = Button(this).apply {
-            text = "[ SAVE CALL-SIGN ]"
+            text = "[ SAVE IDENTITY & EXTENSION ]"
             textSize = 11f
             typeface = android.graphics.Typeface.MONOSPACE
             backgroundTintList = android.content.res.ColorStateList.valueOf(Color.parseColor("#0284C7"))
             setTextColor(Color.WHITE)
             setOnClickListener {
                 val newNick = inputNickname.text.toString().trim()
+                val newExt = inputExt.text.toString().trim().ifEmpty { "101" }
                 if (newNick.isNotEmpty()) {
                     prefs.edit().putString("tactical_nickname", newNick).apply()
-                    bridge.sendSetNickname(newNick)
-                    Toast.makeText(this@MainActivity, "✅ Call-sign saved: $newNick", Toast.LENGTH_SHORT).show()
                 }
+                prefs.edit().putString("my_extension_number", newExt).apply()
+                myExtensionNumber = newExt
+                bridge.localExtensionNumber = newExt
+                tvMyExtensionBadge.text = "MY EXT: $newExt"
+                bridge.sendSetNickname(newNick.ifEmpty { "Android Phone" }, number = newExt)
+                Toast.makeText(this@MainActivity, "✅ Identity & Ext saved: $newNick (Ext: $newExt)", Toast.LENGTH_SHORT).show()
             }
         }
         layout.addView(btnSaveNick)
