@@ -1,28 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base Backgrounds -->
+    <!-- Dark Mode Base Backgrounds -->
     <color name="primary">#0F172A</color>
     <color name="primary_dark">#020617</color>
     <color name="bg_main">#0B0F19</color>
-    <color name="bg_card">#131D31</color>
-    <color name="card_bg">#131D31</color>
-    <color name="card_border">#1E293B</color>
+    <color name="bg_card">#111827</color>
+    <color name="card_bg">#111827</color>
+    <color name="card_border">#1F2937</color>
     <color name="background_dark">#0B0F19</color>
 
-    <!-- Tactical Accents -->
-    <color name="neon_cyan">#38BDF8</color>
+    <!-- Light Mode Base Backgrounds -->
+    <color name="bg_main_light">#F8FAFC</color>
+    <color name="bg_card_light">#FFFFFF</color>
+    <color name="card_border_light">#E2E8F0</color>
+    <color name="text_primary_light">#0F172A</color>
+    <color name="text_secondary_light">#475569</color>
+
+    <!-- Modern Vibrant Accents -->
+    <color name="neon_cyan">#06B6D4</color>
     <color name="neon_emerald">#10B981</color>
     <color name="neon_amber">#F59E0B</color>
-    <color name="accent_cyan">#38BDF8</color>
+    <color name="accent_cyan">#0EA5E9</color>
     <color name="accent_emerald">#10B981</color>
-    <color name="accent_rose">#EF4444</color>
+    <color name="accent_rose">#F43F5E</color>
     <color name="accent_amber">#F59E0B</color>
     <color name="accent_purple">#8B5CF6</color>
-    <color name="accent_blue">#2563EB</color>
+    <color name="accent_blue">#3B82F6</color>
+    <color name="accent_indigo">#6366F1</color>
 
-    <!-- High-Contrast Clean Typography -->
+    <!-- Clean Modern Typography -->
     <color name="text_primary">#F8FAFC</color>
     <color name="text_secondary">#94A3B8</color>
+    <color name="text_muted">#64748B</color>
     <color name="text_phosphor">#10B981</color>
     <color name="text_amber">#F59E0B</color>
 </resources>

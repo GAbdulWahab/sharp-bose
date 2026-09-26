@@ -475,88 +475,74 @@ class BluetoothMeshTransport(
         }
 
         discoveredDevicesMap.clear()
-
-        // Pre-populate with all paired / bonded devices so they immediately appear with full names
-        try {
-            val bonded = bluetoothAdapter.bondedDevices
-            if (bonded != null) {
-                for (dev in bonded) {
-                    val name = resolveDeviceName(dev)
-                    val info = BluetoothDiscoveredInfo(
-                        address = dev.address,
-                        name = name,
-                        rssi = -60,
-                        isBonded = true,
-                        isConnectable = true,
-                        transportType = "PAIRED_DEVICE"
-                    )
-                    discoveredDevicesMap[dev.address] = info
-                    onDiscoveredDeviceFound?.invoke(info)
-                }
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Bonded devices pre-population note: ${e.message}")
-        }
-
         isScanning.set(true)
         onScanStateChanged?.invoke(true)
 
-        // 1. Start BLE Scanner for active advertising mesh nodes
-        if (bleScanner == null) {
-            bleScanner = bluetoothAdapter.bluetoothLeScanner
-        }
-        if (bleScanner != null) {
-            val settings = ScanSettings.Builder()
-                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-                .setReportDelay(0)
-                .build()
-
-            bleScanCallback = object : ScanCallback() {
-                override fun onScanResult(callbackType: Int, result: ScanResult) {
-                    val device = result.device
-                    val address = device.address
-                    val scanRecordName = result.scanRecord?.deviceName
-                    val rawDevName = try { device.name } catch (e: Exception) { null }
-                    val name = if (!scanRecordName.isNullOrBlank()) {
-                        scanRecordName
-                    } else if (!rawDevName.isNullOrBlank()) {
-                        rawDevName
-                    } else {
-                        resolveDeviceName(device)
-                    }
-                    val isBonded = try { device.bondState == BluetoothDevice.BOND_BONDED } catch (e: Exception) { false }
-
-                    val info = BluetoothDiscoveredInfo(
-                        address = address,
-                        name = name,
-                        rssi = result.rssi,
-                        isBonded = isBonded,
-                        isConnectable = result.isConnectable,
-                        transportType = "BLE_GATT"
-                    )
-                    discoveredDevicesMap[address] = info
-                    onDiscoveredDeviceFound?.invoke(info)
-                }
-
-                override fun onScanFailed(errorCode: Int) {
-                    Log.w(TAG, "BLE Scan failed: $errorCode")
-                }
-            }
-
+        Thread {
             try {
-                bleScanner?.startScan(null, settings, bleScanCallback)
-            } catch (e: Exception) {
-                Log.w(TAG, "BLE Scanner note: ${e.message}")
-            }
-        }
+                // 1. Start BLE Scanner for active advertising mesh nodes
+                if (bleScanner == null) {
+                    bleScanner = bluetoothAdapter.bluetoothLeScanner
+                }
+                if (bleScanner != null) {
+                    val settings = ScanSettings.Builder()
+                        .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                        .setReportDelay(0)
+                        .build()
 
-        // 2. Start Classic Discovery in parallel
-        try {
-            if (bluetoothAdapter.isDiscovering) {
-                bluetoothAdapter.cancelDiscovery()
+                    bleScanCallback = object : ScanCallback() {
+                        override fun onScanResult(callbackType: Int, result: ScanResult) {
+                            val device = result.device
+                            val address = device.address
+                            val scanRecordName = result.scanRecord?.deviceName
+                            val rawDevName = try { device.name } catch (e: Exception) { null }
+                            val name = if (!scanRecordName.isNullOrBlank()) {
+                                scanRecordName
+                            } else if (!rawDevName.isNullOrBlank()) {
+                                rawDevName
+                            } else {
+                                resolveDeviceName(device)
+                            }
+                            val isBonded = try { device.bondState == BluetoothDevice.BOND_BONDED } catch (e: Exception) { false }
+
+                            val info = BluetoothDiscoveredInfo(
+                                address = address,
+                                name = name,
+                                rssi = result.rssi,
+                                isBonded = isBonded,
+                                isConnectable = result.isConnectable,
+                                transportType = "BLE_GATT"
+                            )
+                            discoveredDevicesMap[address] = info
+                            onDiscoveredDeviceFound?.invoke(info)
+                        }
+
+                        override fun onScanFailed(errorCode: Int) {
+                            Log.w(TAG, "BLE Scan failed: $errorCode")
+                        }
+                    }
+
+                    try {
+                        bleScanner?.startScan(null, settings, bleScanCallback)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "BLE Scanner note: ${e.message}")
+                    }
+                }
+
+                // 2. Start Classic Discovery in parallel
+                try {
+                    if (bluetoothAdapter.isDiscovering) {
+                        bluetoothAdapter.cancelDiscovery()
+                    }
+                    bluetoothAdapter.startDiscovery()
+                } catch (e: Exception) {}
+            } catch (e: Exception) {
+                Log.w(TAG, "Scan thread exception: ${e.message}")
             }
-            bluetoothAdapter.startDiscovery()
-        } catch (e: Exception) {}
+        }.apply {
+            name = "BtMeshScanThread"
+            start()
+        }
     }
 
     @SuppressLint("MissingPermission")

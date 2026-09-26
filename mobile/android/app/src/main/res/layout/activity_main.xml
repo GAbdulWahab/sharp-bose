@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/mainRootLayout"
@@ -412,7 +412,7 @@
                                 android:layout_height="44dp"
                                 android:layout_weight="1"
                                 android:layout_marginEnd="6dp"
-                                android:text="📱 Paired &amp; Scanned BT"
+                                android:text="🔍 Scanned BT Nodes"
                                 android:textColor="@color/neon_cyan"
                                 android:textSize="11sp"
                                 android:textStyle="bold"
@@ -484,7 +484,7 @@
                                 android:textColor="@color/neon_emerald"
                                 android:textSize="12sp"
                                 android:textStyle="bold"
-                                android:fontFamily="monospace" />
+                                android:fontFamily="sans-serif" />
 
                             <TextView
                                 android:id="@+id/tvMyExtensionBadge"
@@ -494,7 +494,7 @@
                                 android:textColor="@color/neon_cyan"
                                 android:textSize="10sp"
                                 android:textStyle="bold"
-                                android:fontFamily="monospace"
+                                android:fontFamily="sans-serif"
                                 android:paddingStart="8dp"
                                 android:paddingEnd="8dp"
                                 android:paddingTop="2dp"
@@ -508,7 +508,7 @@
                             android:text="Call any extension or number directly over Wi-Fi mesh / Hotspot."
                             android:textColor="@color/text_secondary"
                             android:textSize="10sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:layout_marginTop="2dp"
                             android:layout_marginBottom="10dp" />
 
@@ -534,7 +534,7 @@
                                 android:textColorHint="#475569"
                                 android:textSize="20sp"
                                 android:textStyle="bold"
-                                android:fontFamily="monospace"
+                                android:fontFamily="sans-serif"
                                 android:background="@null"
                                 android:inputType="phone"
                                 android:letterSpacing="0.05"
@@ -573,7 +573,7 @@
                                     android:textColor="#FFFFFF"
                                     android:textSize="16sp"
                                     android:textStyle="bold"
-                                    android:fontFamily="monospace"
+                                    android:fontFamily="sans-serif"
                                     android:background="@drawable/retro_card_bg"
                                     app:backgroundTint="#131D31" />
                                 <Button
@@ -586,7 +586,7 @@
                                     android:textColor="#FFFFFF"
                                     android:textSize="16sp"
                                     android:textStyle="bold"
-                                    android:fontFamily="monospace"
+                                    android:fontFamily="sans-serif"
                                     android:background="@drawable/retro_card_bg"
                                     app:backgroundTint="#131D31" />
                                 <Button
@@ -599,7 +599,7 @@
                                     android:textColor="#FFFFFF"
                                     android:textSize="16sp"
                                     android:textStyle="bold"
-                                    android:fontFamily="monospace"
+                                    android:fontFamily="sans-serif"
                                     android:background="@drawable/retro_card_bg"
                                     app:backgroundTint="#131D31" />
                             </LinearLayout>
@@ -619,7 +619,7 @@
                                     android:textColor="#FFFFFF"
                                     android:textSize="16sp"
                                     android:textStyle="bold"
-                                    android:fontFamily="monospace"
+                                    android:fontFamily="sans-serif"
                                     android:background="@drawable/retro_card_bg"
                                     app:backgroundTint="#131D31" />
                                 <Button
@@ -632,7 +632,7 @@
                                     android:textColor="#FFFFFF"
                                     android:textSize="16sp"
                                     android:textStyle="bold"
-                                    android:fontFamily="monospace"
+                                    android:fontFamily="sans-serif"
                                     android:background="@drawable/retro_card_bg"
                                     app:backgroundTint="#131D31" />
                                 <Button
@@ -645,7 +645,7 @@
                                     android:textColor="#FFFFFF"
                                     android:textSize="16sp"
                                     android:textStyle="bold"
-                                    android:fontFamily="monospace"
+                                    android:fontFamily="sans-serif"
                                     android:background="@drawable/retro_card_bg"
                                     app:backgroundTint="#131D31" />
                             </LinearLayout>
@@ -665,7 +665,7 @@
                                     android:textColor="#FFFFFF"
                                     android:textSize="16sp"
                                     android:textStyle="bold"
-                                    android:fontFamily="monospace"
+                                    android:fontFamily="sans-serif"
                                     android:background="@drawable/retro_card_bg"
                                     app:backgroundTint="#131D31" />
                                 <Button
@@ -678,7 +678,7 @@
                                     android:textColor="#FFFFFF"
                                     android:textSize="16sp"
                                     android:textStyle="bold"
-                                    android:fontFamily="monospace"
+                                    android:fontFamily="sans-serif"
                                     android:background="@drawable/retro_card_bg"
                                     app:backgroundTint="#131D31" />
                                 <Button
@@ -691,7 +691,7 @@
                                     android:textColor="#FFFFFF"
                                     android:textSize="16sp"
                                     android:textStyle="bold"
-                                    android:fontFamily="monospace"
+                                    android:fontFamily="sans-serif"
                                     android:background="@drawable/retro_card_bg"
                                     app:backgroundTint="#131D31" />
                             </LinearLayout>
@@ -711,7 +711,7 @@
                                     android:textColor="@color/neon_amber"
                                     android:textSize="16sp"
                                     android:textStyle="bold"
-                                    android:fontFamily="monospace"
+                                    android:fontFamily="sans-serif"
                                     android:background="@drawable/retro_card_bg"
                                     app:backgroundTint="#131D31" />
                                 <Button
@@ -724,7 +724,7 @@
                                     android:textColor="#FFFFFF"
                                     android:textSize="16sp"
                                     android:textStyle="bold"
-                                    android:fontFamily="monospace"
+                                    android:fontFamily="sans-serif"
                                     android:background="@drawable/retro_card_bg"
                                     app:backgroundTint="#131D31" />
                                 <Button
@@ -737,7 +737,7 @@
                                     android:textColor="@color/neon_amber"
                                     android:textSize="16sp"
                                     android:textStyle="bold"
-                                    android:fontFamily="monospace"
+                                    android:fontFamily="sans-serif"
                                     android:background="@drawable/retro_card_bg"
                                     app:backgroundTint="#131D31" />
                             </LinearLayout>
@@ -760,7 +760,7 @@
                                 android:textColor="#FFFFFF"
                                 android:textSize="11sp"
                                 android:textStyle="bold"
-                                android:fontFamily="monospace"
+                                android:fontFamily="sans-serif"
                                 android:background="@drawable/retro_card_bg"
                                 app:backgroundTint="@color/accent_emerald" />
 
@@ -775,7 +775,7 @@
                                 android:textColor="#FFFFFF"
                                 android:textSize="11sp"
                                 android:textStyle="bold"
-                                android:fontFamily="monospace"
+                                android:fontFamily="sans-serif"
                                 android:background="@drawable/retro_card_bg"
                                 app:backgroundTint="#0284C7" />
 
@@ -790,7 +790,7 @@
                                 android:textColor="@color/neon_amber"
                                 android:textSize="10sp"
                                 android:textStyle="bold"
-                                android:fontFamily="monospace"
+                                android:fontFamily="sans-serif"
                                 android:background="@drawable/retro_card_bg"
                                 app:backgroundTint="#1E293B" />
 
@@ -804,7 +804,7 @@
                                 android:textColor="@color/neon_cyan"
                                 android:textSize="10sp"
                                 android:textStyle="bold"
-                                android:fontFamily="monospace"
+                                android:fontFamily="sans-serif"
                                 android:background="@drawable/retro_card_bg"
                                 app:backgroundTint="#1E293B" />
                         </LinearLayout>
@@ -816,7 +816,7 @@
                             android:text="SAVED TACTICAL CONTACTS (1-TAP CALL):"
                             android:textColor="@color/neon_cyan"
                             android:textSize="9sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:textStyle="bold"
                             android:layout_marginTop="10dp"
                             android:layout_marginBottom="4dp" />
@@ -853,7 +853,7 @@
                             android:textColor="@color/neon_cyan"
                             android:textSize="12sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="sans-serif" />
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -861,7 +861,7 @@
                             android:text="Opus HD 16kHz low-latency duplex mesh communication."
                             android:textColor="@color/text_secondary"
                             android:textSize="10sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:layout_marginTop="2dp"
                             android:layout_marginBottom="12dp" />
 
@@ -873,7 +873,7 @@
                             android:textColor="#FFFFFF"
                             android:textSize="13sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:background="@drawable/retro_card_bg"
                             app:backgroundTint="@color/accent_emerald" />
 
@@ -892,7 +892,7 @@
                                 android:text="[ 🔊 SPKR: ON ]"
                                 android:textColor="@color/neon_cyan"
                                 android:textSize="11sp"
-                                android:fontFamily="monospace"
+                                android:fontFamily="sans-serif"
                                 android:background="@drawable/retro_card_bg"
                                 app:backgroundTint="#1E293B" />
 
@@ -905,7 +905,7 @@
                                 android:text="[ 📞 SIMULATE RING ]"
                                 android:textColor="@color/neon_amber"
                                 android:textSize="11sp"
-                                android:fontFamily="monospace"
+                                android:fontFamily="sans-serif"
                                 android:background="@drawable/retro_card_bg"
                                 app:backgroundTint="#1E293B" />
                         </LinearLayout>
@@ -936,7 +936,7 @@
                             android:textColor="@color/neon_cyan"
                             android:textSize="12sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="sans-serif" />
 
                         <TextView
                             android:id="@+id/tvPttChannel"
@@ -945,7 +945,7 @@
                             android:text="FREQ 01: EMERGENCY &amp; TACTICAL • FLOOR: CLEAR"
                             android:textColor="@color/neon_emerald"
                             android:textSize="11sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:layout_marginTop="2dp"
                             android:layout_marginBottom="12dp" />
 
@@ -957,7 +957,7 @@
                             android:textColor="#FFFFFF"
                             android:textSize="15sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:background="@drawable/retro_card_bg"
                             app:backgroundTint="@color/neon_cyan" />
                     </LinearLayout>
@@ -987,7 +987,7 @@
                             android:textColor="@color/accent_rose"
                             android:textSize="12sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="sans-serif" />
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -995,7 +995,7 @@
                             android:text="Broadcasts high-priority distress beacon &amp; GPS coordinates."
                             android:textColor="@color/text_secondary"
                             android:textSize="10sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:layout_marginTop="2dp"
                             android:layout_marginBottom="12dp" />
 
@@ -1007,7 +1007,7 @@
                             android:textColor="#FFFFFF"
                             android:textSize="12sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:background="@drawable/retro_card_bg"
                             app:backgroundTint="@color/accent_rose" />
                     </LinearLayout>
@@ -1043,7 +1043,7 @@
                     android:textColor="@color/neon_cyan"
                     android:textSize="12sp"
                     android:textStyle="bold"
-                    android:fontFamily="monospace" />
+                    android:fontFamily="sans-serif" />
 
                 <TextView
                     android:layout_width="wrap_content"
@@ -1051,7 +1051,7 @@
                     android:text="[ OFFLINE LINK ]"
                     android:textColor="@color/neon_emerald"
                     android:textSize="10sp"
-                    android:fontFamily="monospace" />
+                    android:fontFamily="sans-serif" />
             </LinearLayout>
 
             <View
@@ -1110,7 +1110,7 @@
                         android:textColor="@color/accent_rose"
                         android:textSize="11sp"
                         android:textStyle="bold"
-                        android:fontFamily="monospace" />
+                        android:fontFamily="sans-serif" />
 
                     <Button
                         android:id="@+id/btnCancelVoiceRecord"
@@ -1120,7 +1120,7 @@
                         android:textColor="@color/accent_rose"
                         android:textSize="10sp"
                         android:textStyle="bold"
-                        android:fontFamily="monospace"
+                        android:fontFamily="sans-serif"
                         android:background="@drawable/retro_card_bg"
                         app:backgroundTint="#0F172A"
                         android:layout_marginEnd="6dp" />
@@ -1133,7 +1133,7 @@
                         android:textColor="#FFFFFF"
                         android:textSize="10sp"
                         android:textStyle="bold"
-                        android:fontFamily="monospace"
+                        android:fontFamily="sans-serif"
                         android:background="@drawable/retro_card_bg"
                         app:backgroundTint="@color/accent_emerald" />
                 </LinearLayout>
@@ -1180,7 +1180,7 @@
                     android:textColor="@color/neon_cyan"
                     android:textSize="10sp"
                     android:textStyle="bold"
-                    android:fontFamily="monospace"
+                    android:fontFamily="sans-serif"
                     android:background="@drawable/retro_card_bg"
                     app:backgroundTint="#0C233C"
                     android:layout_marginEnd="2dp" />
@@ -1194,7 +1194,7 @@
                     android:textColor="@color/neon_emerald"
                     android:textSize="10sp"
                     android:textStyle="bold"
-                    android:fontFamily="monospace"
+                    android:fontFamily="sans-serif"
                     android:background="@drawable/retro_card_bg"
                     app:backgroundTint="#062E24"
                     android:layout_marginStart="2dp"
@@ -1209,7 +1209,7 @@
                     android:textColor="@color/accent_rose"
                     android:textSize="10sp"
                     android:textStyle="bold"
-                    android:fontFamily="monospace"
+                    android:fontFamily="sans-serif"
                     android:background="@drawable/retro_card_bg"
                     app:backgroundTint="#2E0C14"
                     android:layout_marginStart="2dp"
@@ -1224,7 +1224,7 @@
                     android:textColor="@color/text_primary"
                     android:textSize="10sp"
                     android:textStyle="bold"
-                    android:fontFamily="monospace"
+                    android:fontFamily="sans-serif"
                     android:background="@drawable/retro_card_bg"
                     app:backgroundTint="#1E293B"
                     android:layout_marginStart="2dp" />
@@ -1245,7 +1245,7 @@
                     android:text="usr@mesh:~$ "
                     android:textColor="@color/neon_cyan"
                     android:textSize="12sp"
-                    android:fontFamily="monospace"
+                    android:fontFamily="sans-serif"
                     android:textStyle="bold" />
 
                 <EditText
@@ -1260,7 +1260,7 @@
                     android:paddingStart="8dp"
                     android:paddingEnd="8dp"
                     android:textSize="11sp"
-                    android:fontFamily="monospace"
+                    android:fontFamily="sans-serif"
                     android:singleLine="true" />
 
                 <Button
@@ -1272,7 +1272,7 @@
                     android:textColor="#FFFFFF"
                     android:textSize="11sp"
                     android:textStyle="bold"
-                    android:fontFamily="monospace"
+                    android:fontFamily="sans-serif"
                     android:background="@drawable/retro_card_bg"
                     app:backgroundTint="@color/neon_cyan" />
             </LinearLayout>
@@ -1317,7 +1317,7 @@
                             android:textColor="@color/neon_emerald"
                             android:textSize="12sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="sans-serif" />
 
                         <!-- CRT Radar Grid Artwork Box -->
                         <LinearLayout
@@ -1336,7 +1336,7 @@
                                 android:text="   (N: 000°)   "
                                 android:textColor="@color/neon_emerald"
                                 android:textSize="10sp"
-                                android:fontFamily="monospace" />
+                                android:fontFamily="sans-serif" />
 
                             <TextView
                                 android:layout_width="wrap_content"
@@ -1344,7 +1344,7 @@
                                 android:text="(W: 270°)  +---[ 📡 YOU ]---+  (E: 090°)"
                                 android:textColor="@color/neon_cyan"
                                 android:textSize="11sp"
-                                android:fontFamily="monospace"
+                                android:fontFamily="sans-serif"
                                 android:textStyle="bold" />
 
                             <TextView
@@ -1353,7 +1353,7 @@
                                 android:text="   (S: 180°)   "
                                 android:textColor="@color/neon_emerald"
                                 android:textSize="10sp"
-                                android:fontFamily="monospace" />
+                                android:fontFamily="sans-serif" />
 
                             <TextView
                                 android:layout_width="wrap_content"
@@ -1361,7 +1361,7 @@
                                 android:text=">>> [ 360° PULSE ACTIVE // NO GNSS DRIFT ] &lt;&lt;&lt;"
                                 android:textColor="@color/neon_amber"
                                 android:textSize="9sp"
-                                android:fontFamily="monospace"
+                                android:fontFamily="sans-serif"
                                 android:layout_marginTop="6dp" />
                         </LinearLayout>
 
@@ -1374,7 +1374,7 @@
                             android:textColor="@color/neon_cyan"
                             android:textSize="11sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="sans-serif" />
 
                         <TextView
                             android:id="@+id/tvRadarSelfMeta"
@@ -1383,7 +1383,7 @@
                             android:text="PRECISION: ±0m // ALT: 0.0m // HARDWARE SENSOR LOCK"
                             android:textColor="@color/text_secondary"
                             android:textSize="10sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:layout_marginTop="2dp"
                             android:layout_marginBottom="10dp" />
 
@@ -1395,7 +1395,7 @@
                             android:textColor="#FFFFFF"
                             android:textSize="11sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:background="@drawable/retro_card_bg"
                             app:backgroundTint="@color/accent_emerald" />
                     </LinearLayout>
@@ -1424,7 +1424,7 @@
                             android:textColor="@color/neon_cyan"
                             android:textSize="12sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:layout_marginBottom="8dp" />
 
                         <LinearLayout
@@ -1477,7 +1477,7 @@
                             android:textColor="@color/neon_amber"
                             android:textSize="12sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="sans-serif" />
 
                         <TextView
                             android:id="@+id/tvCurrentRoom"
@@ -1487,7 +1487,7 @@
                             android:textColor="@color/neon_cyan"
                             android:textSize="11sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:layout_marginTop="4dp" />
 
                         <TextView
@@ -1497,7 +1497,7 @@
                             android:text="Opus HD 16kHz Nationwide Duplex Voice Grid"
                             android:textColor="@color/text_secondary"
                             android:textSize="10sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:layout_marginTop="2dp"
                             android:layout_marginBottom="12dp" />
 
@@ -1509,7 +1509,7 @@
                             android:text="[ 144.800 MHz // INDIA-MAIN (NATIONAL) ]"
                             android:textColor="#FFFFFF"
                             android:textSize="11sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:background="@drawable/retro_card_bg"
                             app:backgroundTint="#0369A1"
                             android:layout_marginBottom="6dp" />
@@ -1521,7 +1521,7 @@
                             android:text="[ 145.500 MHz // DELHI-HUB (NORTH) ]"
                             android:textColor="#FFFFFF"
                             android:textSize="11sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:background="@drawable/retro_card_bg"
                             app:backgroundTint="#1E293B"
                             android:layout_marginBottom="6dp" />
@@ -1533,7 +1533,7 @@
                             android:text="[ 146.200 MHz // MUMBAI-NET (WEST) ]"
                             android:textColor="#FFFFFF"
                             android:textSize="11sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:background="@drawable/retro_card_bg"
                             app:backgroundTint="#1E293B"
                             android:layout_marginBottom="6dp" />
@@ -1545,7 +1545,7 @@
                             android:text="[ 147.100 MHz // BANGALORE-MESH (SOUTH) ]"
                             android:textColor="#FFFFFF"
                             android:textSize="11sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:background="@drawable/retro_card_bg"
                             app:backgroundTint="#1E293B"
                             android:layout_marginBottom="6dp" />
@@ -1557,7 +1557,7 @@
                             android:text="[ 147.800 MHz // CHENNAI-RELAY (EAST) ]"
                             android:textColor="#FFFFFF"
                             android:textSize="11sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:background="@drawable/retro_card_bg"
                             app:backgroundTint="#1E293B"
                             android:layout_marginBottom="6dp" />
@@ -1569,7 +1569,7 @@
                             android:text="[ 148.400 MHz // HYDERABAD-CORE (CENTRAL) ]"
                             android:textColor="#FFFFFF"
                             android:textSize="11sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:background="@drawable/retro_card_bg"
                             app:backgroundTint="#1E293B"
                             android:layout_marginBottom="12dp" />
@@ -1582,7 +1582,7 @@
                             android:textColor="@color/neon_cyan"
                             android:textSize="11sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:layout_marginBottom="4dp" />
 
                         <LinearLayout
@@ -1603,7 +1603,7 @@
                                 android:paddingStart="8dp"
                                 android:paddingEnd="8dp"
                                 android:textSize="11sp"
-                                android:fontFamily="monospace"
+                                android:fontFamily="sans-serif"
                                 android:singleLine="true" />
 
                             <Button
@@ -1615,7 +1615,7 @@
                                 android:textColor="#FFFFFF"
                                 android:textSize="11sp"
                                 android:textStyle="bold"
-                                android:fontFamily="monospace"
+                                android:fontFamily="sans-serif"
                                 android:background="@drawable/retro_card_bg"
                                 app:backgroundTint="@color/accent_purple" />
                         </LinearLayout>
@@ -1663,7 +1663,7 @@
                             android:textColor="@color/neon_cyan"
                             android:textSize="12sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="sans-serif" />
 
                         <TextView
                             android:id="@+id/tvSafetyNumber"
@@ -1673,7 +1673,7 @@
                             android:textColor="@color/neon_emerald"
                             android:textSize="11sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:background="#020617"
                             android:padding="8dp"
                             android:layout_marginTop="8dp"
@@ -1686,7 +1686,7 @@
                             android:text="HOP LIMIT: 15 MAX // MULTI-HOP RELAY ACTIVE"
                             android:textColor="@color/neon_cyan"
                             android:textSize="10sp"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="sans-serif" />
 
                         <TextView
                             android:id="@+id/tvRoutingPath"
@@ -1695,7 +1695,7 @@
                             android:text="CIPHER: NOISE_XX + AES-256-GCM + SHA-256"
                             android:textColor="@color/text_secondary"
                             android:textSize="10sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:layout_marginTop="2dp" />
                     </LinearLayout>
                 </androidx.cardview.widget.CardView>
@@ -1731,7 +1731,7 @@
                                 android:textColor="@color/neon_cyan"
                                 android:textSize="12sp"
                                 android:textStyle="bold"
-                                android:fontFamily="monospace" />
+                                android:fontFamily="sans-serif" />
 
                             <Button
                                 android:id="@+id/btnClearHistory"
@@ -1740,7 +1740,7 @@
                                 android:text="[ 🗑️ CLEAR ]"
                                 android:textColor="@color/accent_rose"
                                 android:textSize="10sp"
-                                android:fontFamily="monospace"
+                                android:fontFamily="sans-serif"
                                 android:background="@drawable/retro_card_bg"
                                 app:backgroundTint="#020617" />
                         </LinearLayout>
@@ -1777,7 +1777,7 @@
                             android:textColor="@color/neon_cyan"
                             android:textSize="12sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:layout_marginBottom="6dp" />
 
                         <TextView
@@ -1789,7 +1789,7 @@
                             android:text="[00:00:00] Initializing Sharp-Bose Tactical Mesh OS...\n[00:00:01] Audio engine initialized."
                             android:textColor="@color/neon_emerald"
                             android:textSize="10sp"
-                            android:fontFamily="monospace"
+                            android:fontFamily="sans-serif"
                             android:scrollbars="vertical" />
                     </LinearLayout>
                 </androidx.cardview.widget.CardView>
@@ -1835,7 +1835,7 @@
                             android:textColor="@color/neon_cyan"
                             android:textSize="12sp"
                             android:textStyle="bold"
-                            android:fontFamily="monospace" />
+                            android:fontFamily="sans-serif" />
 
                         <TextView
                             android:layout_width="wrap_content"
@@ -1938,7 +1938,7 @@
                                 android:textColor="@color/neon_emerald"
                                 android:textSize="12sp"
                                 android:textStyle="bold"
-                                android:fontFamily="monospace" />
+                                android:fontFamily="sans-serif" />
 
                             <TextView
                                 android:id="@+id/tvTransfersCountBadge"
