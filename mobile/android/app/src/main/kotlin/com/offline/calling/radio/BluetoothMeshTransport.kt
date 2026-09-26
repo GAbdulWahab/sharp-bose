@@ -115,6 +115,25 @@ class BluetoothMeshTransport(
         var writerThread: Thread? = null
     }
 
+    // Helper to resolve friendly device name across all Android API versions
+    @SuppressLint("MissingPermission")
+    fun resolveDeviceName(device: BluetoothDevice?): String {
+        if (device == null) return "Bluetooth Device"
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val alias = device.alias
+                if (!alias.isNullOrBlank()) return alias
+            }
+        } catch (e: Exception) {}
+        try {
+            val name = device.name
+            if (!name.isNullOrBlank()) return name
+        } catch (e: Exception) {}
+        val addr = try { device.address } catch (e: Exception) { "" }
+        val shortAddr = if (addr.length >= 5) addr.takeLast(5) else addr
+        return if (shortAddr.isNotEmpty()) "Bluetooth Node ($shortAddr)" else "Bluetooth Device"
+    }
+
     // Broadcast receiver for Bluetooth adapter state, bond state, and Classic device discovery
     private val bluetoothBroadcastReceiver = object : BroadcastReceiver() {
         @SuppressLint("MissingPermission")
@@ -128,20 +147,45 @@ class BluetoothMeshTransport(
                         intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
                     }
                     val rssi = intent.getShortExtra(BluetoothDevice.EXTRA_RSSI, Short.MIN_VALUE).toInt()
+                    val extraName = intent.getStringExtra(BluetoothDevice.EXTRA_NAME)
 
                     if (device != null) {
                         val address = device.address
-                        val devName = device.name ?: "Bluetooth Device (${address.takeLast(5)})"
+                        val devName = if (!extraName.isNullOrBlank()) extraName else resolveDeviceName(device)
+                        val isBonded = try { device.bondState == BluetoothDevice.BOND_BONDED } catch (e: Exception) { false }
                         val info = BluetoothDiscoveredInfo(
                             address = address,
                             name = devName,
                             rssi = if (rssi == Short.MIN_VALUE.toInt()) -70 else rssi,
-                            isBonded = device.bondState == BluetoothDevice.BOND_BONDED,
+                            isBonded = isBonded,
                             isConnectable = true,
                             transportType = "CLASSIC_SPP"
                         )
                         discoveredDevicesMap[address] = info
                         onDiscoveredDeviceFound?.invoke(info)
+                    }
+                }
+                BluetoothDevice.ACTION_NAME_CHANGED -> {
+                    val device: BluetoothDevice? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE, BluetoothDevice::class.java)
+                    } else {
+                        @Suppress("DEPRECATION")
+                        intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE)
+                    }
+                    val nameExtra = intent.getStringExtra(BluetoothDevice.EXTRA_NAME) ?: (if (device != null) resolveDeviceName(device) else null)
+                    if (device != null && !nameExtra.isNullOrBlank()) {
+                        val existing = discoveredDevicesMap[device.address]
+                        val isBonded = try { device.bondState == BluetoothDevice.BOND_BONDED } catch (e: Exception) { false }
+                        val updated = existing?.copy(name = nameExtra) ?: BluetoothDiscoveredInfo(
+                            address = device.address,
+                            name = nameExtra,
+                            rssi = -70,
+                            isBonded = isBonded,
+                            isConnectable = true,
+                            transportType = "CLASSIC_SPP"
+                        )
+                        discoveredDevicesMap[device.address] = updated
+                        onDiscoveredDeviceFound?.invoke(updated)
                     }
                 }
                 BluetoothDevice.ACTION_BOND_STATE_CHANGED -> {
@@ -197,6 +241,7 @@ class BluetoothMeshTransport(
         try {
             val filter = IntentFilter().apply {
                 addAction(BluetoothDevice.ACTION_FOUND)
+                addAction(BluetoothDevice.ACTION_NAME_CHANGED)
                 addAction(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
                 addAction(BluetoothAdapter.ACTION_STATE_CHANGED)
                 addAction(BluetoothAdapter.ACTION_DISCOVERY_STARTED)
@@ -430,6 +475,29 @@ class BluetoothMeshTransport(
         }
 
         discoveredDevicesMap.clear()
+
+        // Pre-populate with all paired / bonded devices so they immediately appear with full names
+        try {
+            val bonded = bluetoothAdapter.bondedDevices
+            if (bonded != null) {
+                for (dev in bonded) {
+                    val name = resolveDeviceName(dev)
+                    val info = BluetoothDiscoveredInfo(
+                        address = dev.address,
+                        name = name,
+                        rssi = -60,
+                        isBonded = true,
+                        isConnectable = true,
+                        transportType = "PAIRED_DEVICE"
+                    )
+                    discoveredDevicesMap[dev.address] = info
+                    onDiscoveredDeviceFound?.invoke(info)
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Bonded devices pre-population note: ${e.message}")
+        }
+
         isScanning.set(true)
         onScanStateChanged?.invoke(true)
 
@@ -447,8 +515,16 @@ class BluetoothMeshTransport(
                 override fun onScanResult(callbackType: Int, result: ScanResult) {
                     val device = result.device
                     val address = device.address
-                    val name = result.scanRecord?.deviceName ?: device.name ?: "BLE Node (${address.takeLast(5)})"
-                    val isBonded = device.bondState == BluetoothDevice.BOND_BONDED
+                    val scanRecordName = result.scanRecord?.deviceName
+                    val rawDevName = try { device.name } catch (e: Exception) { null }
+                    val name = if (!scanRecordName.isNullOrBlank()) {
+                        scanRecordName
+                    } else if (!rawDevName.isNullOrBlank()) {
+                        rawDevName
+                    } else {
+                        resolveDeviceName(device)
+                    }
+                    val isBonded = try { device.bondState == BluetoothDevice.BOND_BONDED } catch (e: Exception) { false }
 
                     val info = BluetoothDiscoveredInfo(
                         address = address,

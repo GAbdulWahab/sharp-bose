@@ -16,6 +16,7 @@ class UdpMeshBeacon(
     private val localNodeId: String,
     private val localNickname: String,
     private val serverPort: Int = 3000,
+    var localExtensionNumber: String = "101",
     var context: android.content.Context? = null
 ) {
     private val beaconPort = 8988
@@ -26,7 +27,7 @@ class UdpMeshBeacon(
     private var listenThread: Thread? = null
     private var multicastLock: android.net.wifi.WifiManager.MulticastLock? = null
 
-    var onPeerDiscovered: ((peerIp: String, peerNodeId: String, peerName: String, port: Int) -> Unit)? = null
+    var onPeerDiscovered: ((peerIp: String, peerNodeId: String, peerName: String, port: Int, number: String) -> Unit)? = null
     var isConnectedProvider: (() -> Boolean)? = null
 
     fun start() {
@@ -65,6 +66,7 @@ class UdpMeshBeacon(
                         var peerId = ""
                         var peerName = "Mesh Peer"
                         var port = 3000
+                        var number = ""
 
                         if (text.startsWith("{")) {
                             val json = JSONObject(text)
@@ -72,6 +74,7 @@ class UdpMeshBeacon(
                                 peerId = json.optString("id")
                                 peerName = json.optString("name", "Mesh Peer")
                                 port = json.optInt("port", 3000)
+                                number = json.optString("number", "")
                             }
                         } else if (text.startsWith("MESH_BEACON:")) {
                             val parts = text.substring(12).split("|")
@@ -79,13 +82,14 @@ class UdpMeshBeacon(
                                 peerId = parts[0]
                                 peerName = parts[1]
                                 port = parts[2].toIntOrNull() ?: 3000
+                                if (parts.size >= 4) number = parts[3]
                             }
                         }
 
                         // Ignore self beacons and own IP addresses
                         if (peerId.isNotEmpty() && peerId != localNodeId && !peerId.equals(localNodeId, true) && !isSelfIp(senderIp)) {
-                            Log.d("UdpMeshBeacon", "Discovered live peer $peerName ($peerId) at $senderIp:$port")
-                            onPeerDiscovered?.invoke(senderIp, peerId, peerName, port)
+                            Log.d("UdpMeshBeacon", "Discovered live peer $peerName ($peerId, Ext: $number) at $senderIp:$port")
+                            onPeerDiscovered?.invoke(senderIp, peerId, peerName, port, number)
                         }
                     } catch (e: Exception) {
                         Log.d("UdpMeshBeacon", "UDP beacon parse error: ${e.message}")
@@ -113,6 +117,7 @@ class UdpMeshBeacon(
                     put("id", localNodeId)
                     put("name", localNickname)
                     put("port", serverPort)
+                    put("number", localExtensionNumber)
                     put("timestamp", System.currentTimeMillis())
                 }.toString().toByteArray(Charsets.UTF_8)
 

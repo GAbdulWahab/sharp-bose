@@ -19,7 +19,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 class AndroidMeshServer(
     val port: Int = 3000,
     private val localNodeId: String,
-    private val localNodeName: String
+    private val localNodeName: String,
+    var localExtensionNumber: String = "101"
 ) {
     private var serverSocket: ServerSocket? = null
     private val isRunning = AtomicBoolean(false)
@@ -31,7 +32,8 @@ class AndroidMeshServer(
         var deviceType: String,
         var status: String = "Online",
         var room: String = "INDIA-MAIN",
-        var location: PeerLocation? = null
+        var location: PeerLocation? = null,
+        var number: String = ""
     )
 
     private class ClientSession(
@@ -288,6 +290,7 @@ class AndroidMeshServer(
                 }
                 sender.info.nickname = data.optString("nickname", sender.info.nickname)
                 sender.info.deviceType = data.optString("deviceType", sender.info.deviceType)
+                if (data.has("number")) sender.info.number = data.optString("number", sender.info.number)
                 if (data.has("room")) sender.info.room = data.optString("room")
                 broadcastPeerList()
                 return null
@@ -316,6 +319,7 @@ class AndroidMeshServer(
             data.put("senderId", sender.info.id)
             data.put("senderName", sender.info.nickname)
             data.put("deviceType", sender.info.deviceType)
+            if (sender.info.number.isNotEmpty()) data.put("senderNumber", sender.info.number)
 
             val outText = data.toString()
             for (client in connectedClients) {
@@ -377,7 +381,8 @@ class AndroidMeshServer(
                 nickname = client.info.nickname,
                 deviceType = client.info.deviceType,
                 status = client.info.status,
-                location = client.info.location
+                location = client.info.location,
+                number = client.info.number
             )
             remotePeerNodesList.add(pNode)
         }
@@ -396,6 +401,7 @@ class AndroidMeshServer(
                 put("deviceType", "Android")
                 put("status", "Online")
                 put("room", "INDIA-MAIN")
+                put("number", localExtensionNumber)
             })
 
             // Include all other remote clients
@@ -407,6 +413,7 @@ class AndroidMeshServer(
                         put("deviceType", otherClient.info.deviceType)
                         put("status", otherClient.info.status)
                         put("room", otherClient.info.room)
+                        if (otherClient.info.number.isNotEmpty()) put("number", otherClient.info.number)
                         otherClient.info.location?.let { loc ->
                             put("location", JSONObject().apply {
                                 put("lat", loc.lat)

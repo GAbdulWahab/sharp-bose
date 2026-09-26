@@ -105,6 +105,11 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
     private val allDiscoveredPeers = CopyOnWriteArrayList<PeerNode>()
 
     var localExtensionNumber: String = "101"
+        set(value) {
+            field = value
+            embeddedServer.localExtensionNumber = value
+            udpBeacon.localExtensionNumber = value
+        }
     var onAudioFrameReceived: ((ByteArray) -> Unit)? = null
     var onIncomingCall: ((callerName: String, callerId: String) -> Unit)? = null
     var onIncomingCallWithDetails: ((callerName: String, callerId: String, callerNumber: String, targetNumber: String) -> Unit)? = null
@@ -221,6 +226,14 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
         return bluetoothMesh?.unpairDevice(address) ?: false
     }
 
+    fun resolveBluetoothDeviceName(device: android.bluetooth.BluetoothDevice?): String {
+        return bluetoothMesh?.resolveDeviceName(device) ?: (try {
+            device?.name ?: device?.address ?: "Bluetooth Device"
+        } catch (e: Exception) {
+            "Bluetooth Device"
+        })
+    }
+
     fun getActiveNetworkInterfaces(): List<Pair<String, String>> {
         val list = mutableListOf<Pair<String, String>>()
         try {
@@ -279,11 +292,11 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
         }
 
         // 2. UDP Beacon Auto-Discovery (Used in Wi-Fi / Combined mode only)
-        udpBeacon.onPeerDiscovered = { peerIp, peerId, peerName, port ->
+        udpBeacon.onPeerDiscovered = { peerIp, peerId, peerName, port, number ->
             if (transportMode != RadioTransportMode.BLUETOOTH_ONLY && transportMode != RadioTransportMode.MANUAL) {
                 val localIps = getLocalIpAddresses()
                 if (!isConnected && peerId != localNodeId && !peerId.equals(localNodeId, true) && !localIps.contains(peerIp) && peerIp != "127.0.0.1") {
-                    Log.d("MeshBridge", "UDP Beacon detected peer $peerName ($peerId) at $peerIp:$port")
+                    Log.d("MeshBridge", "UDP Beacon detected peer $peerName ($peerId, Ext: $number) at $peerIp:$port")
                     connectDirect(peerIp)
                 }
             }
@@ -720,11 +733,12 @@ class MeshWebSocketBridge(var localNodeId: String = "node-" + java.util.UUID.ran
                     if (senderId == localNodeId || senderId.equals(localNodeId, true)) return
                     
                     val myNum = localExtensionNumber.trim()
-                    if (targetNumber.isNotEmpty() && myNum.isNotEmpty() && targetNumber != myNum && targetNumber != "000" && targetNumber != "999" && targetNumber != "BROADCAST") {
-                        if (targetId.isNotEmpty() && targetId != localNodeId && !targetId.equals(localNodeId, true) && targetId != "BROADCAST") {
+                    val isAllBroadcast = targetNumber == "000" || targetNumber == "999" || targetNumber == "*" || targetNumber == "0" || targetNumber.equals("ALL", true) || targetNumber == "BROADCAST"
+                    if (targetNumber.isNotEmpty() && myNum.isNotEmpty() && targetNumber != myNum && !isAllBroadcast) {
+                        if (targetId.isNotEmpty() && targetId != localNodeId && !targetId.equals(localNodeId, true) && targetId != "BROADCAST" && targetId != "ALL") {
                             return
                         }
-                    } else if (targetId.isNotEmpty() && targetId != localNodeId && !targetId.equals(localNodeId, true) && targetId != "BROADCAST") {
+                    } else if (targetId.isNotEmpty() && targetId != localNodeId && !targetId.equals(localNodeId, true) && targetId != "BROADCAST" && targetId != "ALL") {
                         return
                     }
 
