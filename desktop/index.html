@@ -623,7 +623,6 @@
           Hardware audio filtering, echo cancellation, noise reduction, and mic gain control.
         </div>
 
-        <div class="settings-toggles-row">
           <div class="settings-toggle-item">
             <div>
               <div class="toggle-title">Acoustic Echo Cancellation (AEC)</div>
@@ -638,10 +637,21 @@
           <div class="settings-toggle-item">
             <div>
               <div class="toggle-title">Dynamic Noise Suppression</div>
-              <div class="toggle-desc">Filters background environmental noise and hiss.</div>
+              <div class="toggle-desc">Filters background environmental noise, fan hiss, and room hum.</div>
             </div>
             <label class="switch">
               <input type="checkbox" id="toggleNoiseSuppression" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="settings-toggle-item">
+            <div>
+              <div class="toggle-title">Voice Profile: 16 kHz Standard / Low Bandwidth</div>
+              <div class="toggle-desc">Toggle between 16 kHz Telecom Low-Latency and 48 kHz Studio HD.</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="toggleLowBandwidthVoice" checked>
               <span class="slider"></span>
             </label>
           </div>

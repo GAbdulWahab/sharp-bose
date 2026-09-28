@@ -7,5 +7,5 @@ timeout /t 1 /nobreak >nul
 start "" /B node main.js --headless
 timeout /t 1 /nobreak >nul
 echo [*] Launching lightweight terminal window with microphone and audio hardware enabled...
-start msedge --app=http://localhost:3000 --window-size=1120,740 --use-fake-ui-for-media-stream --autoplay-policy=no-user-gesture-required --unsafely-treat-insecure-origin-as-secure=http://localhost:3000,http://127.0.0.1:3000 --user-data-dir="%TEMP%\sharp_bose_edge_profile" --allow-running-insecure-content
+start msedge --app=http://localhost:3000 --window-size=1140,760 --use-fake-ui-for-media-stream --autoplay-policy=no-user-gesture-required --unsafely-treat-insecure-origin-as-secure=http://localhost:3000,http://127.0.0.1:3000 --user-data-dir="%TEMP%\sharp_bose_edge_profile" --allow-running-insecure-content --disable-features=WebRtcHideLocalIpsWithMdns,CalculateNativeWinOcclusion,Translate,InterestFeedContentSuggestions --enable-features=WebRtcApmInAudioService,AudioWorkletRealtimeThread --disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows --enable-highres-timer --audio-buffer-size=512 --high-dpi-support=1
 

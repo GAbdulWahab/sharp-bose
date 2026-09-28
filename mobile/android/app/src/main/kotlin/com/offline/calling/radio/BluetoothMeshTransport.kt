@@ -799,26 +799,32 @@ class BluetoothMeshTransport(
         sendHandshake(session)
         notifyPeerRoster()
 
-        // Read Packet Loop: [0x5A, 0xA5, Opcode, Length_Hi, Length_Lo, Payload...]
+        // Robust Sliding-Sync Packet Framer: [0x5A, 0xA5, Opcode, Length_Hi, Length_Lo, Payload...]
         Thread {
-            val headerBuffer = ByteArray(5)
             while (isRunning.get() && session.isRunning.get()) {
                 try {
-                    var headerRead = 0
-                    while (headerRead < 5) {
-                        val r = input.read(headerBuffer, headerRead, 5 - headerRead)
-                        if (r == -1) throw Exception("Stream closed")
-                        headerRead += r
-                    }
+                    // 1. Sliding synchronization on magic header [0x5A, 0xA5]
+                    var b1 = input.read()
+                    if (b1 == -1) break
+                    if ((b1 and 0xFF) != 0x5A) continue
 
-                    if (headerBuffer[0] != 0x5A.toByte() || headerBuffer[1] != 0xA5.toByte()) {
-                        continue
-                    }
+                    var b2 = input.read()
+                    if (b2 == -1) break
+                    if ((b2 and 0xFF) != 0xA5) continue
 
-                    val opcode = headerBuffer[2].toInt() and 0xFF
-                    val length = ((headerBuffer[3].toInt() and 0xFF) shl 8) or (headerBuffer[4].toInt() and 0xFF)
+                    // 2. Read Opcode and 16-bit Length
+                    val opcode = input.read()
+                    if (opcode == -1) break
 
-                    if (length > 0) {
+                    val lenH = input.read()
+                    if (lenH == -1) break
+
+                    val lenL = input.read()
+                    if (lenL == -1) break
+
+                    val length = ((lenH and 0xFF) shl 8) or (lenL and 0xFF)
+
+                    if (length in 1..16384) {
                         val payload = ByteArray(length)
                         var payloadRead = 0
                         while (payloadRead < length) {
@@ -932,55 +938,8 @@ class BluetoothMeshTransport(
 
     fun broadcastAudioFrame(frame: ByteArray) {
         if (connectedPeers.isEmpty()) return
-        val bluetoothFrame = if (frame.size > 300) {
-            downsampleFrameForBluetooth(frame)
-        } else {
-            frame
-        }
         for (session in connectedPeers) {
-            sendRawPacket(session, 0x02 /* Audio PCM Frame */, bluetoothFrame)
-        }
-    }
-
-    /**
-     * Downsamples 48 kHz uncompressed PCM to 16 kHz HD Voice specifically for Bluetooth RFCOMM/SPP.
-     * Reduces bandwidth from 96 KB/s to 32 KB/s (256 kbps), perfectly fitting Bluetooth physical UART buffers.
-     */
-    private fun downsampleFrameForBluetooth(frame: ByteArray): ByteArray {
-        try {
-            var senderRate = 48000
-            var offset = 0
-            if (frame.size >= 4 && (frame[0].toInt() and 0xFF) == 0xAA && (frame[1].toInt() and 0xFF) == 0x55) {
-                senderRate = ((frame[2].toInt() and 0xFF) shl 8) or (frame[3].toInt() and 0xFF)
-                offset = 4
-            }
-            if (senderRate != 48000) return frame
-
-            val pcmBytes = frame.copyOfRange(offset, frame.size)
-            val numSamples = pcmBytes.size / 2
-            if (numSamples < 3) return frame
-
-            val inBuf = java.nio.ByteBuffer.wrap(pcmBytes).order(java.nio.ByteOrder.LITTLE_ENDIAN).asShortBuffer()
-            val outSamples = ShortArray(numSamples / 3)
-
-            for (i in 0 until outSamples.size) {
-                val idx = i * 3
-                val s0 = inBuf.get(idx).toFloat()
-                val s1 = if (idx + 1 < numSamples) inBuf.get(idx + 1).toFloat() else s0
-                val s2 = if (idx + 2 < numSamples) inBuf.get(idx + 2).toFloat() else s1
-                val filtered = (s0 * 0.25f + s1 * 0.5f + s2 * 0.25f).toInt().coerceIn(-32768, 32767).toShort()
-                outSamples[i] = filtered
-            }
-
-            val outBytes = ByteArray(4 + outSamples.size * 2)
-            outBytes[0] = 0xAA.toByte()
-            outBytes[1] = 0x55.toByte()
-            outBytes[2] = ((16000 shr 8) and 0xFF).toByte() // 0x3E (16 kHz HD Voice)
-            outBytes[3] = (16000 and 0xFF).toByte()        // 0x80
-            java.nio.ByteBuffer.wrap(outBytes, 4, outSamples.size * 2).order(java.nio.ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(outSamples)
-            return outBytes
-        } catch (e: Exception) {
-            return frame
+            sendRawPacket(session, 0x02 /* Audio PCM Frame */, frame)
         }
     }
 

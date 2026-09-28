@@ -201,7 +201,7 @@ class AndroidAudioEngine(private val context: Context) {
                 Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
                 while (isPlaying.get()) {
                     try {
-                        val chunk = playbackQueue.poll(20, TimeUnit.MILLISECONDS)
+                        val chunk = playbackQueue.poll(5, TimeUnit.MILLISECONDS)
                         if (chunk != null && chunk.isNotEmpty() && isPlaying.get()) {
                             val track = audioTrack
                             if (track != null) {
@@ -232,19 +232,13 @@ class AndroidAudioEngine(private val context: Context) {
             startPlaybackOnly()
         }
 
-        var pcmBytes: ByteArray
-        var senderRate = sampleRate
-
-        // Parse header if present: [0xAA, 0x55, SR_H, SR_L]
-        if (frame.size >= 4 && (frame[0].toInt() and 0xFF) == 0xAA && (frame[1].toInt() and 0xFF) == 0x55) {
-            senderRate = ((frame[2].toInt() and 0xFF) shl 8) or (frame[3].toInt() and 0xFF)
-            pcmBytes = frame.copyOfRange(4, frame.size)
-        } else {
-            pcmBytes = frame
-            if (frame.size > 400) {
-                senderRate = 48000 // Fallback browser rate
-            }
+        // Strict Sharp-Bose Voice Frame Validation: Must begin with [0xAA, 0x55]
+        if (frame.size < 8 || (frame[0].toInt() and 0xFF) != 0xAA || (frame[1].toInt() and 0xFF) != 0x55) {
+            return // Drop non-audio binary packets or corrupted frames to prevent digital white noise
         }
+
+        val senderRate = ((frame[2].toInt() and 0xFF) shl 8) or (frame[3].toInt() and 0xFF)
+        val pcmBytes = frame.copyOfRange(4, frame.size)
 
         if (pcmBytes.isEmpty()) return
 
@@ -267,8 +261,7 @@ class AndroidAudioEngine(private val context: Context) {
     }
 
     /**
-     * Studio Quality Dynamic AGC & Tanh Soft-Knee Limiter.
-     * Prevents harsh speaker clipping distortion while lifting quiet voices cleanly.
+     * Transparent Linear Pass-Through with Peak Limiting Protection.
      */
     private fun applySoftLimiter(input: ByteArray): ByteArray {
         val inBuf = ByteBuffer.wrap(input).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
@@ -278,31 +271,10 @@ class AndroidAudioEngine(private val context: Context) {
         val output = ByteArray(input.size)
         val outBuf = ByteBuffer.wrap(output).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
 
-        // Calculate peak amplitude in this frame
-        var maxAmp = 0f
         for (i in 0 until numSamples) {
-            val a = abs(inBuf.get(i).toFloat())
-            if (a > maxAmp) maxAmp = a
-        }
-
-        // Target amplitude around 24000 (out of 32767)
-        val targetGain = if (maxAmp > 100f) {
-            (24000f / maxAmp).coerceIn(1.0f, 3.5f)
-        } else {
-            2.2f
-        }
-
-        // Smooth gain transition (Attack: 10%, Decay: 2%)
-        val smoothing = if (targetGain < agcGain) 0.15f else 0.03f
-        agcGain = agcGain + (targetGain - agcGain) * smoothing
-
-        for (i in 0 until numSamples) {
-            val sample = inBuf.get(i).toFloat() * agcGain
-            // Soft-knee tanh compression
-            val normalized = sample / 32768.0
-            val saturated = tanh(normalized * 1.05)
-            val finalSample = (saturated * 32760.0).toInt().coerceIn(-32767, 32767).toShort()
-            outBuf.put(i, finalSample)
+            val s = inBuf.get(i).toInt()
+            val clamped = s.coerceIn(-32767, 32767).toShort()
+            outBuf.put(i, clamped)
         }
         return output
     }
