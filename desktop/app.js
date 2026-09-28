@@ -1439,7 +1439,7 @@ class TacticalMeshDesktop {
   }
 
   // -----------------------------------------------------------
-  // 4. Low-Latency Web Audio Duplex Calling & PTT
+  // 4. Cellular Telecom Grade HD Voice DSP & Zero-Latency Audio
   // -----------------------------------------------------------
   async initAudioContext() {
     if (!this.audioCtx) {
@@ -1448,6 +1448,32 @@ class TacticalMeshDesktop {
         this.audioCtx = new AudioCtxClass({ latencyHint: 'interactive' });
       } catch (e) {
         this.audioCtx = new AudioCtxClass();
+      }
+
+      // Cellular Telecom / AMR-WB Voice Bandpass Filter Chain (50Hz-6.8kHz)
+      // Eliminates 50/60Hz AC electrical hum, DC bias thumps, and RF carrier whine
+      try {
+        const hp = this.audioCtx.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = 150; // Cut off low rumble/thumps below 150Hz
+        hp.Q.value = 0.707;
+
+        const lp = this.audioCtx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = 6800; // Cut off high-frequency hiss/aliasing above 6.8kHz (AMR-WB Standard)
+        lp.Q.value = 0.707;
+
+        const masterOut = this.audioCtx.createGain();
+        masterOut.gain.value = 1.0;
+
+        hp.connect(lp);
+        lp.connect(masterOut);
+        masterOut.connect(this.audioCtx.destination);
+
+        this.dspVoiceInput = hp;
+        this.dspMasterGain = masterOut;
+      } catch (dspErr) {
+        console.warn('Voice DSP filter init fallback:', dspErr);
       }
     }
     if (this.audioCtx && this.audioCtx.state === 'suspended') {
@@ -1470,16 +1496,22 @@ class TacticalMeshDesktop {
         return;
       }
 
+      const isLowBandwidth = document.getElementById('toggleLowBandwidthVoice')?.checked !== false;
+      const isAEC = document.getElementById('toggleAEC')?.checked !== false;
+      const isNS = document.getElementById('toggleNoiseSuppression')?.checked !== false;
+
+      const inSampleRate = isLowBandwidth ? 16000 : ((this.audioCtx && this.audioCtx.sampleRate) || 48000);
+
       let stream = null;
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             channelCount: 1,
             sampleRate: { ideal: inSampleRate },
-            echoCancellation: { ideal: false }, // Avoid Windows Bluetooth HFP APO audio driver conflict & buffering
-            noiseSuppression: { ideal: false },
-            autoGainControl: { ideal: false },
-            latency: { ideal: 0.010 }
+            echoCancellation: isAEC,
+            noiseSuppression: isNS,
+            autoGainControl: true,
+            latency: 0.003
           }
         });
       } catch (errConstraint) {
@@ -1494,40 +1526,24 @@ class TacticalMeshDesktop {
       }
 
       const source = this.audioCtx.createMediaStreamSource(this.micStream);
-      // Use 512 buffer size for ultra-low latency real-time audio capture (~10ms)
-      const processor = this.audioCtx.createScriptProcessor(512, 1, 1);
-      const inSampleRate = this.audioCtx.sampleRate || 48000;
-      const targetSampleRate = inSampleRate; // Full Studio High Fidelity (48 kHz / Native Audio Rate)
-      const ratio = inSampleRate / targetSampleRate;
-
-      let resamplePhase = 0;
-      // Pre-allocated circular ring buffer to prevent Windows Chromium V8 GC pauses & audio stutter
-      const RING_SIZE = 96000; // 2 seconds capacity
-      const ringBuffer = new Int16Array(RING_SIZE);
-      let ringWrite = 0;
-      let ringRead = 0;
-
-      const FRAME_SAMPLES = Math.round(targetSampleRate * 0.010); // Exact 10ms frame (480 samples @ 48kHz for zero latency)
-      const outPacket = new Uint8Array(4 + FRAME_SAMPLES * 2);
-      outPacket[0] = 0xAA;
-      outPacket[1] = 0x55;
-      outPacket[2] = (targetSampleRate >> 8) & 0xFF;
-      outPacket[3] = targetSampleRate & 0xFF;
-      const outPcmInt16 = new Int16Array(outPacket.buffer, 4, FRAME_SAMPLES);
+      // 256 samples = 5.3ms ultra-low latency capture frame
+      const processor = this.audioCtx.createScriptProcessor(256, 1, 1);
+      const actualSampleRate = this.audioCtx.sampleRate || inSampleRate;
 
       processor.onaudioprocess = (e) => {
         if (!this.isCalling && !this.isPttActive && !this.isTestingMic) return;
 
         const inputData = e.inputBuffer.getChannelData(0);
+        const numSamples = inputData.length;
         let sum = 0;
         const gain = this.micGainMultiplier || 1.0;
 
-        for (let i = 0; i < inputData.length; i++) {
+        for (let i = 0; i < numSamples; i++) {
           sum += Math.abs(inputData[i]);
         }
 
         // VU meter update
-        const avg = sum / inputData.length;
+        const avg = sum / numSamples;
         const vuBar = document.getElementById('micVuBar');
         if (vuBar) vuBar.style.width = `${Math.min(100, avg * 450)}%`;
         const settingVuBar = document.getElementById('settingVuBar');
@@ -1537,44 +1553,22 @@ class TacticalMeshDesktop {
 
         if (!this.isCalling && !this.isPttActive) return;
 
-        // Lossless studio fidelity: convert directly to 16-bit PCM with soft-knee limiting into ring buffer
-        if (Math.abs(ratio - 1.0) < 0.001) {
-          for (let i = 0; i < inputData.length; i++) {
-            let s = inputData[i] * gain;
-            s = s < -1.0 ? -1.0 : (s > 1.0 ? 1.0 : s);
-            const val = s < 0 ? s * 0x8000 : s * 0x7FFF;
-            ringBuffer[ringWrite] = val;
-            ringWrite = (ringWrite + 1) % RING_SIZE;
-          }
-        } else {
-          // Accurate fractional phase interpolation if native device rate differs
-          let pos = resamplePhase;
-          while (pos < inputData.length) {
-            const i0 = Math.floor(pos);
-            const frac = pos - i0;
-            const i1 = Math.min(i0 + 1, inputData.length - 1);
-            let s = (inputData[i0] * (1 - frac) + inputData[i1] * frac) * gain;
-            s = s < -1.0 ? -1.0 : (s > 1.0 ? 1.0 : s);
-            const val = s < 0 ? s * 0x8000 : s * 0x7FFF;
-            ringBuffer[ringWrite] = val;
-            ringWrite = (ringWrite + 1) % RING_SIZE;
-            pos += ratio;
-          }
-          resamplePhase = pos - inputData.length;
-          if (resamplePhase < 0 || resamplePhase > ratio) resamplePhase = 0;
+        // Instant direct PCM packetization with zero buffer lag
+        const outPacket = new Uint8Array(4 + numSamples * 2);
+        outPacket[0] = 0xAA;
+        outPacket[1] = 0x55;
+        outPacket[2] = (actualSampleRate >> 8) & 0xFF;
+        outPacket[3] = actualSampleRate & 0xFF;
+
+        const outPcm = new Int16Array(outPacket.buffer, 4, numSamples);
+        for (let i = 0; i < numSamples; i++) {
+          let s = inputData[i] * gain;
+          if (s > 1.0) s = 1.0;
+          else if (s < -1.0) s = -1.0;
+          outPcm[i] = s < 0 ? (s * 0x8000) : (s * 0x7FFF);
         }
 
-        // Emit exact 10ms frames directly with zero dynamic allocation
-        let available = (ringWrite - ringRead + RING_SIZE) % RING_SIZE;
-        while (available >= FRAME_SAMPLES) {
-          for (let i = 0; i < FRAME_SAMPLES; i++) {
-            outPcmInt16[i] = ringBuffer[ringRead];
-            ringRead = (ringRead + 1) % RING_SIZE;
-          }
-          available -= FRAME_SAMPLES;
-
-          this.sendAudioBuffer(outPacket.slice(0));
-        }
+        this.sendAudioBuffer(outPacket);
       };
 
       // Silent sink node so processor runs continuously without local speaker feedback
@@ -1587,14 +1581,14 @@ class TacticalMeshDesktop {
       this.sourceNode = source;
       this.silentGainNode = silentGain;
 
-      // Local loopback monitor node for microphone testing
+      // Local loopback monitor node for microphone testing (strictly 0 unless testing)
       const monitorGain = this.audioCtx.createGain();
-      monitorGain.gain.value = this.isTestingMic ? 0.9 : 0;
+      monitorGain.gain.value = this.isTestingMic ? 0.85 : 0;
       source.connect(monitorGain);
       monitorGain.connect(this.audioCtx.destination);
       this.monitorGainNode = monitorGain;
 
-      this.log(`[Microphone] 🎙️ Ultra Low-Latency Studio HD audio capture active (${targetSampleRate}Hz)`);
+      this.log(`[Microphone] 🎙️ Zero-Latency Ultra-Fast Voice active (${actualSampleRate}Hz • 5ms)`);
     } catch (e) {
       this.log(`❌ Microphone access error: ${e.message}`);
       console.error('[Microphone Access Error]', e);
@@ -1627,45 +1621,46 @@ class TacticalMeshDesktop {
   }
 
   async playAudioFrame(uint8Frame) {
-    if (!uint8Frame || uint8Frame.length < 6) return;
+    // STRICT FRAME VALIDATION: Must have Sharp-Bose audio magic header [0xAA, 0x55]
+    if (!uint8Frame || uint8Frame.length < 8) return;
+    if (uint8Frame[0] !== 0xAA || uint8Frame[1] !== 0x55) return;
+
+    // Suppress local acoustic loopback during active PTT transmission
+    if (this.isPttActive) return;
 
     try {
-      await this.initAudioContext();
-      if (!this.audioCtx) return;
-      if (this.audioCtx.state === 'suspended') {
-        try { await this.audioCtx.resume(); } catch (e) {}
+      const audioCtx = await this.initAudioContext();
+      if (!audioCtx) return;
+      if (audioCtx.state === 'suspended') {
+        try { await audioCtx.resume(); } catch (e) {}
       }
 
-      let pcmBytes = uint8Frame;
-      let senderRate = 48000;
-      if (uint8Frame[0] === 0xAA && uint8Frame[1] === 0x55 && uint8Frame.length >= 4) {
-        senderRate = ((uint8Frame[2] & 0xFF) << 8) | (uint8Frame[3] & 0xFF);
-        pcmBytes = uint8Frame.subarray(4);
-      }
+      const senderRate = ((uint8Frame[2] & 0xFF) << 8) | (uint8Frame[3] & 0xFF);
+      const safeRate = (senderRate >= 8000 && senderRate <= 96000) ? senderRate : (audioCtx.sampleRate || 48000);
 
+      const pcmBytes = uint8Frame.subarray(4);
       const numSamples = Math.floor(pcmBytes.byteLength / 2);
       if (numSamples <= 0) return;
 
       const float32 = new Float32Array(numSamples);
       const dataView = new DataView(pcmBytes.buffer, pcmBytes.byteOffset, pcmBytes.byteLength);
+
       for (let i = 0; i < numSamples; i++) {
         float32[i] = dataView.getInt16(i * 2, true) / 32768.0;
       }
 
-      const safeRate = (senderRate >= 8000 && senderRate <= 96000) ? senderRate : 48000;
-      const audioBuffer = this.audioCtx.createBuffer(1, numSamples, safeRate);
+      const audioBuffer = audioCtx.createBuffer(1, numSamples, safeRate);
       audioBuffer.getChannelData(0).set(float32);
 
-      const source = this.audioCtx.createBufferSource();
+      const source = audioCtx.createBufferSource();
       source.buffer = audioBuffer;
-      source.connect(this.audioCtx.destination);
+      source.connect(audioCtx.destination);
 
-      const currentTime = this.audioCtx.currentTime;
-      const JITTER_BUFFER_SEC = 0.005; // 5ms instant DAC hardware dispatch (zero perceptual latency)
+      const currentTime = audioCtx.currentTime;
 
-      // Instantaneous resync: if gap > 40ms or backlog > 60ms, smoothly anchor to immediate timeline
-      if (!this.nextAudioPlayTime || (currentTime - this.nextAudioPlayTime > 0.040) || (this.nextAudioPlayTime - currentTime > 0.060)) {
-        this.nextAudioPlayTime = currentTime + JITTER_BUFFER_SEC;
+      // Clean Low-Latency Hardware Playout Anchor: Prevents gaps and eliminates IIR clicking
+      if (!this.nextAudioPlayTime || currentTime > this.nextAudioPlayTime || (this.nextAudioPlayTime - currentTime > 0.025)) {
+        this.nextAudioPlayTime = currentTime + 0.005;
       }
 
       const scheduleTime = Math.max(currentTime, this.nextAudioPlayTime);
